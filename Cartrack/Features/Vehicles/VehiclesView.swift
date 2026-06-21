@@ -46,8 +46,7 @@ struct VehiclesView: View {
 
     private func deleteVehicles(offsets: IndexSet) {
         for index in offsets {
-            modelContext.delete(vehicles[index])
+            try? EventDeletionService.delete(vehicle: vehicles[index], context: modelContext)
         }
-        try? modelContext.save()
     }
 }
