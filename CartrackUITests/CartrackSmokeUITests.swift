@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class CartrackSmokeUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -49,6 +50,26 @@ final class CartrackSmokeUITests: XCTestCase {
 
         app.tabBars.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Agrega tu primer vehiculo"].waitForExistence(timeout: 5))
+    }
+
+    func testCreateAndDeleteMonthlyAdjustment() throws {
+        let app = launchApp()
+
+        createVehicle(in: app)
+
+        app.tabBars.buttons["Dashboard"].tap()
+        app.buttons["dashboard.adjustment.open"].tap()
+
+        type("25", into: app.textFields["adjustment.kilometers"])
+        app.buttons["adjustment.save"].tap()
+
+        XCTAssertTrue(app.staticTexts["25 km"].waitForExistence(timeout: 5))
+
+        app.buttons["dashboard.adjustment.open"].tap()
+        app.buttons["adjustment.delete"].tap()
+        app.buttons["adjustment.delete.confirm"].firstMatch.tap()
+
+        XCTAssertTrue(app.staticTexts["0 km"].waitForExistence(timeout: 5))
     }
 
     private func launchApp() -> XCUIApplication {

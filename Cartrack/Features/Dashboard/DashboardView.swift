@@ -116,6 +116,7 @@ struct DashboardView: View {
                     secondary: "Incluye ajustes manuales del mes",
                     tint: .blue
                 )
+                .accessibilityIdentifier("dashboard.distance")
                 MetricCard(
                     title: "Rendimiento",
                     primary: CartrackFormatters.decimal(kmPerGallon, suffix: "km/gal"),
@@ -138,6 +139,7 @@ struct DashboardView: View {
                 isShowingAdjustment = true
             }
             .buttonStyle(.bordered)
+            .accessibilityIdentifier("dashboard.adjustment.open")
         }
     }
 
