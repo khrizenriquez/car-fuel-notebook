@@ -1,0 +1,33 @@
+.DS_Store
+
+# Xcode / SwiftPM build products
+DerivedData/
+.build/
+.swiftpm/
+*.xcresult
+*.xccovreport
+*.xccovarchive
+*.moved-aside
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# User-specific Xcode workspace state
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Local app data exports or accidental debug copies
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+Application Support/
+Documents/
+Captures/
+Invoices/
+Odometer/
+FuelLevel/
+
+# Secrets should never be needed for v1, but keep common local files out.
+.env
+.env.*

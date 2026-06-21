@@ -1,0 +1,58 @@
+name: iOS CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core Coverage
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run strict core coverage gate
+        run: Scripts/check_core_coverage.sh 90
+
+  ios:
+    name: iPhone App Tests
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Show available iOS simulators
+        run: xcrun simctl list devices available
+
+      - name: Run app, integration, and UI tests
+        run: |
+          destination="$(Scripts/select_ios_simulator.sh)"
+          echo "Using simulator destination: ${destination}"
+          xcodebuild \
+            -project Cartrack.xcodeproj \
+            -scheme Cartrack \
+            -destination "${destination}" \
+            -enableCodeCoverage YES \
+            CODE_SIGNING_ALLOWED=NO \
+            test
