@@ -25,6 +25,14 @@ final class CartrackSmokeUITests: XCTestCase {
         app.tabBars.buttons["Historial"].tap()
         XCTAssertTrue(app.staticTexts["Llenado"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Snapshot"].waitForExistence(timeout: 5))
+
+        app.buttons["history.snapshot.row"].tap()
+        let fuelLevelValue = app.staticTexts["snapshot.fuelLevel.value"]
+        XCTAssertTrue(fuelLevelValue.waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            fuelLevelValue.label.contains("6.5") || fuelLevelValue.label.contains("6,5"),
+            "Expected saved fuel level to include 6.5, got: \(fuelLevelValue.label)"
+        )
     }
 
     func testEditFillUpThenResetAllData() throws {
@@ -117,6 +125,11 @@ final class CartrackSmokeUITests: XCTestCase {
 
         type("123620", into: app.textFields["snapshot.odometer"])
         type("164.0", into: app.textFields["snapshot.trip"])
+        let decrementFuelLevel = app.buttons["snapshot.fuelLevel.decrement"]
+        XCTAssertTrue(decrementFuelLevel.waitForExistence(timeout: 5))
+        for _ in 0..<6 {
+            decrementFuelLevel.tap()
+        }
         app.buttons["snapshot.save"].tap()
     }
 

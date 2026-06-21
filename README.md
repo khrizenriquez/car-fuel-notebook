@@ -50,7 +50,9 @@ xcodebuild -project Cartrack.xcodeproj -scheme Cartrack -destination "$destinati
 
 Latest local result: `TEST SUCCEEDED`.
 
-Current smoke UI coverage includes creating a vehicle, opening capture, saving a fill-up, saving a snapshot, editing a fill-up, creating/deleting a monthly manual adjustment, and confirming full Settings reset.
+Current smoke UI coverage includes creating a vehicle, opening capture, saving a fill-up, saving a snapshot with exact `6.5` fuel spaces through quarter-step correction, editing a fill-up, creating/deleting a monthly manual adjustment, and confirming full Settings reset.
+
+Fuel-level capture supports exact correction with a text field, `0.25` step buttons, and a slider. The canonical stored value remains `spaces remaining`.
 
 Vehicle deletion is explicit in app data semantics: deleting a vehicle also removes its fill-ups, snapshots, monthly manual adjustments, image asset records, and owned image files.
 

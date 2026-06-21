@@ -18,6 +18,7 @@
 		3234421CBC530A369C96B1CD /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0E6DD9BF5CC5DCB908617C5 /* DashboardView.swift */; };
 		3338A17F96961ECCCA7DA5F8 /* OCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B68F3DB8A65C8315B9EDCC /* OCRService.swift */; };
 		3A3D15E12EAEBCD8D8DB12C9 /* CartrackApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A6690A25315351038C48DB /* CartrackApp.swift */; };
+		48824FA8195726E55A271191 /* FuelLevelInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA857B0C338F6B5B6D4E586 /* FuelLevelInputView.swift */; };
 		4DC033EC45B939FECE408E63 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E569B66EB1B5482CE171B57C /* SettingsView.swift */; };
 		5750F0AFA0F9A6C13EA601BC /* ImageAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCEAC704F14E62D3EFB01E6F /* ImageAsset.swift */; };
 		5CF142A2E92BA0E0E3D7DB97 /* PersistenceIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27D40BB18EE139CB1D48E486 /* PersistenceIntegrationTests.swift */; };
@@ -110,6 +111,7 @@
 		E276327027964F1575207C55 /* MonthlyAdjustmentEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyAdjustmentEditor.swift; sourceTree = "<group>"; };
 		E53F3A235432499EA5F840B7 /* Cartrack.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cartrack.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E569B66EB1B5482CE171B57C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		EAA857B0C338F6B5B6D4E586 /* FuelLevelInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelLevelInputView.swift; sourceTree = "<group>"; };
 		EAC67059E7304A352994AD94 /* FuelLevelScale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelLevelScale.swift; sourceTree = "<group>"; };
 		EB92124F8048F484E739D4AE /* Date+Cartrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Cartrack.swift"; sourceTree = "<group>"; };
 		F2FCC53AFCBA3EF9B54845F2 /* ResetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetService.swift; sourceTree = "<group>"; };
@@ -201,6 +203,7 @@
 			isa = PBXGroup;
 			children = (
 				D646974EC3B0DEAA2985C734 /* EmptyStateView.swift */,
+				EAA857B0C338F6B5B6D4E586 /* FuelLevelInputView.swift */,
 				98A3E24FC1A3ACA6E2E344B2 /* ImageCaptureField.swift */,
 				6D0D4DDF1378FE286FF2F8E8 /* ImagePickerView.swift */,
 				06D942DBE88E36805F515D3C /* MetricCard.swift */,
@@ -401,6 +404,7 @@
 				1180B3C13BD3D7747670B211 /* FillUpFormView.swift in Sources */,
 				AFB36334199BADEDA4DA4A93 /* Formatters.swift in Sources */,
 				69DBAF56A0168985DD5FDA2B /* FuelFillEvent.swift in Sources */,
+				48824FA8195726E55A271191 /* FuelLevelInputView.swift in Sources */,
 				673C196DC5571D92AFD6395F /* FuelLevelScale.swift in Sources */,
 				2628F3A051233D2D123E81BD /* HistoryView.swift in Sources */,
 				5750F0AFA0F9A6C13EA601BC /* ImageAsset.swift in Sources */,

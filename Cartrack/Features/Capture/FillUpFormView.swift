@@ -85,18 +85,13 @@ struct FillUpFormView: View {
                     .accessibilityIdentifier("fill.total")
                 TextField("Gasolinera o nota corta", text: $stationName)
                     .accessibilityIdentifier("fill.station")
-                VStack(alignment: .leading) {
-                    HStack {
-                        Text("Espacios restantes")
-                        Spacer()
-                        Text(CartrackFormatters.decimal(fuelLevelRemaining))
-                    }
-                    Slider(
-                        value: $fuelLevelRemaining,
-                        in: 0...(selectedVehicle?.fuelScaleMax ?? FuelLevelScale.defaultMax),
-                        step: selectedVehicle?.fuelScaleStep ?? FuelLevelScale.defaultStep
-                    )
-                }
+                FuelLevelInputView(
+                    title: "Espacios restantes",
+                    maxValue: selectedVehicle?.fuelScaleMax ?? FuelLevelScale.defaultMax,
+                    step: selectedVehicle?.fuelScaleStep ?? FuelLevelScale.defaultStep,
+                    accessibilityPrefix: "fill",
+                    value: $fuelLevelRemaining
+                )
                 TextField("Notas", text: $notes, axis: .vertical)
                     .accessibilityIdentifier("fill.notes")
             }
