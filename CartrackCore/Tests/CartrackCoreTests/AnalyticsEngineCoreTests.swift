@@ -174,6 +174,30 @@ final class AnalyticsEngineCoreTests: XCTestCase {
         XCTAssertEqual(status.estimatedFuelCostConsumed ?? 0, 112, accuracy: 0.001)
     }
 
+    func testCurrentTankStatusIgnoresSnapshotsBeforeLatestFill() {
+        let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
+        let firstFill = fill(vehicle: vehicle, day: 1, odometer: 1_000, gallons: 10, total: 300)
+        let staleSnapshot = SnapshotEvent(
+            date: date(day: 8),
+            vehicle: vehicle,
+            odometerKilometers: 1_180,
+            fuelLevelRemaining: 2
+        )
+        let secondFill = fill(vehicle: vehicle, day: 10, odometer: 1_250, gallons: 10, total: 350)
+
+        let status = AnalyticsEngine.currentTankStatus(
+            fills: [firstFill, secondFill],
+            snapshots: [staleSnapshot],
+            vehicleID: vehicle.id,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(status.latestFill?.id, secondFill.id)
+        XCTAssertEqual(status.latestReadingDate, secondFill.date)
+        XCTAssertEqual(status.distanceKilometers, 0, accuracy: 0.001)
+        XCTAssertEqualOptional(status.spacesRemaining, FuelLevelScale.defaultMax, accuracy: 0.001)
+    }
+
     func testCurrentTankStatusHandlesNoFillEvents() {
         let status = AnalyticsEngine.currentTankStatus(fills: [], snapshots: [], vehicleID: UUID(), calendar: calendar)
 

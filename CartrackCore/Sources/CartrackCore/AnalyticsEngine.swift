@@ -173,7 +173,7 @@ enum AnalyticsEngine {
         }
 
         let scopedSnapshots = snapshots
-            .filter { $0.vehicle?.id == vehicleID }
+            .filter { $0.vehicle?.id == vehicleID && $0.date >= latestFill.date }
             .sorted { $0.date < $1.date }
 
         let latestSnapshot = scopedSnapshots.last
