@@ -49,6 +49,7 @@ struct SnapshotFormView: View {
                         Text(vehicle.displayName).tag(Optional(vehicle.id))
                     }
                 }
+                .accessibilityIdentifier("snapshot.vehicle.picker")
             }
 
             Section("Lectura") {

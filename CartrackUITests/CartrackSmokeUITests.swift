@@ -80,9 +80,31 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["0 km"].waitForExistence(timeout: 5))
     }
 
-    private func launchApp() -> XCUIApplication {
+    func testMultiVehicleFilteringAcrossDashboardCaptureAndHistory() throws {
+        let app = launchApp(extraArguments: ["--seed-multivehicle"])
+        let bmw = "Roadster BMW Z4 2003"
+        let toyota = "Commuter Toyota Yaris 2020"
+
+        app.tabBars.buttons["Dashboard"].tap()
+        XCTAssertTrue(waitForStaticText(containing: "420.00", in: app))
+
+        selectVehicle(toyota, in: app, pickerIdentifier: "vehicle.filter.picker")
+        XCTAssertTrue(waitForStaticText(containing: "700.00", in: app))
+
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.fillup"].tap()
+        selectVehicle(toyota, in: app, pickerIdentifier: "fill.vehicle.picker")
+        XCTAssertTrue(app.buttons["fill.vehicle.picker"].label.contains(toyota))
+
+        app.tabBars.buttons["Historial"].tap()
+        selectVehicle(toyota, in: app, pickerIdentifier: "vehicle.filter.picker")
+        XCTAssertTrue(app.staticTexts[toyota].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts[bmw].exists)
+    }
+
+    private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitesting"]
+        app.launchArguments = ["--uitesting"] + extraArguments
         app.launch()
         return app
     }
@@ -146,5 +168,26 @@ final class CartrackSmokeUITests: XCTestCase {
             field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))
         }
         field.typeText(text)
+    }
+
+    private func selectVehicle(_ vehicleName: String, in app: XCUIApplication, pickerIdentifier: String) {
+        let picker = app.buttons[pickerIdentifier].firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), "Missing picker: \(pickerIdentifier)")
+        picker.tap()
+
+        let buttonOption = app.buttons[vehicleName].firstMatch
+        if buttonOption.waitForExistence(timeout: 2) {
+            buttonOption.tap()
+            return
+        }
+
+        let textOption = app.staticTexts[vehicleName].firstMatch
+        XCTAssertTrue(textOption.waitForExistence(timeout: 5), "Missing vehicle option: \(vehicleName)")
+        textOption.tap()
+    }
+
+    private func waitForStaticText(containing text: String, in app: XCUIApplication) -> Bool {
+        let predicate = NSPredicate(format: "label CONTAINS %@", text)
+        return app.staticTexts.containing(predicate).firstMatch.waitForExistence(timeout: 5)
     }
 }

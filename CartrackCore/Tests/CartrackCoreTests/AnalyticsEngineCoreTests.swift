@@ -35,6 +35,47 @@ final class AnalyticsEngineCoreTests: XCTestCase {
         XCTAssertEqual(AnalyticsEngine.tankCycles(fills: fills, vehicleID: other.id).count, 1)
     }
 
+    func testMonthlySummariesKeepVehicleDataSeparated() {
+        let bmw = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
+        let other = Vehicle(name: "Other", make: "Toyota", modelName: "Yaris", year: 2020)
+        let fills = [
+            fill(vehicle: bmw, day: 1, odometer: 1_000, gallons: 10, total: 300),
+            fill(vehicle: bmw, day: 10, odometer: 1_240, gallons: 12, total: 420),
+            fill(vehicle: other, day: 2, odometer: 5_000, gallons: 18, total: 540),
+            fill(vehicle: other, day: 11, odometer: 5_500, gallons: 20, total: 700),
+        ]
+        let adjustments = [
+            MonthlyManualAdjustment(monthStart: date(month: 6, day: 1), vehicle: bmw, manualDistanceKilometers: 25),
+            MonthlyManualAdjustment(monthStart: date(month: 6, day: 1), vehicle: other, manualDistanceKilometers: 90),
+        ]
+
+        let bmwSummary = AnalyticsEngine.monthlySummaries(
+            fills: fills,
+            adjustments: adjustments,
+            vehicleID: bmw.id,
+            mode: .finalFillMonth,
+            calendar: calendar
+        ).first
+        let otherSummary = AnalyticsEngine.monthlySummaries(
+            fills: fills,
+            adjustments: adjustments,
+            vehicleID: other.id,
+            mode: .finalFillMonth,
+            calendar: calendar
+        ).first
+
+        XCTAssertEqualOptional(bmwSummary?.distanceKilometers, 240, accuracy: 0.001)
+        XCTAssertEqualOptional(bmwSummary?.manualDistanceKilometers, 25, accuracy: 0.001)
+        XCTAssertEqualOptional(bmwSummary?.totalDistanceKilometers, 265, accuracy: 0.001)
+        XCTAssertEqualOptional(bmwSummary?.spend, 420, accuracy: 0.001)
+        XCTAssertEqualOptional(bmwSummary?.gallons, 12, accuracy: 0.001)
+        XCTAssertEqualOptional(bmwSummary?.kmPerGallon, 265.0 / 12.0, accuracy: 0.001)
+        XCTAssertEqualOptional(otherSummary?.distanceKilometers, 500, accuracy: 0.001)
+        XCTAssertEqualOptional(otherSummary?.manualDistanceKilometers, 90, accuracy: 0.001)
+        XCTAssertEqualOptional(otherSummary?.spend, 700, accuracy: 0.001)
+        XCTAssertEqualOptional(otherSummary?.gallons, 20, accuracy: 0.001)
+    }
+
     func testFinalFillMonthAllocationPutsCycleInClosingMonth() {
         let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
         let firstFill = fill(vehicle: vehicle, month: 6, day: 20, odometer: 1_000, gallons: 10, total: 350)
@@ -172,6 +213,38 @@ final class AnalyticsEngineCoreTests: XCTestCase {
         XCTAssertEqualOptional(status.spacesRemaining, 6, accuracy: 0.001)
         XCTAssertEqual(status.estimatedAutonomyKilometers ?? 0, 187.5, accuracy: 0.001)
         XCTAssertEqual(status.estimatedFuelCostConsumed ?? 0, 112, accuracy: 0.001)
+    }
+
+    func testCurrentTankStatusIgnoresOtherVehicleSnapshotsAndFills() {
+        let bmw = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
+        let other = Vehicle(name: "Other", make: "Toyota", modelName: "Yaris", year: 2020)
+        let bmwFirstFill = fill(vehicle: bmw, day: 1, odometer: 1_000, gallons: 10, total: 300)
+        let bmwSecondFill = fill(vehicle: bmw, day: 10, odometer: 1_250, gallons: 10, total: 350)
+        let otherFill = fill(vehicle: other, day: 20, odometer: 8_000, gallons: 20, total: 700)
+        let bmwSnapshot = SnapshotEvent(
+            date: date(day: 12),
+            vehicle: bmw,
+            odometerKilometers: 1_330,
+            fuelLevelRemaining: 6
+        )
+        let otherSnapshot = SnapshotEvent(
+            date: date(day: 21),
+            vehicle: other,
+            odometerKilometers: 8_600,
+            fuelLevelRemaining: 0.5
+        )
+
+        let status = AnalyticsEngine.currentTankStatus(
+            fills: [bmwFirstFill, bmwSecondFill, otherFill],
+            snapshots: [bmwSnapshot, otherSnapshot],
+            vehicleID: bmw.id,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(status.latestFill?.id, bmwSecondFill.id)
+        XCTAssertEqual(status.latestReadingDate, bmwSnapshot.date)
+        XCTAssertEqual(status.distanceKilometers, 80, accuracy: 0.001)
+        XCTAssertEqualOptional(status.spacesRemaining, 6, accuracy: 0.001)
     }
 
     func testCurrentTankStatusIgnoresSnapshotsBeforeLatestFill() {

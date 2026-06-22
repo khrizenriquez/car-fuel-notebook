@@ -12,5 +12,6 @@ struct VehicleFilterPicker: View {
             }
         }
         .pickerStyle(.menu)
+        .accessibilityIdentifier("vehicle.filter.picker")
     }
 }

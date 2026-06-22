@@ -81,6 +81,8 @@ Cartrack is a single-user, iPhone-only, local-first fuel tracking app. It captur
 - Done: fill-up and snapshot fuel-level correction supports text entry, quarter-step buttons, and slider input while storing exact normalized `spaces remaining` values such as `6.5`.
 - Done: editing a fill-up or snapshot preserves any existing event coordinate when no fresh location reading is available, while preferring a complete new coordinate when present.
 - Done: current tank analytics ignore stale snapshots captured before the latest fill-up, so a new fill-up resets tank progress and fuel-level reference.
+- Done: core analytics coverage verifies monthly summaries, manual adjustments, tank cycles, and current tank status stay separated by vehicle when multiple cars have data.
+- Done: smoke UI coverage verifies switching between multiple vehicles across dashboard filtering, capture vehicle selection, and history filtering.
 - Done: inactivity reminders now respect the enabled/disabled Settings preference, cancel when disabled, and reset after each new fill-up or snapshot capture; app-unit coverage verifies scheduling behavior without touching real notifications.
 - Done: launch hardening now shows a persistence error screen instead of terminating if SwiftData initialization fails.
 - Done: dashboard includes a current-month closing projection based on elapsed-day pace.

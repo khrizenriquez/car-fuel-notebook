@@ -64,6 +64,7 @@ struct FillUpFormView: View {
                         Text(vehicle.displayName).tag(Optional(vehicle.id))
                     }
                 }
+                .accessibilityIdentifier("fill.vehicle.picker")
             }
 
             Section("Datos") {

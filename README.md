@@ -24,7 +24,7 @@ Run the same tests without enforcing coverage:
 swift test --enable-code-coverage
 ```
 
-Current verified core line coverage: `94.30%`.
+Current verified core line coverage: `94.63%`.
 
 Run the full local quality gate:
 
@@ -50,13 +50,15 @@ xcodebuild -project Cartrack.xcodeproj -scheme Cartrack -destination "$destinati
 
 Latest local result: `TEST SUCCEEDED`.
 
-Current smoke UI coverage includes creating a vehicle, opening capture, saving a fill-up, saving a snapshot with exact `6.5` fuel spaces through quarter-step correction, editing a fill-up, creating/deleting a monthly manual adjustment, and confirming full Settings reset.
+Current smoke UI coverage includes creating a vehicle, opening capture, saving a fill-up, saving a snapshot with exact `6.5` fuel spaces through quarter-step correction, switching between multiple vehicles across dashboard/capture/history, editing a fill-up, creating/deleting a monthly manual adjustment, and confirming full Settings reset.
 
 Fuel-level capture supports exact correction with a text field, `0.25` step buttons, and a slider. The canonical stored value remains `spaces remaining`.
 
 OCR prefill coverage uses an injectable text recognizer so parser behavior is tested without depending on real camera/Vision output.
 
 Current-tank analytics only use snapshots captured on or after the latest fill-up, so stale fuel-level photos from the previous tank cannot override a fresh full-tank reading.
+
+Core analytics and smoke UI coverage verify that monthly summaries, manual monthly adjustments, current tank status, tank cycles, dashboard filtering, capture vehicle selection, and history filtering stay separated by vehicle when more than one car has data.
 
 Event location updates preserve an existing saved coordinate when editing without a fresh location reading, preventing accidental loss of captured context.
 
