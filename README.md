@@ -49,7 +49,7 @@ Scripts/setup_private_remote.sh git@github.com:<owner>/<private-repo>.git
 After the first private push, verify the latest GitHub Actions run:
 
 ```bash
-Scripts/check_remote_ci.sh
+Scripts/check_remote_ci.sh --wait
 ```
 
 ## iOS Verification

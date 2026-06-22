@@ -6,6 +6,24 @@ cd "$ROOT_DIR"
 
 branch="main"
 workflow="ios-ci.yml"
+wait_for_completion="false"
+timeout_seconds="900"
+poll_interval="15"
+
+usage() {
+  cat <<'USAGE'
+Usage: Scripts/check_remote_ci.sh [--branch main] [--workflow ios-ci.yml] [--wait] [--timeout-seconds 900] [--poll-interval 15]
+
+Checks the latest GitHub Actions run and verifies Core Coverage plus iPhone App Tests are green.
+
+Options:
+  --branch NAME             Branch to inspect. Defaults to main.
+  --workflow FILE           Workflow file/name to inspect. Defaults to ios-ci.yml.
+  --wait                    Poll until the latest run completes or times out.
+  --timeout-seconds VALUE   Maximum wait time for --wait. Defaults to 900.
+  --poll-interval VALUE     Seconds between polls for --wait. Defaults to 15.
+USAGE
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -25,13 +43,32 @@ while [[ $# -gt 0 ]]; do
       }
       shift
       ;;
+    --wait)
+      wait_for_completion="true"
+      ;;
+    --timeout-seconds)
+      timeout_seconds="${2:-}"
+      [[ "$timeout_seconds" =~ ^[0-9]+$ && "$timeout_seconds" -gt 0 ]] || {
+        echo "Missing or invalid value for --timeout-seconds" >&2
+        exit 2
+      }
+      shift
+      ;;
+    --poll-interval)
+      poll_interval="${2:-}"
+      [[ "$poll_interval" =~ ^[0-9]+$ && "$poll_interval" -gt 0 ]] || {
+        echo "Missing or invalid value for --poll-interval" >&2
+        exit 2
+      }
+      shift
+      ;;
     -h|--help)
-      echo "Usage: Scripts/check_remote_ci.sh [--branch main] [--workflow ios-ci.yml]"
+      usage
       exit 0
       ;;
     *)
       echo "Unknown option: $1" >&2
-      echo "Usage: Scripts/check_remote_ci.sh [--branch main] [--workflow ios-ci.yml]" >&2
+      usage >&2
       exit 2
       ;;
   esac
@@ -53,61 +90,65 @@ gh auth status >/dev/null 2>&1 || fail "GitHub CLI is not authenticated. Run gh 
 
 info "Checking latest ${workflow} run on branch ${branch}"
 
-run_json="$(
-  gh run list \
-    --workflow "$workflow" \
-    --branch "$branch" \
-    --limit 1 \
-    --json databaseId,status,conclusion,url,headSha
-)"
+start_epoch="$(date +%s)"
 
-run_id="$(
-  python3 - "$run_json" <<'PY'
+while true; do
+  run_json="$(
+    gh run list \
+      --workflow "$workflow" \
+      --branch "$branch" \
+      --limit 1 \
+      --json databaseId,status,conclusion,url,headSha
+  )"
+
+  run_summary="$(
+    python3 - "$run_json" <<'PY'
 import json
 import sys
 
 runs = json.loads(sys.argv[1])
 if not runs:
-    raise SystemExit(1)
-print(runs[0]["databaseId"])
+    print("__missing__\tmissing\t\t")
+else:
+    run = runs[0]
+    print("\t".join([
+        str(run["databaseId"]),
+        run["status"],
+        run.get("conclusion") or "",
+        run["url"],
+    ]))
 PY
-)" || fail "No workflow run found for ${workflow} on branch ${branch}."
+  )"
 
-run_status="$(
-  python3 - "$run_json" <<'PY'
-import json
-import sys
+  IFS=$'\t' read -r run_id run_status run_conclusion run_url <<< "$run_summary"
 
-run = json.loads(sys.argv[1])[0]
-print(run["status"])
-PY
-)"
+  if [[ "$run_status" == "completed" ]]; then
+    break
+  fi
 
-run_conclusion="$(
-  python3 - "$run_json" <<'PY'
-import json
-import sys
+  if [[ "$wait_for_completion" != "true" ]]; then
+    if [[ "$run_id" == "__missing__" ]]; then
+      fail "No workflow run found for ${workflow} on branch ${branch}."
+    fi
+    fail "Latest workflow run is ${run_status}, not completed yet."
+  fi
 
-run = json.loads(sys.argv[1])[0]
-print(run.get("conclusion") or "")
-PY
-)"
+  now_epoch="$(date +%s)"
+  elapsed=$((now_epoch - start_epoch))
+  if [[ "$elapsed" -ge "$timeout_seconds" ]]; then
+    fail "Timed out after ${timeout_seconds}s waiting for ${workflow} on ${branch}. Last status: ${run_status}."
+  fi
 
-run_url="$(
-  python3 - "$run_json" <<'PY'
-import json
-import sys
+  if [[ "$run_id" == "__missing__" ]]; then
+    info "No workflow run found yet. Waiting ${poll_interval}s..."
+  else
+    info "Run ${run_id} is ${run_status}. Waiting ${poll_interval}s..."
+  fi
 
-run = json.loads(sys.argv[1])[0]
-print(run["url"])
-PY
-)"
+  sleep "$poll_interval"
+done
 
 info "Run URL: ${run_url}"
-
-if [[ "$run_status" != "completed" ]]; then
-  fail "Latest workflow run is ${run_status}, not completed yet."
-fi
 
 if [[ "$run_conclusion" != "success" ]]; then
   fail "Latest workflow conclusion is ${run_conclusion:-unknown}, expected success."
