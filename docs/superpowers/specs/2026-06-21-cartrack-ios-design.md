@@ -96,15 +96,16 @@ Cartrack is a single-user, iPhone-only, local-first fuel tracking app. It captur
 - Done: private GitHub publish runbook and local publish preflight added for safety checks before the first remote push.
 - Done: v1 readiness audit added to map each requirement to current evidence and separate local completion from external follow-ups.
 - Done: remote CI review helper added to verify the first GitHub Actions run after the private push.
+- Done: private remote setup helper added to reduce mistakes when attaching the first GitHub remote.
 
 ## Remaining V1 Checklist
 - Add additional sanitized OCR transcript fixtures as actual invoices and photos become available.
-- Push to a private GitHub remote, run `Scripts/preflight_publish.sh --require-remote`, and verify the first remote GitHub Actions run with `Scripts/check_remote_ci.sh`.
+- Create a private GitHub remote, attach it with `Scripts/setup_private_remote.sh`, push, and verify the first remote GitHub Actions run with `Scripts/check_remote_ci.sh`.
 - Keep improving dashboard insights after real driving data accumulates.
 
 ## Recommended Execution Order
 1. Run `Scripts/verify_local.sh` and `Scripts/preflight_publish.sh`.
-2. Create a private GitHub remote, add it as `origin`, and run `Scripts/preflight_publish.sh --require-remote`.
+2. Create a private GitHub remote and attach it as `origin` with `Scripts/setup_private_remote.sh <remote-url>`.
 3. Push the initialized repository to the private remote.
 4. Review the first GitHub Actions run with `Scripts/check_remote_ci.sh` and adjust runner/runtime only if needed.
 5. Add additional sanitized OCR fixtures from real-world evidence.

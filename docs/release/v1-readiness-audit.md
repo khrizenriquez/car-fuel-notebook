@@ -10,6 +10,7 @@ This audit maps the original Cartrack v1 requirements to current evidence in the
 - Core coverage: `94.21%`, above the required `90%`
 - Publish safety gate: `Scripts/preflight_publish.sh`
 - Latest publish preflight result: passed, with expected warning that no remote is configured yet
+- Private remote setup helper: `Scripts/setup_private_remote.sh`, ready to run after creating the private GitHub repository
 - Remote CI review helper: `Scripts/check_remote_ci.sh`, ready to run after the first private push
 
 ## Requirement Evidence
@@ -37,15 +38,15 @@ This audit maps the original Cartrack v1 requirements to current evidence in the
 | Strict tests at or above 90% | Complete | `Scripts/check_core_coverage.sh 90`; latest observed coverage `94.21%`; CI workflow enforces the same command. |
 | Modular architecture for study and maintenance | Complete | `CartrackCore` domain package, app services, feature folders, ADRs, and test targets split by concern. |
 | GitHub Actions workflow ready | Complete locally | `.github/workflows/ios-ci.yml`; `Scripts/preflight_publish.sh` verifies read-only permissions, no signing, and 90% coverage gate; `Scripts/check_remote_ci.sh` can verify the first hosted run after push. First hosted run is external until remote exists. |
-| Private GitHub publishing path is safe | Complete locally | `docs/release/private-github-publish.md`; `Scripts/preflight_publish.sh`; `SECURITY.md`. |
+| Private GitHub publishing path is safe | Complete locally | `docs/release/private-github-publish.md`; `Scripts/setup_private_remote.sh`; `Scripts/preflight_publish.sh`; `SECURITY.md`. |
 | Additional real OCR hardening from actual evidence | External | Requires real invoice/odometer/fuel-level photos or Vision transcripts. Only sanitized OCR transcript text should be committed. |
 | First private remote push and remote CI review | External | Requires a private GitHub repository URL and network-side Actions execution. |
 | Dashboard insight iteration from real month-over-month data | External | Requires accumulated real driving data after app usage begins. |
 
 ## Current Remaining Work
 1. Create a private GitHub repository.
-2. Add it as `origin`.
-3. Run `Scripts/preflight_publish.sh --require-remote`.
+2. Add it as `origin` with `Scripts/setup_private_remote.sh <remote-url>`.
+3. Confirm `Scripts/preflight_publish.sh --require-remote` passes.
 4. Push `main` and run `Scripts/check_remote_ci.sh` to review the first GitHub Actions run.
 5. Add sanitized OCR transcript fixtures as real evidence becomes available.
 6. Revisit dashboard insights after real month-over-month data accumulates.

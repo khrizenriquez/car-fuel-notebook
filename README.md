@@ -40,6 +40,12 @@ Run the publish safety preflight before pushing to a remote:
 Scripts/preflight_publish.sh
 ```
 
+After creating the private GitHub repository, configure `origin` safely:
+
+```bash
+Scripts/setup_private_remote.sh git@github.com:<owner>/<private-repo>.git
+```
+
 After the first private push, verify the latest GitHub Actions run:
 
 ```bash

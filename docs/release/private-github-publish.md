@@ -22,12 +22,16 @@ Scripts/preflight_publish.sh
 Create a private empty repository on GitHub, then attach it locally:
 
 ```bash
-git remote add origin git@github.com:<owner>/<private-repo>.git
-git remote -v
-Scripts/preflight_publish.sh --require-remote
+Scripts/setup_private_remote.sh git@github.com:<owner>/<private-repo>.git
 ```
 
-If the remote was created with HTTPS instead of SSH, use the HTTPS URL from GitHub. Do not commit personal access tokens or credentials.
+If `gh` is installed and authenticated, the setup script verifies GitHub reports the repository as private before adding the remote. If you cannot use `gh`, manually confirm the repository is private and rerun with `--skip-privacy-check`.
+
+If the remote was created with HTTPS instead of SSH, use the HTTPS URL from GitHub. Do not commit personal access tokens or credentials. To preview without changing local git config:
+
+```bash
+Scripts/setup_private_remote.sh git@github.com:<owner>/<private-repo>.git --dry-run
+```
 
 ## First Push
 Push the current local history:
