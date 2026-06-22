@@ -177,7 +177,7 @@ struct SnapshotFormView: View {
             )
             try modelContext.save()
             Task {
-                await ReminderService.shared.scheduleInactivityReminder(afterHours: UserDefaults.standard.double(forKey: "settings.reminder.hours").nonZeroOrDefault(72))
+                await ReminderService.shared.captureLogged()
             }
             dismiss()
         } catch {

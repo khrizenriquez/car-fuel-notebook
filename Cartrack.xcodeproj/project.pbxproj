@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0496858D584DD653F4FA5184 /* ReminderServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB2C03887D9EA92BC4D1C2F6 /* ReminderServiceTests.swift */; };
 		05596DB61278477E06491194 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF41D98D0DCB18A741543C28 /* RootTabView.swift */; };
 		085AFC4E3D43D4C2903E6F8A /* VehicleFilterPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2112C49AAD17241AF9F6C915 /* VehicleFilterPicker.swift */; };
 		08E00C2324DC4E469ABD2AD0 /* CartrackModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8D9FF5823C3BE7335FBD9F /* CartrackModelContainer.swift */; };
@@ -102,6 +103,7 @@
 		B0A6690A25315351038C48DB /* CartrackApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartrackApp.swift; sourceTree = "<group>"; };
 		C6CA66271BDC6F4A36EDC893 /* MonthlyManualAdjustment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyManualAdjustment.swift; sourceTree = "<group>"; };
 		C8AA7FDF4351E490A949352B /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		CB2C03887D9EA92BC4D1C2F6 /* ReminderServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderServiceTests.swift; sourceTree = "<group>"; };
 		D61676CF2005658E587C15D3 /* UnitConversion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitConversion.swift; sourceTree = "<group>"; };
 		D646974EC3B0DEAA2985C734 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		D99A81DA3E37B4B08278B597 /* AnalyticsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsEngine.swift; sourceTree = "<group>"; };
@@ -274,6 +276,7 @@
 				63176E5CAB0BC256821CE983 /* FuelLevelScaleTests.swift */,
 				0DB9F73C44EA10A6F95D1453 /* IntegrationTestSupport.swift */,
 				27D40BB18EE139CB1D48E486 /* PersistenceIntegrationTests.swift */,
+				CB2C03887D9EA92BC4D1C2F6 /* ReminderServiceTests.swift */,
 			);
 			path = CartrackTests;
 			sourceTree = "<group>";
@@ -441,6 +444,7 @@
 				6B4F25329D1D4FCBA606AC85 /* FuelLevelScaleTests.swift in Sources */,
 				82BE7E917C43AB59E622F5E6 /* IntegrationTestSupport.swift in Sources */,
 				5CF142A2E92BA0E0E3D7DB97 /* PersistenceIntegrationTests.swift in Sources */,
+				0496858D584DD653F4FA5184 /* ReminderServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

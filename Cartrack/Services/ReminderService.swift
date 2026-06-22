@@ -1,20 +1,42 @@
 import Foundation
 import UserNotifications
 
+protocol ReminderNotificationCenter {
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+    func removePendingNotificationRequests(withIdentifiers identifiers: [String])
+    func add(_ request: UNNotificationRequest) async throws
+}
+
+extension UNUserNotificationCenter: ReminderNotificationCenter {}
+
 final class ReminderService: @unchecked Sendable {
     static let shared = ReminderService()
-    private let center = UNUserNotificationCenter.current()
-    private let identifier = "cartrack.inactivity.reminder"
+    private let center: ReminderNotificationCenter
+    private let identifier: String
 
-    private init() {}
+    init(
+        center: ReminderNotificationCenter = UNUserNotificationCenter.current(),
+        identifier: String = "cartrack.inactivity.reminder"
+    ) {
+        self.center = center
+        self.identifier = identifier
+    }
 
     func requestAuthorization() async {
         _ = try? await center.requestAuthorization(options: [.alert, .badge, .sound])
     }
 
-    func scheduleInactivityReminder(afterHours hours: Double) async {
+    func captureLogged(userDefaults: UserDefaults = .standard) async {
+        let enabled = userDefaults.object(forKey: "settings.reminder.enabled").map { _ in
+            userDefaults.bool(forKey: "settings.reminder.enabled")
+        } ?? true
+        let hours = userDefaults.double(forKey: "settings.reminder.hours").nonZeroOrDefault(72)
+        await refreshInactivityReminder(isEnabled: enabled, afterHours: hours)
+    }
+
+    func refreshInactivityReminder(isEnabled: Bool, afterHours hours: Double) async {
         center.removePendingNotificationRequests(withIdentifiers: [identifier])
-        guard hours > 0 else { return }
+        guard isEnabled, hours > 0 else { return }
 
         let content = UNMutableNotificationContent()
         content.title = "Cartrack"

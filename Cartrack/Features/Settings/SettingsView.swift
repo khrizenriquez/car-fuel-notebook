@@ -57,16 +57,16 @@ struct SettingsView: View {
         .onChange(of: reminderEnabled) { _, enabled in
             Task {
                 if enabled {
-                    await ReminderService.shared.scheduleInactivityReminder(afterHours: reminderHours)
+                    await ReminderService.shared.refreshInactivityReminder(isEnabled: true, afterHours: reminderHours)
                 } else {
-                    await ReminderService.shared.scheduleInactivityReminder(afterHours: 0)
+                    await ReminderService.shared.refreshInactivityReminder(isEnabled: false, afterHours: reminderHours)
                 }
             }
         }
         .onChange(of: reminderHours) { _, hours in
             Task {
                 if reminderEnabled {
-                    await ReminderService.shared.scheduleInactivityReminder(afterHours: hours)
+                    await ReminderService.shared.refreshInactivityReminder(isEnabled: true, afterHours: hours)
                 }
             }
         }

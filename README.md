@@ -54,6 +54,8 @@ Current smoke UI coverage includes creating a vehicle, opening capture, saving a
 
 Fuel-level capture supports exact correction with a text field, `0.25` step buttons, and a slider. The canonical stored value remains `spaces remaining`.
 
+Reminder unit coverage verifies inactivity scheduling, cancellation when disabled, and reset after a new capture without touching real notification state.
+
 Vehicle deletion is explicit in app data semantics: deleting a vehicle also removes its fill-ups, snapshots, monthly manual adjustments, image asset records, and owned image files.
 
 ## GitHub Actions
