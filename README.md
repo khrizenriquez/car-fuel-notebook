@@ -66,6 +66,8 @@ Event and vehicle deletion are explicit in app data semantics: deleting a fill-u
 
 Vehicle and history row deletion now require explicit confirmation from the UI and surface deletion errors instead of silently ignoring them.
 
+Vehicle and monthly adjustment forms surface persistence errors and only dismiss after a successful save or delete.
+
 Full Settings reset is covered by integration tests that verify domain records, image asset records, and local image files are removed. The Settings reset flow also cancels pending inactivity reminders after the local reset succeeds.
 
 ## GitHub Actions

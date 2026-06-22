@@ -13,6 +13,7 @@ struct MonthlyAdjustmentEditor: View {
     @State private var kilometers = ""
     @State private var note = ""
     @State private var isConfirmingDelete = false
+    @State private var persistenceError: String?
 
     var body: some View {
         NavigationStack {
@@ -64,6 +65,11 @@ struct MonthlyAdjustmentEditor: View {
             } message: {
                 Text("Se quitara la correccion manual de distancia para este mes. Los datos capturados no se borran.")
             }
+            .alert("No se pudo guardar", isPresented: Binding(get: { persistenceError != nil }, set: { _ in persistenceError = nil })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(persistenceError ?? "")
+            }
             .onAppear {
                 miles = existingAdjustment?.manualDistanceMiles.map { String($0) } ?? ""
                 kilometers = existingAdjustment?.manualDistanceKilometers.map { String($0) } ?? ""
@@ -83,14 +89,24 @@ struct MonthlyAdjustmentEditor: View {
         if existingAdjustment == nil {
             modelContext.insert(adjustment)
         }
-        try? modelContext.save()
-        dismiss()
+
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            persistenceError = error.localizedDescription
+        }
     }
 
     private func deleteAdjustment() {
         guard let existingAdjustment else { return }
         modelContext.delete(existingAdjustment)
-        try? modelContext.save()
-        dismiss()
+
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            persistenceError = error.localizedDescription
+        }
     }
 }

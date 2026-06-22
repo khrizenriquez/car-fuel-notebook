@@ -14,6 +14,7 @@ struct VehicleFormView: View {
     @State private var fuelScaleMax = FuelLevelScale.defaultMax
     @State private var fuelScaleStep = FuelLevelScale.defaultStep
     @State private var notes = ""
+    @State private var saveError: String?
 
     init(vehicle: Vehicle? = nil) {
         self.vehicle = vehicle
@@ -68,6 +69,11 @@ struct VehicleFormView: View {
                         .accessibilityIdentifier("vehicle.save")
                 }
             }
+            .alert("No se pudo guardar", isPresented: Binding(get: { saveError != nil }, set: { _ in saveError = nil })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(saveError ?? "")
+            }
             .onAppear(perform: loadExistingData)
         }
     }
@@ -89,8 +95,13 @@ struct VehicleFormView: View {
         if vehicle == nil {
             modelContext.insert(target)
         }
-        try? modelContext.save()
-        dismiss()
+
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            saveError = error.localizedDescription
+        }
     }
 
     private func loadExistingData() {
