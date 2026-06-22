@@ -46,6 +46,12 @@ After creating the private GitHub repository, configure `origin` safely:
 Scripts/setup_private_remote.sh git@github.com:<owner>/<private-repo>.git
 ```
 
+Or run the whole private publish flow in one command:
+
+```bash
+Scripts/publish_private.sh git@github.com:<owner>/<private-repo>.git
+```
+
 After the first private push, verify the latest GitHub Actions run:
 
 ```bash

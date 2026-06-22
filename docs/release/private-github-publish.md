@@ -19,7 +19,17 @@ Scripts/preflight_publish.sh
 ```
 
 ## Create The Private Remote
-Create a private empty repository on GitHub, then attach it locally:
+Create a private empty repository on GitHub.
+
+Recommended one-command publish flow:
+
+```bash
+Scripts/publish_private.sh git@github.com:<owner>/<private-repo>.git
+```
+
+That command runs local verification, attaches the private remote, pushes `main`, waits for GitHub Actions, and verifies the expected jobs.
+
+If you prefer to attach the remote first and push manually:
 
 ```bash
 Scripts/setup_private_remote.sh git@github.com:<owner>/<private-repo>.git
@@ -34,6 +44,8 @@ Scripts/setup_private_remote.sh git@github.com:<owner>/<private-repo>.git --dry-
 ```
 
 ## First Push
+Skip this section if you used `Scripts/publish_private.sh`.
+
 Push the current local history:
 
 ```bash
