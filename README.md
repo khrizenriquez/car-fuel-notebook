@@ -1,6 +1,6 @@
-# Cartrack
+# Car Fuel Notebook
 
-Cartrack is a local-first iPhone fuel logbook for tracking real fuel usage with invoice, odometer, and fuel-level evidence.
+Car Fuel Notebook is a local-first iPhone fuel logbook for tracking real fuel usage with invoice, odometer, and fuel-level evidence. The iOS app target is still named `Cartrack` internally.
 
 ## Architecture
 - `Cartrack/`: iPhone app shell, SwiftUI screens, capture services, image storage, location, reminders, and reset flows.
@@ -74,7 +74,7 @@ xcodebuild -project Cartrack.xcodeproj -scheme Cartrack -destination "$destinati
 
 Latest local result: `TEST SUCCEEDED`.
 
-Current smoke UI coverage includes creating a vehicle, opening capture, saving a fill-up, saving a snapshot with exact `6.5` fuel spaces through quarter-step correction, switching between multiple vehicles across dashboard/capture/history, editing a fill-up, creating/deleting a monthly manual adjustment, and confirming full Settings reset.
+Current smoke UI coverage includes creating a vehicle, opening the wizard capture flow, saving a fill-up, saving a snapshot with exact `6.5` fuel spaces through quarter-step correction, switching between multiple vehicles across dashboard/capture/history, editing a fill-up, creating/deleting a monthly manual adjustment, and confirming full Settings reset.
 
 Fuel-level capture supports exact correction with a text field, `0.25` step buttons, and a slider. The canonical stored value remains `spaces remaining`.
 

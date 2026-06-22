@@ -2,6 +2,31 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+private enum SnapshotWizardStep: Int {
+    case evidence = 1
+    case review = 2
+    case confirm = 3
+
+    var title: String {
+        switch self {
+        case .evidence: "Evidencias"
+        case .review: "Revision"
+        case .confirm: "Confirmar"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .evidence:
+            "Agrega las fotos del odometro y del nivel de tanque."
+        case .review:
+            "Revisa lo que el OCR pudo prellenar y ajusta el nivel de tanque."
+        case .confirm:
+            "Confirma el resumen antes de guardar el snapshot."
+        }
+    }
+}
+
 struct SnapshotFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -28,6 +53,7 @@ struct SnapshotFormView: View {
     @State private var existingFuelLevelPath: String?
     @State private var isAnalyzing = false
     @State private var errorMessage: String?
+    @State private var wizardStep: SnapshotWizardStep = .evidence
 
     init(event: SnapshotEvent? = nil) {
         self.event = event
@@ -43,64 +69,31 @@ struct SnapshotFormView: View {
 
     var body: some View {
         Form {
-            Section("Vehiculo") {
-                Picker("Vehiculo", selection: $selectedVehicleID) {
-                    ForEach(vehicles, id: \.id) { vehicle in
-                        Text(vehicle.displayName).tag(Optional(vehicle.id))
-                    }
-                }
-                .accessibilityIdentifier("snapshot.vehicle.picker")
-            }
-
-            Section("Lectura") {
-                DatePicker("Fecha", selection: $date, displayedComponents: [.date, .hourAndMinute])
-                TextField("Odometro en millas", text: $odometerMiles)
-                    .keyboardType(.decimalPad)
-                    .accessibilityIdentifier("snapshot.odometer")
-                TextField("Trip en millas (opcional)", text: $tripMiles)
-                    .keyboardType(.decimalPad)
-                    .accessibilityIdentifier("snapshot.trip")
-                FuelLevelInputView(
-                    title: "Espacios restantes",
-                    maxValue: selectedVehicle?.fuelScaleMax ?? FuelLevelScale.defaultMax,
-                    step: selectedVehicle?.fuelScaleStep ?? FuelLevelScale.defaultStep,
-                    accessibilityPrefix: "snapshot",
-                    value: $fuelLevelRemaining
-                )
-                TextField("Notas", text: $notes, axis: .vertical)
-                    .accessibilityIdentifier("snapshot.notes")
-            }
-
-            ImageCaptureField(
-                title: "Odometro",
-                caption: "Captura separada del odometro o cluster.",
-                existingPath: $existingOdometerPath,
-                image: $odometerImage
-            )
-            ImageCaptureField(
-                title: "Nivel de tanque",
-                caption: "Captura separada del nivel de combustible.",
-                existingPath: $existingFuelLevelPath,
-                image: $fuelLevelImage
-            )
-
-            Section("OCR local") {
-                Button(isAnalyzing ? "Analizando..." : "Analizar imagenes") {
-                    Task { await analyzeImages() }
-                }
-                .disabled(isAnalyzing)
-                if !odometerOCRText.isEmpty || !fuelLevelOCRText.isEmpty {
-                    Text([odometerOCRText, fuelLevelOCRText].filter { !$0.isEmpty }.joined(separator: "\n\n"))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            wizardProgressSection
+            wizardContent
         }
         .navigationTitle(event == nil ? "Nuevo snapshot" : "Editar snapshot")
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Guardar", action: save)
-                    .accessibilityIdentifier("snapshot.save")
+            if wizardStep == .evidence {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                        Task { await continueFromEvidence() }
+                    }
+                    .disabled(isAnalyzing || selectedVehicle == nil)
+                    .accessibilityIdentifier("snapshot.next")
+                }
+            } else if wizardStep == .review {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Siguiente") {
+                        wizardStep = .confirm
+                    }
+                    .accessibilityIdentifier("snapshot.next")
+                }
+            } else if wizardStep == .confirm {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Guardar", action: save)
+                        .accessibilityIdentifier("snapshot.save")
+                }
             }
         }
         .alert("No se pudo guardar", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
@@ -115,6 +108,159 @@ struct SnapshotFormView: View {
                 locationService.requestAccessIfNeeded()
                 locationService.refreshLocation()
             }
+        }
+    }
+
+    private var wizardProgressSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Paso \(wizardStep.rawValue) de 3: \(wizardStep.title)")
+                    .font(.headline)
+                Text(wizardStep.subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("snapshot.wizard.step")
+        }
+    }
+
+    @ViewBuilder
+    private var wizardContent: some View {
+        switch wizardStep {
+        case .evidence:
+            vehicleSection
+            evidenceSections
+            Section {
+                Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                    Task { await continueFromEvidence() }
+                }
+                .disabled(isAnalyzing || selectedVehicle == nil)
+                .accessibilityIdentifier("snapshot.next.inline")
+            }
+        case .review:
+            readingSection
+            fuelLevelReviewSection
+            ocrSection
+            Section {
+                HStack {
+                    Button("Atras") {
+                        wizardStep = .evidence
+                    }
+                    .accessibilityIdentifier("snapshot.back")
+
+                    Spacer()
+
+                    Button("Siguiente") {
+                        wizardStep = .confirm
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("snapshot.next.inline")
+                }
+            }
+        case .confirm:
+            confirmationSection
+            Section {
+                HStack {
+                    Button("Atras") {
+                        wizardStep = .review
+                    }
+                    .accessibilityIdentifier("snapshot.back")
+
+                    Spacer()
+
+                    Button("Guardar", action: save)
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("snapshot.save.inline")
+                }
+            }
+        }
+    }
+
+    private var vehicleSection: some View {
+        Section("Vehiculo") {
+            Picker("Vehiculo", selection: $selectedVehicleID) {
+                ForEach(vehicles, id: \.id) { vehicle in
+                    Text(vehicle.displayName).tag(Optional(vehicle.id))
+                }
+            }
+            .accessibilityIdentifier("snapshot.vehicle.picker")
+        }
+    }
+
+    @ViewBuilder
+    private var evidenceSections: some View {
+        ImageCaptureField(
+            title: "Odometro",
+            caption: "Captura separada del odometro o cluster.",
+            existingPath: $existingOdometerPath,
+            image: $odometerImage
+        )
+        ImageCaptureField(
+            title: "Nivel de tanque",
+            caption: "Captura separada del nivel de combustible. Si es una aguja analogica, confirma los espacios manualmente en el siguiente paso.",
+            existingPath: $existingFuelLevelPath,
+            image: $fuelLevelImage
+        )
+    }
+
+    private var readingSection: some View {
+        Section("Lectura") {
+            DatePicker("Fecha", selection: $date, displayedComponents: [.date, .hourAndMinute])
+            TextField("Odometro en millas", text: $odometerMiles)
+                .keyboardType(.decimalPad)
+                .accessibilityIdentifier("snapshot.odometer")
+            TextField("Trip en millas (opcional)", text: $tripMiles)
+                .keyboardType(.decimalPad)
+                .accessibilityIdentifier("snapshot.trip")
+            TextField("Notas", text: $notes, axis: .vertical)
+                .accessibilityIdentifier("snapshot.notes")
+        }
+    }
+
+    private var fuelLevelReviewSection: some View {
+        Section("Nivel de tanque") {
+            Text("La foto del medidor queda guardada como evidencia. Para agujas analogicas, ajusta los espacios restantes manualmente.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            FuelLevelInputView(
+                title: "Espacios restantes",
+                maxValue: selectedVehicle?.fuelScaleMax ?? FuelLevelScale.defaultMax,
+                step: selectedVehicle?.fuelScaleStep ?? FuelLevelScale.defaultStep,
+                accessibilityPrefix: "snapshot",
+                value: $fuelLevelRemaining
+            )
+        }
+    }
+
+    private var ocrSection: some View {
+        Section("OCR local") {
+            Button(isAnalyzing ? "Analizando..." : "Analizar de nuevo") {
+                Task { await analyzeImages() }
+            }
+            .disabled(isAnalyzing)
+            .accessibilityIdentifier("snapshot.analyze")
+
+            let ocrText = [odometerOCRText, fuelLevelOCRText]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n\n")
+            if ocrText.isEmpty {
+                Text("No hay texto OCR todavia o las fotos no contienen texto legible.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(ocrText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var confirmationSection: some View {
+        Section("Resumen") {
+            LabeledContent("Vehiculo", value: selectedVehicle?.displayName ?? "Pendiente")
+            LabeledContent("Odometro", value: display(odometerMiles, suffix: "mi"))
+            LabeledContent("Trip", value: display(tripMiles, suffix: "mi"))
+            LabeledContent("Espacios restantes", value: CartrackFormatters.decimal(fuelLevelRemaining))
         }
     }
 
@@ -135,6 +281,12 @@ struct SnapshotFormView: View {
             fuelLevelRemaining = value
         }
         isAnalyzing = false
+    }
+
+    @MainActor
+    private func continueFromEvidence() async {
+        await analyzeImages()
+        wizardStep = .review
     }
 
     private func save() {
@@ -203,6 +355,9 @@ struct SnapshotFormView: View {
         fuelLevelOCRText = event?.fuelLevelOCRText ?? ""
         existingOdometerPath = existingAssetPath(kind: .odometer)
         existingFuelLevelPath = existingAssetPath(kind: .fuelLevel)
+        if event != nil {
+            wizardStep = .review
+        }
     }
 
     private func existingAssetPath(kind: CaptureImageKind) -> String? {
@@ -219,5 +374,11 @@ struct SnapshotFormView: View {
         if event != nil && existingOdometerPath == nil { removed.insert(.odometer) }
         if event != nil && existingFuelLevelPath == nil { removed.insert(.fuelLevel) }
         return removed
+    }
+
+    private func display(_ value: String, suffix: String = "") -> String {
+        guard let parsed = value.asDouble else { return "Pendiente" }
+        let formatted = CartrackFormatters.decimal(parsed)
+        return "\(formatted)\(suffix.isEmpty ? "" : " \(suffix)")"
     }
 }

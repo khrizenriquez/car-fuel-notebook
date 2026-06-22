@@ -3,6 +3,31 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+private enum FillUpWizardStep: Int {
+    case evidence = 1
+    case review = 2
+    case confirm = 3
+
+    var title: String {
+        switch self {
+        case .evidence: "Evidencias"
+        case .review: "Revision"
+        case .confirm: "Confirmar"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .evidence:
+            "Agrega las fotos de factura, odometro y nivel de tanque."
+        case .review:
+            "Revisa lo que el OCR pudo prellenar y corrige cualquier valor."
+        case .confirm:
+            "Confirma el resumen antes de guardar el llenado."
+        }
+    }
+}
+
 struct FillUpFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -38,6 +63,7 @@ struct FillUpFormView: View {
 
     @State private var isAnalyzing = false
     @State private var errorMessage: String?
+    @State private var wizardStep: FillUpWizardStep = .evidence
 
     init(event: FuelFillEvent? = nil) {
         self.event = event
@@ -58,89 +84,31 @@ struct FillUpFormView: View {
 
     var body: some View {
         Form {
-            Section("Vehiculo") {
-                Picker("Vehiculo", selection: $selectedVehicleID) {
-                    ForEach(vehicles, id: \.id) { vehicle in
-                        Text(vehicle.displayName).tag(Optional(vehicle.id))
-                    }
-                }
-                .accessibilityIdentifier("fill.vehicle.picker")
-            }
-
-            Section("Datos") {
-                DatePicker("Fecha", selection: $date, displayedComponents: [.date, .hourAndMinute])
-                TextField("Odometro en millas", text: $odometerMiles)
-                    .keyboardType(.decimalPad)
-                    .accessibilityIdentifier("fill.odometer")
-                TextField("Trip en millas", text: $tripMiles)
-                    .keyboardType(.decimalPad)
-                    .accessibilityIdentifier("fill.trip")
-                TextField("Galones", text: $gallons)
-                    .keyboardType(.decimalPad)
-                    .accessibilityIdentifier("fill.gallons")
-                TextField("Precio por galon", text: $pricePerGallon)
-                    .keyboardType(.decimalPad)
-                    .accessibilityIdentifier("fill.price")
-                TextField("Total pagado", text: $totalCost)
-                    .keyboardType(.decimalPad)
-                    .accessibilityIdentifier("fill.total")
-                TextField("Gasolinera o nota corta", text: $stationName)
-                    .accessibilityIdentifier("fill.station")
-                FuelLevelInputView(
-                    title: "Espacios restantes",
-                    maxValue: selectedVehicle?.fuelScaleMax ?? FuelLevelScale.defaultMax,
-                    step: selectedVehicle?.fuelScaleStep ?? FuelLevelScale.defaultStep,
-                    accessibilityPrefix: "fill",
-                    value: $fuelLevelRemaining
-                )
-                TextField("Notas", text: $notes, axis: .vertical)
-                    .accessibilityIdentifier("fill.notes")
-            }
-
-            if let tripWarning {
-                Section("Revision") {
-                    Label(tripWarning, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                }
-            }
-
-            ImageCaptureField(
-                title: "Factura",
-                caption: "Factura del llenado para leer galones, precio y total.",
-                existingPath: $existingInvoicePath,
-                image: $invoiceImage
-            )
-            ImageCaptureField(
-                title: "Odometro",
-                caption: "Foto del odometro o cluster donde se vea el trip.",
-                existingPath: $existingOdometerPath,
-                image: $odometerImage
-            )
-            ImageCaptureField(
-                title: "Nivel de tanque",
-                caption: "Foto separada del nivel de combustible si lo deseas documentar.",
-                existingPath: $existingFuelLevelPath,
-                image: $fuelLevelImage
-            )
-
-            Section("OCR local") {
-                Button(isAnalyzing ? "Analizando..." : "Analizar imagenes") {
-                    Task { await analyzeImages() }
-                }
-                .disabled(isAnalyzing)
-
-                if !invoiceOCRText.isEmpty {
-                    Text(invoiceOCRText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            wizardProgressSection
+            wizardContent
         }
         .navigationTitle(event == nil ? "Nuevo llenado" : "Editar llenado")
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Guardar", action: save)
-                    .accessibilityIdentifier("fill.save")
+            if wizardStep == .evidence {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                        Task { await continueFromEvidence() }
+                    }
+                    .disabled(isAnalyzing || selectedVehicle == nil)
+                    .accessibilityIdentifier("fill.next")
+                }
+            } else if wizardStep == .review {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Siguiente") {
+                        wizardStep = .confirm
+                    }
+                    .accessibilityIdentifier("fill.next")
+                }
+            } else if wizardStep == .confirm {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Guardar", action: save)
+                        .accessibilityIdentifier("fill.save")
+                }
             }
         }
         .alert("No se pudo guardar", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
@@ -154,6 +122,194 @@ struct FillUpFormView: View {
                 await ReminderService.shared.requestAuthorization()
                 locationService.requestAccessIfNeeded()
                 locationService.refreshLocation()
+            }
+        }
+    }
+
+    private var wizardProgressSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Paso \(wizardStep.rawValue) de 3: \(wizardStep.title)")
+                    .font(.headline)
+                Text(wizardStep.subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("fill.wizard.step")
+        }
+    }
+
+    @ViewBuilder
+    private var wizardContent: some View {
+        switch wizardStep {
+        case .evidence:
+            vehicleSection
+            evidenceSections
+            Section {
+                Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                    Task { await continueFromEvidence() }
+                }
+                .disabled(isAnalyzing || selectedVehicle == nil)
+                .accessibilityIdentifier("fill.next.inline")
+            }
+        case .review:
+            dataSection
+            fuelLevelReviewSection
+            tripWarningSection
+            ocrSection
+            Section {
+                HStack {
+                    Button("Atras") {
+                        wizardStep = .evidence
+                    }
+                    .accessibilityIdentifier("fill.back")
+
+                    Spacer()
+
+                    Button("Siguiente") {
+                        wizardStep = .confirm
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("fill.next.inline")
+                }
+            }
+        case .confirm:
+            confirmationSection
+            tripWarningSection
+            Section {
+                HStack {
+                    Button("Atras") {
+                        wizardStep = .review
+                    }
+                    .accessibilityIdentifier("fill.back")
+
+                    Spacer()
+
+                    Button("Guardar", action: save)
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("fill.save.inline")
+                }
+            }
+        }
+    }
+
+    private var vehicleSection: some View {
+        Section("Vehiculo") {
+            Picker("Vehiculo", selection: $selectedVehicleID) {
+                ForEach(vehicles, id: \.id) { vehicle in
+                    Text(vehicle.displayName).tag(Optional(vehicle.id))
+                }
+            }
+            .accessibilityIdentifier("fill.vehicle.picker")
+        }
+    }
+
+    @ViewBuilder
+    private var evidenceSections: some View {
+        ImageCaptureField(
+            title: "Factura",
+            caption: "Factura del llenado para leer galones, precio y total.",
+            existingPath: $existingInvoicePath,
+            image: $invoiceImage
+        )
+        ImageCaptureField(
+            title: "Odometro",
+            caption: "Foto del odometro o cluster donde se vea el trip.",
+            existingPath: $existingOdometerPath,
+            image: $odometerImage
+        )
+        ImageCaptureField(
+            title: "Nivel de tanque",
+            caption: "Foto separada del nivel de combustible. Si es una aguja analogica, confirma los espacios manualmente en el siguiente paso.",
+            existingPath: $existingFuelLevelPath,
+            image: $fuelLevelImage
+        )
+    }
+
+    private var dataSection: some View {
+        Section("Datos") {
+            DatePicker("Fecha", selection: $date, displayedComponents: [.date, .hourAndMinute])
+            TextField("Odometro en millas", text: $odometerMiles)
+                .keyboardType(.decimalPad)
+                .accessibilityIdentifier("fill.odometer")
+            TextField("Trip en millas", text: $tripMiles)
+                .keyboardType(.decimalPad)
+                .accessibilityIdentifier("fill.trip")
+            TextField("Galones", text: $gallons)
+                .keyboardType(.decimalPad)
+                .accessibilityIdentifier("fill.gallons")
+            TextField("Precio por galon", text: $pricePerGallon)
+                .keyboardType(.decimalPad)
+                .accessibilityIdentifier("fill.price")
+            TextField("Total pagado", text: $totalCost)
+                .keyboardType(.decimalPad)
+                .accessibilityIdentifier("fill.total")
+            TextField("Gasolinera o nota corta", text: $stationName)
+                .accessibilityIdentifier("fill.station")
+            TextField("Notas", text: $notes, axis: .vertical)
+                .accessibilityIdentifier("fill.notes")
+        }
+    }
+
+    private var fuelLevelReviewSection: some View {
+        Section("Nivel de tanque") {
+            Text("La foto del medidor queda guardada como evidencia. Para agujas analogicas, ajusta los espacios restantes manualmente.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            FuelLevelInputView(
+                title: "Espacios restantes",
+                maxValue: selectedVehicle?.fuelScaleMax ?? FuelLevelScale.defaultMax,
+                step: selectedVehicle?.fuelScaleStep ?? FuelLevelScale.defaultStep,
+                accessibilityPrefix: "fill",
+                value: $fuelLevelRemaining
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var tripWarningSection: some View {
+        if let tripWarning {
+            Section("Revision") {
+                Label(tripWarning, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private var ocrSection: some View {
+        Section("OCR local") {
+            Button(isAnalyzing ? "Analizando..." : "Analizar de nuevo") {
+                Task { await analyzeImages() }
+            }
+            .disabled(isAnalyzing)
+            .accessibilityIdentifier("fill.analyze")
+
+            let ocrText = [invoiceOCRText, odometerOCRText, fuelLevelOCRText]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n\n")
+            if ocrText.isEmpty {
+                Text("No hay texto OCR todavia o las fotos no contienen texto legible.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(ocrText)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var confirmationSection: some View {
+        Section("Resumen") {
+            LabeledContent("Vehiculo", value: selectedVehicle?.displayName ?? "Pendiente")
+            LabeledContent("Odometro", value: display(odometerMiles, suffix: "mi"))
+            LabeledContent("Trip", value: display(tripMiles, suffix: "mi"))
+            LabeledContent("Galones", value: display(gallons, suffix: "gal"))
+            LabeledContent("Precio/galon", value: display(pricePerGallon, prefix: "Q"))
+            LabeledContent("Total", value: display(totalCost, prefix: "Q"))
+            LabeledContent("Espacios restantes", value: CartrackFormatters.decimal(fuelLevelRemaining))
+            if !stationName.trimmed.isEmpty {
+                LabeledContent("Gasolinera", value: stationName.trimmed)
             }
         }
     }
@@ -180,6 +336,12 @@ struct FillUpFormView: View {
             fuelLevelRemaining = value
         }
         isAnalyzing = false
+    }
+
+    @MainActor
+    private func continueFromEvidence() async {
+        await analyzeImages()
+        wizardStep = .review
     }
 
     private func save() {
@@ -267,6 +429,9 @@ struct FillUpFormView: View {
         existingInvoicePath = existingAssetPath(kind: .invoice)
         existingOdometerPath = existingAssetPath(kind: .odometer)
         existingFuelLevelPath = existingAssetPath(kind: .fuelLevel)
+        if event != nil {
+            wizardStep = .review
+        }
     }
 
     private func existingAssetPath(kind: CaptureImageKind) -> String? {
@@ -284,5 +449,11 @@ struct FillUpFormView: View {
         if event != nil && existingOdometerPath == nil { removed.insert(.odometer) }
         if event != nil && existingFuelLevelPath == nil { removed.insert(.fuelLevel) }
         return removed
+    }
+
+    private func display(_ value: String, prefix: String = "", suffix: String = "") -> String {
+        guard let parsed = value.asDouble else { return "Pendiente" }
+        let formatted = CartrackFormatters.decimal(parsed)
+        return "\(prefix)\(formatted)\(suffix.isEmpty ? "" : " \(suffix)")"
     }
 }

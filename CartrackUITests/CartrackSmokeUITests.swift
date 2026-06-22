@@ -46,6 +46,7 @@ final class CartrackSmokeUITests: XCTestCase {
 
         clearAndType("420", into: app.textFields["fill.total"])
         clearAndType("12", into: app.textFields["fill.gallons"])
+        app.buttons["fill.next"].tap()
         app.buttons["fill.save"].tap()
 
         let editedFillRow = app.buttons["history.fillup.row"]
@@ -135,16 +136,19 @@ final class CartrackSmokeUITests: XCTestCase {
         app.tabBars.buttons["Capturar"].tap()
         app.buttons["capture.fillup"].tap()
 
+        app.buttons["fill.next"].tap()
         type("123456", into: app.textFields["fill.odometer"])
         type("0.0", into: app.textFields["fill.trip"])
         type("10.2500", into: app.textFields["fill.gallons"])
         type("32.10", into: app.textFields["fill.price"])
         type("329.03", into: app.textFields["fill.total"])
+        app.buttons["fill.next"].tap()
         app.buttons["fill.save"].tap()
 
         XCTAssertTrue(app.buttons["capture.snapshot"].waitForExistence(timeout: 5))
         app.buttons["capture.snapshot"].tap()
 
+        app.buttons["snapshot.next"].tap()
         type("123620", into: app.textFields["snapshot.odometer"])
         type("164.0", into: app.textFields["snapshot.trip"])
         let decrementFuelLevel = app.buttons["snapshot.fuelLevel.decrement"]
@@ -152,6 +156,7 @@ final class CartrackSmokeUITests: XCTestCase {
         for _ in 0..<6 {
             decrementFuelLevel.tap()
         }
+        app.buttons["snapshot.next"].tap()
         app.buttons["snapshot.save"].tap()
     }
 
