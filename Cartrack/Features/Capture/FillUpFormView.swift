@@ -214,8 +214,14 @@ struct FillUpFormView: View {
         fillEvent.invoiceOCRText = invoiceOCRText
         fillEvent.odometerOCRText = odometerOCRText
         fillEvent.fuelLevelOCRText = fuelLevelOCRText
-        fillEvent.latitude = locationService.currentCoordinate?.latitude
-        fillEvent.longitude = locationService.currentCoordinate?.longitude
+        let coordinate = EventLocationPolicy.resolvedCoordinate(
+            currentLatitude: locationService.currentCoordinate?.latitude,
+            currentLongitude: locationService.currentCoordinate?.longitude,
+            existingLatitude: event?.latitude,
+            existingLongitude: event?.longitude
+        )
+        fillEvent.latitude = coordinate?.latitude
+        fillEvent.longitude = coordinate?.longitude
         fillEvent.updatedAt = .now
 
         if event == nil {

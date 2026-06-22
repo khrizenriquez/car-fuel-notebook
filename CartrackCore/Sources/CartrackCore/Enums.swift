@@ -41,3 +41,27 @@ enum MonthlyAllocationMode: String, CaseIterable, Identifiable {
         }
     }
 }
+
+struct EventCoordinate: Equatable {
+    let latitude: Double
+    let longitude: Double
+}
+
+enum EventLocationPolicy {
+    static func resolvedCoordinate(
+        currentLatitude: Double?,
+        currentLongitude: Double?,
+        existingLatitude: Double?,
+        existingLongitude: Double?
+    ) -> EventCoordinate? {
+        if let currentLatitude, let currentLongitude {
+            return EventCoordinate(latitude: currentLatitude, longitude: currentLongitude)
+        }
+
+        if let existingLatitude, let existingLongitude {
+            return EventCoordinate(latitude: existingLatitude, longitude: existingLongitude)
+        }
+
+        return nil
+    }
+}

@@ -24,7 +24,7 @@ Run the same tests without enforcing coverage:
 swift test --enable-code-coverage
 ```
 
-Current verified core line coverage: `94.11%`.
+Current verified core line coverage: `94.30%`.
 
 Run the full local quality gate:
 
@@ -57,6 +57,8 @@ Fuel-level capture supports exact correction with a text field, `0.25` step butt
 OCR prefill coverage uses an injectable text recognizer so parser behavior is tested without depending on real camera/Vision output.
 
 Current-tank analytics only use snapshots captured on or after the latest fill-up, so stale fuel-level photos from the previous tank cannot override a fresh full-tank reading.
+
+Event location updates preserve an existing saved coordinate when editing without a fresh location reading, preventing accidental loss of captured context.
 
 Reminder unit coverage verifies inactivity scheduling, cancellation when disabled, and reset after a new capture without touching real notification state.
 

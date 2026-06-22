@@ -35,4 +35,37 @@ final class ModelCoreTests: XCTestCase {
         XCTAssertEqual(MonthlyAllocationMode.finalFillMonth.title, "Mes cierre")
         XCTAssertEqual(MonthlyAllocationMode.prorated.title, "Prorrateado")
     }
+
+    func testEventLocationPolicyPrefersCurrentCompleteCoordinate() {
+        let coordinate = EventLocationPolicy.resolvedCoordinate(
+            currentLatitude: 14.6349,
+            currentLongitude: -90.5069,
+            existingLatitude: 14.5000,
+            existingLongitude: -90.4000
+        )
+
+        XCTAssertEqual(coordinate, EventCoordinate(latitude: 14.6349, longitude: -90.5069))
+    }
+
+    func testEventLocationPolicyPreservesExistingCoordinateWhenCurrentIsMissing() {
+        let coordinate = EventLocationPolicy.resolvedCoordinate(
+            currentLatitude: nil,
+            currentLongitude: nil,
+            existingLatitude: 14.5000,
+            existingLongitude: -90.4000
+        )
+
+        XCTAssertEqual(coordinate, EventCoordinate(latitude: 14.5000, longitude: -90.4000))
+    }
+
+    func testEventLocationPolicyRejectsIncompleteCoordinatePairs() {
+        let coordinate = EventLocationPolicy.resolvedCoordinate(
+            currentLatitude: 14.6349,
+            currentLongitude: nil,
+            existingLatitude: nil,
+            existingLongitude: -90.4000
+        )
+
+        XCTAssertNil(coordinate)
+    }
 }

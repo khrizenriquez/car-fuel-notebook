@@ -157,8 +157,14 @@ struct SnapshotFormView: View {
         snapshot.notes = notes.trimmed
         snapshot.odometerOCRText = odometerOCRText
         snapshot.fuelLevelOCRText = fuelLevelOCRText
-        snapshot.latitude = locationService.currentCoordinate?.latitude
-        snapshot.longitude = locationService.currentCoordinate?.longitude
+        let coordinate = EventLocationPolicy.resolvedCoordinate(
+            currentLatitude: locationService.currentCoordinate?.latitude,
+            currentLongitude: locationService.currentCoordinate?.longitude,
+            existingLatitude: event?.latitude,
+            existingLongitude: event?.longitude
+        )
+        snapshot.latitude = coordinate?.latitude
+        snapshot.longitude = coordinate?.longitude
         snapshot.updatedAt = .now
 
         if event == nil {
