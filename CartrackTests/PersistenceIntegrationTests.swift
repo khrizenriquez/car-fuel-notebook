@@ -1,4 +1,5 @@
 import SwiftData
+import UIKit
 import XCTest
 @testable import Cartrack
 
@@ -45,7 +46,8 @@ final class PersistenceIntegrationTests: XCTestCase {
         let fill = FuelFillEvent(vehicle: vehicle, odometerKilometers: 1_000, gallons: 10, pricePerGallon: 35, totalCost: 350)
         let snapshot = SnapshotEvent(vehicle: vehicle, odometerKilometers: 1_050, fuelLevelRemaining: 7)
         let adjustment = MonthlyManualAdjustment(monthStart: Date().startOfMonth(), vehicle: vehicle, manualDistanceKilometers: 10)
-        let asset = ImageAsset(eventID: fill.id, ownerType: .fillUp, kind: .invoice, localPath: "/tmp/non-existent-cartrack-test.jpg")
+        let imagePath = try ImageStorageService.shared.saveImage(makeImage(color: .orange), preferredName: "reset-test-\(UUID().uuidString)")
+        let asset = ImageAsset(eventID: fill.id, ownerType: .fillUp, kind: .invoice, localPath: imagePath)
 
         context.insert(vehicle)
         context.insert(fill)
@@ -54,6 +56,8 @@ final class PersistenceIntegrationTests: XCTestCase {
         context.insert(asset)
         try context.save()
 
+        XCTAssertTrue(FileManager.default.fileExists(atPath: imagePath))
+
         try ResetService.resetAll(context: context)
 
         XCTAssertEqual(try IntegrationTestSupport.count(Vehicle.self, in: context), 0)
@@ -61,5 +65,14 @@ final class PersistenceIntegrationTests: XCTestCase {
         XCTAssertEqual(try IntegrationTestSupport.count(SnapshotEvent.self, in: context), 0)
         XCTAssertEqual(try IntegrationTestSupport.count(MonthlyManualAdjustment.self, in: context), 0)
         XCTAssertEqual(try IntegrationTestSupport.count(ImageAsset.self, in: context), 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: imagePath))
+    }
+
+    private func makeImage(color: UIColor) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+        return renderer.image { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
     }
 }
