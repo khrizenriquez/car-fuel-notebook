@@ -74,6 +74,42 @@ final class EventImageIntegrationTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: path))
     }
 
+    func testEventDeletionServiceDeletesFillUpAndAllEvidenceImages() throws {
+        let context = try IntegrationTestSupport.makeInMemoryContext()
+        let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)
+        let fill = FuelFillEvent(
+            vehicle: vehicle,
+            odometerKilometers: 1_000,
+            gallons: 10.2500,
+            pricePerGallon: 32.10,
+            totalCost: 329.03
+        )
+        context.insert(vehicle)
+        context.insert(fill)
+        try context.save()
+
+        try EventImageSynchronizer.replaceAssets(
+            for: fill,
+            images: [
+                .invoice: makeImage(color: .red),
+                .odometer: makeImage(color: .blue),
+                .fuelLevel: makeImage(color: .orange),
+            ],
+            context: context
+        )
+        try context.save()
+
+        let paths = try context.fetch(FetchDescriptor<ImageAsset>()).map(\.localPath)
+        XCTAssertEqual(paths.count, 3)
+        XCTAssertTrue(paths.allSatisfy { FileManager.default.fileExists(atPath: $0) })
+
+        try EventDeletionService.delete(fillEvent: fill, context: context)
+
+        XCTAssertEqual(try IntegrationTestSupport.count(FuelFillEvent.self, in: context), 0)
+        XCTAssertEqual(try IntegrationTestSupport.count(ImageAsset.self, in: context), 0)
+        XCTAssertTrue(paths.allSatisfy { !FileManager.default.fileExists(atPath: $0) })
+    }
+
     func testVehicleDeletionDeletesOwnedEventsAdjustmentsAndImages() throws {
         let context = try IntegrationTestSupport.makeInMemoryContext()
         let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)

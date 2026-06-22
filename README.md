@@ -24,7 +24,7 @@ Run the same tests without enforcing coverage:
 swift test --enable-code-coverage
 ```
 
-Current verified core line coverage: `93.75%`.
+Current verified core line coverage: `94.11%`.
 
 Run the full local quality gate:
 
@@ -60,7 +60,7 @@ Current-tank analytics only use snapshots captured on or after the latest fill-u
 
 Reminder unit coverage verifies inactivity scheduling, cancellation when disabled, and reset after a new capture without touching real notification state.
 
-Vehicle deletion is explicit in app data semantics: deleting a vehicle also removes its fill-ups, snapshots, monthly manual adjustments, image asset records, and owned image files.
+Event and vehicle deletion are explicit in app data semantics: deleting a fill-up, snapshot, or vehicle also removes owned image asset records and local evidence image files.
 
 Full Settings reset is covered by integration tests that verify domain records, image asset records, and local image files are removed. The Settings reset flow also cancels pending inactivity reminders after the local reset succeeds.
 
