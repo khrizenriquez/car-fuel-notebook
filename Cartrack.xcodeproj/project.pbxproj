@@ -23,6 +23,7 @@
 		4DC033EC45B939FECE408E63 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E569B66EB1B5482CE171B57C /* SettingsView.swift */; };
 		5750F0AFA0F9A6C13EA601BC /* ImageAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCEAC704F14E62D3EFB01E6F /* ImageAsset.swift */; };
 		5CF142A2E92BA0E0E3D7DB97 /* PersistenceIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27D40BB18EE139CB1D48E486 /* PersistenceIntegrationTests.swift */; };
+		612287096E1C00EB596ED137 /* OCRServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BCD7F91FC06D9D4E63F94F /* OCRServiceTests.swift */; };
 		673C196DC5571D92AFD6395F /* FuelLevelScale.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC67059E7304A352994AD94 /* FuelLevelScale.swift */; };
 		684343DF568168AA1F7DB88A /* ReminderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE416CC2D1D3E8AB96CCF2A1 /* ReminderService.swift */; };
 		69DBAF56A0168985DD5FDA2B /* FuelFillEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB06CAD28A92CB25DD84DFE /* FuelFillEvent.swift */; };
@@ -75,6 +76,7 @@
 		06D942DBE88E36805F515D3C /* MetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricCard.swift; sourceTree = "<group>"; };
 		074F78E8A5C91C899A23D9F3 /* EventDeletionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDeletionService.swift; sourceTree = "<group>"; };
 		0DB9F73C44EA10A6F95D1453 /* IntegrationTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTestSupport.swift; sourceTree = "<group>"; };
+		16BCD7F91FC06D9D4E63F94F /* OCRServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRServiceTests.swift; sourceTree = "<group>"; };
 		18D5327B960136788BD604BB /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
 		19EDE99D9FCD8D62647ACD1E /* FillUpFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillUpFormView.swift; sourceTree = "<group>"; };
 		1BA0E28CF6993D7194DDD4AC /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
@@ -275,6 +277,7 @@
 				FF1D2CB594198A9FD634AB79 /* EventImageIntegrationTests.swift */,
 				63176E5CAB0BC256821CE983 /* FuelLevelScaleTests.swift */,
 				0DB9F73C44EA10A6F95D1453 /* IntegrationTestSupport.swift */,
+				16BCD7F91FC06D9D4E63F94F /* OCRServiceTests.swift */,
 				27D40BB18EE139CB1D48E486 /* PersistenceIntegrationTests.swift */,
 				CB2C03887D9EA92BC4D1C2F6 /* ReminderServiceTests.swift */,
 			);
@@ -443,6 +446,7 @@
 				F23A93CCEA791B406B907959 /* EventImageIntegrationTests.swift in Sources */,
 				6B4F25329D1D4FCBA606AC85 /* FuelLevelScaleTests.swift in Sources */,
 				82BE7E917C43AB59E622F5E6 /* IntegrationTestSupport.swift in Sources */,
+				612287096E1C00EB596ED137 /* OCRServiceTests.swift in Sources */,
 				5CF142A2E92BA0E0E3D7DB97 /* PersistenceIntegrationTests.swift in Sources */,
 				0496858D584DD653F4FA5184 /* ReminderServiceTests.swift in Sources */,
 			);

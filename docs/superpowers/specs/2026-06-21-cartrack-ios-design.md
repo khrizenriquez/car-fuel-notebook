@@ -67,6 +67,7 @@ Cartrack is a single-user, iPhone-only, local-first fuel tracking app. It captur
 - Done: local validation on `iPhone Air` simulator with unit, integration, and smoke UI tests.
 - Done: strict core test coverage gate above 90%.
 - Done: OCR parser hardening for Guatemala-style invoice labels, comma decimals, currency values, odometer thousands separators, and noisy BMW Z4 fuel-level text.
+- Done: OCR service uses an injectable text recognizer so prefill parsing is covered without real Vision calls, and Vision failures return an empty prefill instead of hanging analysis.
 - Done: UI coverage for creating a vehicle, opening capture, saving a fill-up, saving a snapshot, and verifying both in history.
 - Done: UI coverage for editing an existing fill-up and confirming Settings reset returns the app to empty dashboard state.
 - Done: monthly manual adjustments can be created, edited, and explicitly deleted with confirmation; UI coverage verifies create/delete recalculates dashboard distance.

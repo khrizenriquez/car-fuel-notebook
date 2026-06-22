@@ -2,6 +2,37 @@ import Foundation
 import UIKit
 @preconcurrency import Vision
 
+protocol OCRTextRecognizing: Sendable {
+    func recognizeText(from image: UIImage?) async -> String
+}
+
+struct VisionOCRTextRecognizer: OCRTextRecognizing {
+    func recognizeText(from image: UIImage?) async -> String {
+        guard let cgImage = image?.cgImage else { return "" }
+        return await withCheckedContinuation { continuation in
+            let request = VNRecognizeTextRequest { request, error in
+                guard error == nil else {
+                    continuation.resume(returning: "")
+                    return
+                }
+                let text = (request.results as? [VNRecognizedTextObservation])?
+                    .compactMap { $0.topCandidates(1).first?.string }
+                    .joined(separator: "\n") ?? ""
+                continuation.resume(returning: text)
+            }
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            do {
+                try handler.perform([request])
+            } catch {
+                continuation.resume(returning: "")
+            }
+        }
+    }
+}
+
 struct FillUpPrefill {
     var invoiceText: String = ""
     var odometerText: String = ""
@@ -23,7 +54,13 @@ struct SnapshotPrefill {
 }
 
 final class OCRService: @unchecked Sendable {
-    private let parser = OCRTextParser()
+    private let parser: OCRTextParser
+    private let recognizer: OCRTextRecognizing
+
+    init(parser: OCRTextParser = OCRTextParser(), recognizer: OCRTextRecognizing = VisionOCRTextRecognizer()) {
+        self.parser = parser
+        self.recognizer = recognizer
+    }
 
     func analyzeFillUp(
         invoiceImage: UIImage?,
@@ -31,9 +68,9 @@ final class OCRService: @unchecked Sendable {
         fuelLevelImage: UIImage?,
         fuelScaleMax: Double
     ) async -> FillUpPrefill {
-        async let invoiceText = recognizeText(from: invoiceImage)
-        async let odometerText = recognizeText(from: odometerImage)
-        async let fuelLevelText = recognizeText(from: fuelLevelImage)
+        async let invoiceText = recognizer.recognizeText(from: invoiceImage)
+        async let odometerText = recognizer.recognizeText(from: odometerImage)
+        async let fuelLevelText = recognizer.recognizeText(from: fuelLevelImage)
 
         let invoice = await invoiceText
         let odometer = await odometerText
@@ -63,8 +100,8 @@ final class OCRService: @unchecked Sendable {
         fuelLevelImage: UIImage?,
         fuelScaleMax: Double
     ) async -> SnapshotPrefill {
-        async let odometerText = recognizeText(from: odometerImage)
-        async let fuelLevelText = recognizeText(from: fuelLevelImage)
+        async let odometerText = recognizer.recognizeText(from: odometerImage)
+        async let fuelLevelText = recognizer.recognizeText(from: fuelLevelImage)
 
         let odometer = await odometerText
         let fuelLevel = await fuelLevelText
@@ -83,20 +120,4 @@ final class OCRService: @unchecked Sendable {
         )
     }
 
-    private func recognizeText(from image: UIImage?) async -> String {
-        guard let cgImage = image?.cgImage else { return "" }
-        return await withCheckedContinuation { continuation in
-            let request = VNRecognizeTextRequest { request, _ in
-                let text = (request.results as? [VNRecognizedTextObservation])?
-                    .compactMap { $0.topCandidates(1).first?.string }
-                    .joined(separator: "\n") ?? ""
-                continuation.resume(returning: text)
-            }
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            try? handler.perform([request])
-        }
-    }
 }

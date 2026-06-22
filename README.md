@@ -54,6 +54,8 @@ Current smoke UI coverage includes creating a vehicle, opening capture, saving a
 
 Fuel-level capture supports exact correction with a text field, `0.25` step buttons, and a slider. The canonical stored value remains `spaces remaining`.
 
+OCR prefill coverage uses an injectable text recognizer so parser behavior is tested without depending on real camera/Vision output.
+
 Current-tank analytics only use snapshots captured on or after the latest fill-up, so stale fuel-level photos from the previous tank cannot override a fresh full-tank reading.
 
 Reminder unit coverage verifies inactivity scheduling, cancellation when disabled, and reset after a new capture without touching real notification state.
