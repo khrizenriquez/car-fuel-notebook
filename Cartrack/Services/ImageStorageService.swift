@@ -27,9 +27,9 @@ final class ImageStorageService: @unchecked Sendable {
         UIImage(contentsOfFile: path)
     }
 
-    func deleteImage(at path: String) {
+    func deleteImage(at path: String) throws {
         guard fileManager.fileExists(atPath: path) else { return }
-        try? fileManager.removeItem(atPath: path)
+        try fileManager.removeItem(atPath: path)
     }
 
     func clearAllImages() throws {

@@ -37,7 +37,7 @@ enum EventImageSynchronizer {
                 }
             )
             if let existing = try context.fetch(descriptor).first {
-                ImageStorageService.shared.deleteImage(at: existing.localPath)
+                try ImageStorageService.shared.deleteImage(at: existing.localPath)
                 context.delete(existing)
             }
             guard let image = images[kind] ?? nil else { continue }

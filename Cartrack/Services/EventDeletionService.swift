@@ -48,7 +48,7 @@ enum EventDeletionService {
             }
         )
         for asset in try context.fetch(descriptor) {
-            ImageStorageService.shared.deleteImage(at: asset.localPath)
+            try ImageStorageService.shared.deleteImage(at: asset.localPath)
             context.delete(asset)
         }
     }

@@ -110,6 +110,31 @@ final class EventImageIntegrationTests: XCTestCase {
         XCTAssertTrue(paths.allSatisfy { !FileManager.default.fileExists(atPath: $0) })
     }
 
+    func testEventDeletionServiceRemovesAssetRecordWhenImageFileIsAlreadyMissing() throws {
+        let context = try IntegrationTestSupport.makeInMemoryContext()
+        let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)
+        let fill = FuelFillEvent(vehicle: vehicle, odometerKilometers: 1_000, gallons: 10, pricePerGallon: 35, totalCost: 350)
+        context.insert(vehicle)
+        context.insert(fill)
+        try context.save()
+
+        try EventImageSynchronizer.replaceAssets(
+            for: fill,
+            images: [.invoice: makeImage(color: .red)],
+            context: context
+        )
+        try context.save()
+
+        let path = try XCTUnwrap(try context.fetch(FetchDescriptor<ImageAsset>()).first?.localPath)
+        try FileManager.default.removeItem(atPath: path)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+
+        try EventDeletionService.delete(fillEvent: fill, context: context)
+
+        XCTAssertEqual(try IntegrationTestSupport.count(FuelFillEvent.self, in: context), 0)
+        XCTAssertEqual(try IntegrationTestSupport.count(ImageAsset.self, in: context), 0)
+    }
+
     func testVehicleDeletionDeletesOwnedEventsAdjustmentsAndImages() throws {
         let context = try IntegrationTestSupport.makeInMemoryContext()
         let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)

@@ -4,7 +4,7 @@ import SwiftData
 enum ResetService {
     static func resetAll(context: ModelContext) throws {
         for asset in try context.fetch(FetchDescriptor<ImageAsset>()) {
-            ImageStorageService.shared.deleteImage(at: asset.localPath)
+            try ImageStorageService.shared.deleteImage(at: asset.localPath)
             context.delete(asset)
         }
 

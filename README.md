@@ -62,7 +62,7 @@ Event location updates preserve an existing saved coordinate when editing withou
 
 Reminder unit coverage verifies inactivity scheduling, cancellation when disabled, and reset after a new capture without touching real notification state.
 
-Event and vehicle deletion are explicit in app data semantics: deleting a fill-up, snapshot, or vehicle also removes owned image asset records and local evidence image files.
+Event and vehicle deletion are explicit in app data semantics: deleting a fill-up, snapshot, or vehicle also removes owned image asset records and local evidence image files. Missing image files are treated as already-cleaned no-ops, while real file removal errors propagate to the UI.
 
 Vehicle and history row deletion now require explicit confirmation from the UI and surface deletion errors instead of silently ignoring them.
 
