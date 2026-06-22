@@ -1,126 +1,123 @@
 # Car Fuel Notebook
 
-Car Fuel Notebook is a local-first iPhone fuel logbook for tracking real fuel usage with invoice, odometer, and fuel-level evidence. The iOS app target is still named `Cartrack` internally.
+Car Fuel Notebook is a local-first iPhone app for keeping a real-world fuel log. It is designed for drivers who want to understand how much they spend on fuel, how far they drive, and how efficient each tank really is.
 
-## Architecture
-- `Cartrack/`: iPhone app shell, SwiftUI screens, capture services, image storage, location, reminders, and reset flows.
-- `CartrackCore/`: domain module with SwiftData models, unit conversion, OCR text parsing, fuel-level rules, and analytics.
-- `CartrackCore/Tests/`: strict unit tests for the domain logic.
-- `docs/adr/`: architecture decision records.
-- `.github/workflows/ios-ci.yml`: GitHub Actions quality gate for core coverage and iPhone app tests.
+The app was built around a BMW Z4 workflow, but the data model supports multiple vehicles from day one.
 
-The app target compiles the shared core sources directly so the iOS app and Swift package tests exercise the same domain code.
+## What It Does
 
-## Test Commands
-Run fast unit tests with coverage:
+- Records fuel fill-ups with invoice, odometer, and fuel-level evidence.
+- Records intermediate snapshots with odometer and fuel-level photos.
+- Uses on-device OCR to prefill values from readable text.
+- Lets the user review and edit all captured values before saving.
+- Tracks fuel level as `spaces remaining` on a configurable scale, such as `0` to `8`.
+- Shows monthly spending, distance, fuel economy, cost per kilometer, and tank history.
+- Stores all v1 data locally on the device.
+
+## Capture Flow
+
+Fill-ups and snapshots use a simple wizard:
+
+1. Add evidence photos.
+2. Review OCR-prefilled fields and correct anything that looks wrong.
+3. Confirm the summary and save.
+
+OCR works best for text-heavy images such as receipts and digital odometer displays. Analog fuel gauges are kept as evidence, but the fuel level should still be confirmed manually with the app's quarter-step fuel-level control.
+
+## Privacy Model
+
+This project is intentionally local-first.
+
+- No backend.
+- No cloud sync.
+- No analytics SDK.
+- No API keys.
+- No third-party credentials.
+- No real invoice, odometer, or fuel photos are stored in this repository.
+
+Captured photos and local database records are app data. They should stay on the device and out of GitHub issues, fixtures, commits, and screenshots unless they are fully redacted.
+
+See [SECURITY.md](SECURITY.md) for the repository safety policy.
+
+## Current Status
+
+The iOS app target is currently named `Cartrack` internally. The GitHub project name is `car-fuel-notebook`.
+
+Implemented locally:
+
+- SwiftUI iPhone app.
+- SwiftData local persistence.
+- Multi-vehicle support.
+- Fill-up and snapshot capture wizards.
+- On-device OCR service using Apple's Vision framework.
+- Manual correction for captured values.
+- Fuel-level validation from `0.00` to the vehicle's configured maximum.
+- Monthly dashboard, history, vehicle management, reminders, and reset flow.
+- Unit, integration, and UI test coverage.
+
+Screenshots will be added later once the first polished app screens are ready.
+
+## Project Structure
+
+- `Cartrack/`: SwiftUI app, screens, capture services, image storage, reminders, reset flow, and app shell.
+- `CartrackCore/`: shared domain logic, SwiftData models, OCR parsing, fuel-level rules, unit conversion, and analytics.
+- `CartrackCore/Tests/`: strict domain-level unit tests.
+- `CartrackTests/`: iOS integration tests.
+- `CartrackUITests/`: smoke tests for the main app workflows.
+- `Scripts/`: local verification, coverage, simulator selection, and publish helpers.
+- `docs/`: design notes, ADRs, release checks, and testing notes.
+
+## Requirements
+
+- macOS with Xcode installed.
+- iOS Simulator support.
+- Swift 6 compatible toolchain.
+
+The local verification script prefers an `iPhone Air` simulator when available, but it can run on another installed iPhone simulator.
+
+## Run The Tests
+
+Fast core tests with the 90% coverage gate:
 
 ```bash
 Scripts/check_core_coverage.sh 90
 ```
 
-Run the same tests without enforcing coverage:
-
-```bash
-swift test --enable-code-coverage
-```
-
-Current verified core line coverage: `94.21%`.
-
-Run the full local quality gate:
+Full local quality gate:
 
 ```bash
 Scripts/verify_local.sh
 ```
 
-`Scripts/verify_local.sh` selects an available iPhone simulator dynamically, preferring `iPhone Air` when installed.
+Latest verified local result:
 
-Run the publish safety preflight before pushing to a remote:
-
-```bash
-Scripts/preflight_publish.sh
-```
-
-After creating the private GitHub repository, configure `origin` safely:
-
-```bash
-Scripts/setup_private_remote.sh git@github.com:<owner>/<private-repo>.git
-```
-
-Or run the whole private publish flow in one command:
-
-```bash
-Scripts/publish_private.sh git@github.com:<owner>/<private-repo>.git
-```
-
-After the first private push, verify the latest GitHub Actions run:
-
-```bash
-Scripts/check_remote_ci.sh --wait
-```
-
-## iOS Verification
-The iOS app typechecks against the installed iPhoneOS SDK with:
-
-```bash
-swiftc -typecheck -target arm64-apple-ios17.0 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk $(find CartrackCore/Sources/CartrackCore Cartrack -name '*.swift' | sort)
-```
-
-Run the full iOS app, integration, and UI test suite on the selected simulator target:
-
-```bash
-destination="$(Scripts/select_ios_simulator.sh)"
-xcodebuild -project Cartrack.xcodeproj -scheme Cartrack -destination "$destination" -enableCodeCoverage YES test
-```
-
-Latest local result: `TEST SUCCEEDED`.
-
-Current smoke UI coverage includes creating a vehicle, opening the wizard capture flow, saving a fill-up, saving a snapshot with exact `6.5` fuel spaces through quarter-step correction, switching between multiple vehicles across dashboard/capture/history, editing a fill-up, creating/deleting a monthly manual adjustment, and confirming full Settings reset.
-
-Fuel-level capture supports exact correction with a text field, `0.25` step buttons, and a slider. The canonical stored value remains `spaces remaining`.
-
-OCR prefill coverage uses an injectable text recognizer so parser behavior is tested without depending on real camera/Vision output.
-
-Sanitized OCR fixtures live in `CartrackCore/Tests/CartrackCoreTests/Fixtures/OCR/ocr-fixtures.json`. Add only redacted OCR transcript text there, not private receipt or vehicle photos; see `docs/testing/ocr-fixtures.md`.
-
-Current-tank analytics only use snapshots captured on or after the latest fill-up, so stale fuel-level photos from the previous tank cannot override a fresh full-tank reading.
-
-Core analytics and smoke UI coverage verify that monthly summaries, manual monthly adjustments, current tank status, tank cycles, dashboard filtering, capture vehicle selection, and history filtering stay separated by vehicle when more than one car has data.
-
-Event location updates preserve an existing saved coordinate when editing without a fresh location reading, preventing accidental loss of captured context.
-
-Reminder unit coverage verifies inactivity scheduling, cancellation when disabled, and reset after a new capture without touching real notification state.
-
-Event and vehicle deletion are explicit in app data semantics: deleting a fill-up, snapshot, or vehicle also removes owned image asset records and local evidence image files. Missing image files are treated as already-cleaned no-ops, while real file removal errors propagate to the UI.
-
-Vehicle and history row deletion now require explicit confirmation from the UI and surface deletion errors instead of silently ignoring them.
-
-Vehicle and monthly adjustment forms surface persistence errors and only dismiss after a successful save or delete.
-
-Full Settings reset is covered by integration tests that verify domain records, image asset records, and local image files are removed. The Settings reset flow also cancels pending inactivity reminders after the local reset succeeds.
+- Core tests: `49` passing.
+- Core line coverage: `94.21%`.
+- iOS integration tests: `20` passing.
+- iOS UI smoke tests: `5` passing.
+- Full result: `TEST SUCCEEDED`.
 
 ## GitHub Actions
-The repository includes a CI workflow for GitHub-hosted `macos-26` runners:
 
-- `Core Coverage`: runs `Scripts/check_core_coverage.sh 90`.
-- `iPhone App Tests`: selects an available iPhone simulator and runs the app, integration, and UI tests with code coverage.
+The repository includes a GitHub Actions workflow for macOS runners. It runs:
 
-The workflow is ready to run after pushing the repository to GitHub. It intentionally avoids signing, secrets, distribution certificates, and cloud credentials.
+- Core coverage with a 90% threshold.
+- iPhone app, integration, and UI tests.
 
-First-time private GitHub publishing steps are documented in `docs/release/private-github-publish.md`.
+The workflow does not require signing certificates, secrets, distribution profiles, or cloud credentials.
 
-The v1 requirement-to-evidence audit is maintained in `docs/release/v1-readiness-audit.md`.
+## Safe Publishing Checklist
 
-## Current V1 Focus
-- Continue adding sanitized OCR transcript fixtures from real photos/invoices as they become available.
-- Push the initialized local git repository to a private remote when ready, using `Scripts/preflight_publish.sh --require-remote` after adding `origin`.
-- Review the first GitHub Actions run after pushing and adjust only if the hosted runner image differs from the local Xcode environment.
-- Keep improving dashboard insights after real driving data accumulates.
+Before pushing or opening issues with real examples:
 
-## Security Notes
-- No cloud sync or backend exists in v1.
-- No secrets, API keys, tokens, or private credentials are required by the codebase.
-- Captured images are stored locally under application support.
-- Local image files use iOS file protection where available.
-- Build outputs, coverage artifacts, user Xcode state, and SwiftPM build directories are ignored by git.
-- Local database files, capture-export folders, and common `.env` files are ignored by git.
-- See `SECURITY.md` before publishing or attaching real evidence images to issues.
+- Run `Scripts/preflight_publish.sh --require-remote`.
+- Do not commit real fuel invoices, odometer photos, dashboard photos, or location exports.
+- Add only redacted OCR transcript fixtures under `CartrackCore/Tests/CartrackCoreTests/Fixtures/OCR/`.
+- Keep `.env`, local databases, build outputs, and exported captures out of git.
+
+## Roadmap
+
+- Add polished screenshots to this README.
+- Add more redacted OCR fixtures from real-world receipt formats.
+- Improve dashboard comparisons and projections after more driving data exists.
+- Explore computer-vision assistance for analog fuel gauges after enough labeled examples are available.
