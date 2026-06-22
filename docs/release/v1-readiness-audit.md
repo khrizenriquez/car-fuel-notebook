@@ -10,6 +10,7 @@ This audit maps the original Cartrack v1 requirements to current evidence in the
 - Core coverage: `94.21%`, above the required `90%`
 - Publish safety gate: `Scripts/preflight_publish.sh`
 - Latest publish preflight result: passed, with expected warning that no remote is configured yet
+- Remote CI review helper: `Scripts/check_remote_ci.sh`, ready to run after the first private push
 
 ## Requirement Evidence
 | Requirement | Status | Evidence |
@@ -35,7 +36,7 @@ This audit maps the original Cartrack v1 requirements to current evidence in the
 | Automatic location capture is enabled per event | Complete | `Cartrack/Services/LocationService.swift`; event coordinate preservation tests in `CartrackCore/Tests/CartrackCoreTests/ModelCoreTests.swift`; form save paths preserve or update coordinates. |
 | Strict tests at or above 90% | Complete | `Scripts/check_core_coverage.sh 90`; latest observed coverage `94.21%`; CI workflow enforces the same command. |
 | Modular architecture for study and maintenance | Complete | `CartrackCore` domain package, app services, feature folders, ADRs, and test targets split by concern. |
-| GitHub Actions workflow ready | Complete locally | `.github/workflows/ios-ci.yml`; `Scripts/preflight_publish.sh` verifies read-only permissions, no signing, and 90% coverage gate. First hosted run is external until remote exists. |
+| GitHub Actions workflow ready | Complete locally | `.github/workflows/ios-ci.yml`; `Scripts/preflight_publish.sh` verifies read-only permissions, no signing, and 90% coverage gate; `Scripts/check_remote_ci.sh` can verify the first hosted run after push. First hosted run is external until remote exists. |
 | Private GitHub publishing path is safe | Complete locally | `docs/release/private-github-publish.md`; `Scripts/preflight_publish.sh`; `SECURITY.md`. |
 | Additional real OCR hardening from actual evidence | External | Requires real invoice/odometer/fuel-level photos or Vision transcripts. Only sanitized OCR transcript text should be committed. |
 | First private remote push and remote CI review | External | Requires a private GitHub repository URL and network-side Actions execution. |
@@ -45,6 +46,6 @@ This audit maps the original Cartrack v1 requirements to current evidence in the
 1. Create a private GitHub repository.
 2. Add it as `origin`.
 3. Run `Scripts/preflight_publish.sh --require-remote`.
-4. Push `main` and review the first GitHub Actions run.
+4. Push `main` and run `Scripts/check_remote_ci.sh` to review the first GitHub Actions run.
 5. Add sanitized OCR transcript fixtures as real evidence becomes available.
 6. Revisit dashboard insights after real month-over-month data accumulates.

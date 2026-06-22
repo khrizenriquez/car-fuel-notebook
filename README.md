@@ -40,6 +40,12 @@ Run the publish safety preflight before pushing to a remote:
 Scripts/preflight_publish.sh
 ```
 
+After the first private push, verify the latest GitHub Actions run:
+
+```bash
+Scripts/check_remote_ci.sh
+```
+
 ## iOS Verification
 The iOS app typechecks against the installed iPhoneOS SDK with:
 
