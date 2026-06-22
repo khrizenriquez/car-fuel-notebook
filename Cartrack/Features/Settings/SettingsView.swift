@@ -75,6 +75,7 @@ struct SettingsView: View {
     private func resetAll() {
         do {
             try ResetService.resetAll(context: modelContext)
+            ReminderService.shared.cancelInactivityReminder()
         } catch {
             resetError = error.localizedDescription
         }

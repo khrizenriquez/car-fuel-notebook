@@ -26,6 +26,10 @@ final class ReminderService: @unchecked Sendable {
         _ = try? await center.requestAuthorization(options: [.alert, .badge, .sound])
     }
 
+    func cancelInactivityReminder() {
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+
     func captureLogged(userDefaults: UserDefaults = .standard) async {
         let enabled = userDefaults.object(forKey: "settings.reminder.enabled").map { _ in
             userDefaults.bool(forKey: "settings.reminder.enabled")
@@ -35,7 +39,7 @@ final class ReminderService: @unchecked Sendable {
     }
 
     func refreshInactivityReminder(isEnabled: Bool, afterHours hours: Double) async {
-        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        cancelInactivityReminder()
         guard isEnabled, hours > 0 else { return }
 
         let content = UNMutableNotificationContent()

@@ -45,6 +45,16 @@ final class ReminderServiceTests: XCTestCase {
         assertTimeInterval(center.addedRequests.last?.timeInterval, equals: 48 * 3_600)
     }
 
+    func testCancelInactivityReminderRemovesPendingReminderWithoutScheduling() {
+        let center = FakeReminderNotificationCenter()
+        let service = ReminderService(center: center)
+
+        service.cancelInactivityReminder()
+
+        XCTAssertEqual(center.removedIdentifiers, [["cartrack.inactivity.reminder"]])
+        XCTAssertTrue(center.addedRequests.isEmpty)
+    }
+
     func testRefreshInactivityReminderTreatsShortIntervalsAsOneHourMinimum() async {
         let center = FakeReminderNotificationCenter()
         let service = ReminderService(center: center)

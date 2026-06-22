@@ -62,7 +62,7 @@ Reminder unit coverage verifies inactivity scheduling, cancellation when disable
 
 Vehicle deletion is explicit in app data semantics: deleting a vehicle also removes its fill-ups, snapshots, monthly manual adjustments, image asset records, and owned image files.
 
-Full Settings reset is covered by integration tests that verify domain records, image asset records, and local image files are removed.
+Full Settings reset is covered by integration tests that verify domain records, image asset records, and local image files are removed. The Settings reset flow also cancels pending inactivity reminders after the local reset succeeds.
 
 ## GitHub Actions
 The repository includes a CI workflow for GitHub-hosted `macos-26` runners:
