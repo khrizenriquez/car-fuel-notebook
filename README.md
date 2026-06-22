@@ -90,6 +90,8 @@ The workflow is ready to run after pushing the repository to GitHub. It intentio
 
 First-time private GitHub publishing steps are documented in `docs/release/private-github-publish.md`.
 
+The v1 requirement-to-evidence audit is maintained in `docs/release/v1-readiness-audit.md`.
+
 ## Current V1 Focus
 - Continue adding sanitized OCR transcript fixtures from real photos/invoices as they become available.
 - Push the initialized local git repository to a private remote when ready, using `Scripts/preflight_publish.sh --require-remote` after adding `origin`.

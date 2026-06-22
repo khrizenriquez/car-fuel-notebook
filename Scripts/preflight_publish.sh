@@ -70,6 +70,8 @@ require_file "Scripts/check_core_coverage.sh"
 require_file "Scripts/select_ios_simulator.sh"
 require_file "docs/superpowers/specs/2026-06-21-cartrack-ios-design.md"
 require_file "docs/testing/ocr-fixtures.md"
+require_file "docs/release/private-github-publish.md"
+require_file "docs/release/v1-readiness-audit.md"
 
 for adr in 001 002 003 004 005 006; do
   matches=(docs/adr/ADR-"$adr"-*.md)

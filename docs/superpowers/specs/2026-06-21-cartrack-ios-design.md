@@ -94,6 +94,7 @@ Cartrack is a single-user, iPhone-only, local-first fuel tracking app. It captur
 - Done: sanitized OCR fixture harness added so parser cases can be extended from real Vision transcripts without committing private invoice, odometer, or dashboard photos.
 - Done: repository security notes added for local-only data, ignored evidence files, and no-secret v1 posture.
 - Done: private GitHub publish runbook and local publish preflight added for safety checks before the first remote push.
+- Done: v1 readiness audit added to map each requirement to current evidence and separate local completion from external follow-ups.
 
 ## Remaining V1 Checklist
 - Add additional sanitized OCR transcript fixtures as actual invoices and photos become available.
