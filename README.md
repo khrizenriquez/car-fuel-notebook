@@ -64,6 +64,8 @@ Reminder unit coverage verifies inactivity scheduling, cancellation when disable
 
 Event and vehicle deletion are explicit in app data semantics: deleting a fill-up, snapshot, or vehicle also removes owned image asset records and local evidence image files.
 
+Vehicle and history row deletion now require explicit confirmation from the UI and surface deletion errors instead of silently ignoring them.
+
 Full Settings reset is covered by integration tests that verify domain records, image asset records, and local image files are removed. The Settings reset flow also cancels pending inactivity reminders after the local reset succeeds.
 
 ## GitHub Actions

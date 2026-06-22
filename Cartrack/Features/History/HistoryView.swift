@@ -18,6 +18,8 @@ struct HistoryView: View {
     @Query(sort: \SnapshotEvent.date, order: .reverse) private var snapshotEvents: [SnapshotEvent]
 
     @State private var selectedVehicleID: UUID?
+    @State private var rowsPendingDeletion: [HistoryRowModel] = []
+    @State private var deletionError: String?
 
     private var rows: [HistoryRowModel] {
         let fills = fillEvents
@@ -87,6 +89,27 @@ struct HistoryView: View {
             }
         }
         .navigationTitle("Historial")
+        .confirmationDialog(
+            "Eliminar evento?",
+            isPresented: Binding(
+                get: { !rowsPendingDeletion.isEmpty },
+                set: { if !$0 { rowsPendingDeletion = [] } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(deleteConfirmationTitle, role: .destructive, action: deletePendingRows)
+                .accessibilityIdentifier("history.delete.confirm")
+            Button("Cancelar", role: .cancel) {
+                rowsPendingDeletion = []
+            }
+        } message: {
+            Text("Se eliminara el registro seleccionado y sus imagenes locales asociadas.")
+        }
+        .alert("No se pudo eliminar", isPresented: Binding(get: { deletionError != nil }, set: { _ in deletionError = nil })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deletionError ?? "")
+        }
     }
 
     private func rowLabel(_ row: HistoryRowModel) -> some View {
@@ -111,14 +134,34 @@ struct HistoryView: View {
         .padding(.vertical, 4)
     }
 
+    private var deleteConfirmationTitle: String {
+        rowsPendingDeletion.count == 1 ? "Eliminar evento" : "Eliminar eventos"
+    }
+
     private func deleteRows(at offsets: IndexSet) {
-        for index in offsets {
-            let row = rows[index]
-            if let fill = row.fillEvent {
-                try? EventDeletionService.delete(fillEvent: fill, context: modelContext)
-            } else if let snapshot = row.snapshotEvent {
-                try? EventDeletionService.delete(snapshotEvent: snapshot, context: modelContext)
+        rowsPendingDeletion = offsets
+            .filter { rows.indices.contains($0) }
+            .map { rows[$0] }
+    }
+
+    private func deletePendingRows() {
+        let rowsToDelete = rowsPendingDeletion
+        rowsPendingDeletion = []
+
+        do {
+            for row in rowsToDelete {
+                try delete(row)
             }
+        } catch {
+            deletionError = error.localizedDescription
+        }
+    }
+
+    private func delete(_ row: HistoryRowModel) throws {
+        if let fill = row.fillEvent {
+            try EventDeletionService.delete(fillEvent: fill, context: modelContext)
+        } else if let snapshot = row.snapshotEvent {
+            try EventDeletionService.delete(snapshotEvent: snapshot, context: modelContext)
         }
     }
 }
