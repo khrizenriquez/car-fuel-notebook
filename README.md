@@ -34,6 +34,12 @@ Scripts/verify_local.sh
 
 `Scripts/verify_local.sh` selects an available iPhone simulator dynamically, preferring `iPhone Air` when installed.
 
+Run the publish safety preflight before pushing to a remote:
+
+```bash
+Scripts/preflight_publish.sh
+```
+
 ## iOS Verification
 The iOS app typechecks against the installed iPhoneOS SDK with:
 
@@ -82,9 +88,11 @@ The repository includes a CI workflow for GitHub-hosted `macos-26` runners:
 
 The workflow is ready to run after pushing the repository to GitHub. It intentionally avoids signing, secrets, distribution certificates, and cloud credentials.
 
+First-time private GitHub publishing steps are documented in `docs/release/private-github-publish.md`.
+
 ## Current V1 Focus
 - Continue adding sanitized OCR transcript fixtures from real photos/invoices as they become available.
-- Push the initialized local git repository to a private remote when ready.
+- Push the initialized local git repository to a private remote when ready, using `Scripts/preflight_publish.sh --require-remote` after adding `origin`.
 - Review the first GitHub Actions run after pushing and adjust only if the hosted runner image differs from the local Xcode environment.
 - Keep improving dashboard insights after real driving data accumulates.
 
