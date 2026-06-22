@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Guatemala pump invoice with Z4 full tank",
+    "kind": "fillUp",
+    "fuelScaleMax": 8,
+    "invoiceText": "ESTACION SERVICIO\nFecha 20/06/2026\nProducto SUPER\nCantidad 10.2500 GAL\nPrecio Unitario Q32.10\nImporte Q329.03\nTotal a pagar Q329.03",
+    "odometerText": "BMW Z4 2.5i\nODO 123,456 mi\nTRIP 0.0",
+    "fuelLevelText": "BMW Z4\nNivel tanque\nQuedan 8 de 8 espacios",
+    "expected": {
+      "gallons": 10.2500,
+      "pricePerGallon": 32.10,
+      "totalCost": 329.03,
+      "odometerMiles": 123456,
+      "tripMiles": 0,
+      "fuelLevelRemaining": 8
+    }
+  },
+  {
+    "name": "Abbreviated pump labels with spaced odometer",
+    "kind": "fillUp",
+    "fuelScaleMax": 8,
+    "invoiceText": "FACTURA CAMBIO DE ACEITE? NO\nCOMBUSTIBLE SUPER\nDespachado: 10.2500 GAL\nP.GAL Q 32.10\nTOTAL Q 329.03",
+    "odometerText": "ODO 123 456 MI\nTRIP 0.0",
+    "fuelLevelText": "Tanque lleno: 8 espacios restantes",
+    "expected": {
+      "gallons": 10.2500,
+      "pricePerGallon": 32.10,
+      "totalCost": 329.03,
+      "odometerMiles": 123456,
+      "tripMiles": 0,
+      "fuelLevelRemaining": 8
+    }
+  },
+  {
+    "name": "Snapshot with fractional BMW Z4 fuel level",
+    "kind": "snapshot",
+    "fuelScaleMax": 8,
+    "invoiceText": "",
+    "odometerText": "BMW Z4 2.5i\nODO 123620\nTRIP 164.0",
+    "fuelLevelText": "BMW Z4\nQuedan 6 1/2 de 8 espacios",
+    "expected": {
+      "odometerMiles": 123620,
+      "tripMiles": 164.0,
+      "fuelLevelRemaining": 6.5
+    }
+  }
+]

@@ -19,7 +19,10 @@ let package = Package(
         .testTarget(
             name: "CartrackCoreTests",
             dependencies: ["CartrackCore"],
-            path: "CartrackCore/Tests/CartrackCoreTests"
+            path: "CartrackCore/Tests/CartrackCoreTests",
+            resources: [
+                .process("Fixtures"),
+            ]
         ),
     ]
 )

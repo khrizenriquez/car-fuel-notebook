@@ -24,7 +24,7 @@ Run the same tests without enforcing coverage:
 swift test --enable-code-coverage
 ```
 
-Current verified core line coverage: `94.63%`.
+Current verified core line coverage: `94.21%`.
 
 Run the full local quality gate:
 
@@ -56,6 +56,8 @@ Fuel-level capture supports exact correction with a text field, `0.25` step butt
 
 OCR prefill coverage uses an injectable text recognizer so parser behavior is tested without depending on real camera/Vision output.
 
+Sanitized OCR fixtures live in `CartrackCore/Tests/CartrackCoreTests/Fixtures/OCR/ocr-fixtures.json`. Add only redacted OCR transcript text there, not private receipt or vehicle photos; see `docs/testing/ocr-fixtures.md`.
+
 Current-tank analytics only use snapshots captured on or after the latest fill-up, so stale fuel-level photos from the previous tank cannot override a fresh full-tank reading.
 
 Core analytics and smoke UI coverage verify that monthly summaries, manual monthly adjustments, current tank status, tank cycles, dashboard filtering, capture vehicle selection, and history filtering stay separated by vehicle when more than one car has data.
@@ -81,7 +83,7 @@ The repository includes a CI workflow for GitHub-hosted `macos-26` runners:
 The workflow is ready to run after pushing the repository to GitHub. It intentionally avoids signing, secrets, distribution certificates, and cloud credentials.
 
 ## Current V1 Focus
-- Continue adding OCR fixtures from real photos/invoices as they become available.
+- Continue adding sanitized OCR transcript fixtures from real photos/invoices as they become available.
 - Push the initialized local git repository to a private remote when ready.
 - Review the first GitHub Actions run after pushing and adjust only if the hosted runner image differs from the local Xcode environment.
 - Keep improving dashboard insights after real driving data accumulates.

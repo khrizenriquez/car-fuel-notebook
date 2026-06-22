@@ -91,15 +91,16 @@ Cartrack is a single-user, iPhone-only, local-first fuel tracking app. It captur
 - Done: GitHub Actions workflow added with strict core coverage and iPhone app/integration/UI tests on `macos-26`.
 - Done: simulator selection script prefers `iPhone Air` locally but can fall back to another available iPhone simulator in CI.
 - Done: OCR fixtures expanded for space-separated odometer thousands, abbreviated pump receipt labels, and fractional tank readings like `6 1/2 espacios`.
+- Done: sanitized OCR fixture harness added so parser cases can be extended from real Vision transcripts without committing private invoice, odometer, or dashboard photos.
 - Done: repository security notes added for local-only data, ignored evidence files, and no-secret v1 posture.
 
 ## Remaining V1 Checklist
-- Add more realistic OCR fixtures as actual invoices and photos become available.
+- Add additional sanitized OCR transcript fixtures as actual invoices and photos become available.
 - Push to a private GitHub remote and review the first remote GitHub Actions run.
 - Keep improving dashboard insights after real driving data accumulates.
 
 ## Recommended Execution Order
 1. Push the initialized repository to a private remote.
 2. Review the first GitHub Actions run and adjust runner/runtime only if needed.
-3. Add additional OCR fixtures from real-world evidence.
+3. Add additional sanitized OCR fixtures from real-world evidence.
 4. Iterate dashboard insights with real month-over-month data.

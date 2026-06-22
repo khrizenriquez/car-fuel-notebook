@@ -4,6 +4,38 @@ import XCTest
 final class OCRTextParserCoreTests: XCTestCase {
     private let parser = OCRTextParser()
 
+    func testSanitizedOCRFixturesParseExpectedFields() throws {
+        let fixtures = try loadOCRFixtures()
+        XCTAssertFalse(fixtures.isEmpty)
+
+        for fixture in fixtures {
+            switch fixture.kind {
+            case .fillUp:
+                let result = parser.parseFillUp(
+                    invoiceText: fixture.invoiceText,
+                    odometerText: fixture.odometerText,
+                    fuelLevelText: fixture.fuelLevelText,
+                    fuelScaleMax: fixture.fuelScaleMax
+                )
+                assertEqual(result.gallons, fixture.expected.gallons, fixture: fixture, field: "gallons", accuracy: 0.0001)
+                assertEqual(result.pricePerGallon, fixture.expected.pricePerGallon, fixture: fixture, field: "pricePerGallon")
+                assertEqual(result.totalCost, fixture.expected.totalCost, fixture: fixture, field: "totalCost")
+                assertEqual(result.odometerMiles, fixture.expected.odometerMiles, fixture: fixture, field: "odometerMiles")
+                assertEqual(result.tripMiles, fixture.expected.tripMiles, fixture: fixture, field: "tripMiles")
+                assertEqual(result.fuelLevelRemaining, fixture.expected.fuelLevelRemaining, fixture: fixture, field: "fuelLevelRemaining")
+            case .snapshot:
+                let result = parser.parseSnapshot(
+                    odometerText: fixture.odometerText,
+                    fuelLevelText: fixture.fuelLevelText,
+                    fuelScaleMax: fixture.fuelScaleMax
+                )
+                assertEqual(result.odometerMiles, fixture.expected.odometerMiles, fixture: fixture, field: "odometerMiles")
+                assertEqual(result.tripMiles, fixture.expected.tripMiles, fixture: fixture, field: "tripMiles")
+                assertEqual(result.fuelLevelRemaining, fixture.expected.fuelLevelRemaining, fixture: fixture, field: "fuelLevelRemaining")
+            }
+        }
+    }
+
     func testExtractNumbersSupportsDotAndCommaDecimals() {
         XCTAssertEqual(parser.extractNumbers(from: "Q329.03 10,2500 gal 32.10"), [329.03, 10.2500, 32.10])
         XCTAssertEqual(parser.extractNumbers(from: "ODO 123,456 mi"), [123456])
@@ -154,4 +186,53 @@ final class OCRTextParserCoreTests: XCTestCase {
     func testFuelLevelParsingRejectsOutOfRangeValues() {
         XCTAssertNil(parser.parseFuelLevel(from: "quedan 9 espacios", fuelScaleMax: 8))
     }
+
+    private func loadOCRFixtures() throws -> [OCRFixture] {
+        let url = try XCTUnwrap(
+            Bundle.module.url(forResource: "ocr-fixtures", withExtension: "json")
+                ?? Bundle.module.url(
+                    forResource: "ocr-fixtures",
+                    withExtension: "json",
+                    subdirectory: "Fixtures/OCR"
+                )
+        )
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode([OCRFixture].self, from: data)
+    }
+
+    private func assertEqual(
+        _ actual: Double?,
+        _ expected: Double?,
+        fixture: OCRFixture,
+        field: String,
+        accuracy: Double = 0.001
+    ) {
+        guard let expected else { return }
+        XCTAssertNotNil(actual, "\(fixture.name) should parse \(field)")
+        XCTAssertEqual(actual ?? .nan, expected, accuracy: accuracy, "\(fixture.name) should parse \(field)")
+    }
+}
+
+private struct OCRFixture: Decodable {
+    let name: String
+    let kind: OCRFixtureKind
+    let fuelScaleMax: Double
+    let invoiceText: String
+    let odometerText: String
+    let fuelLevelText: String
+    let expected: ExpectedOCRFields
+}
+
+private enum OCRFixtureKind: String, Decodable {
+    case fillUp
+    case snapshot
+}
+
+private struct ExpectedOCRFields: Decodable {
+    let gallons: Double?
+    let pricePerGallon: Double?
+    let totalCost: Double?
+    let odometerMiles: Double?
+    let tripMiles: Double?
+    let fuelLevelRemaining: Double?
 }
