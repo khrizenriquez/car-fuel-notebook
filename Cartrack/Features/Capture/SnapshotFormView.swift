@@ -27,6 +27,10 @@ private enum SnapshotWizardStep: Int {
     }
 }
 
+private enum SnapshotFocusedField: Hashable {
+    case odometer
+}
+
 struct SnapshotFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -54,6 +58,7 @@ struct SnapshotFormView: View {
     @State private var isAnalyzing = false
     @State private var errorMessage: String?
     @State private var wizardStep: SnapshotWizardStep = .evidence
+    @FocusState private var focusedField: SnapshotFocusedField?
 
     init(event: SnapshotEvent? = nil) {
         self.event = event
@@ -208,6 +213,7 @@ struct SnapshotFormView: View {
             DatePicker("Fecha", selection: $date, displayedComponents: [.date, .hourAndMinute])
             TextField("Odometro en millas", text: $odometerMiles)
                 .keyboardType(.decimalPad)
+                .focused($focusedField, equals: .odometer)
                 .accessibilityIdentifier("snapshot.odometer")
             TextField("Trip en millas (opcional)", text: $tripMiles)
                 .keyboardType(.decimalPad)
@@ -258,7 +264,15 @@ struct SnapshotFormView: View {
     private var confirmationSection: some View {
         Section("Resumen") {
             LabeledContent("Vehiculo", value: selectedVehicle?.displayName ?? "Pendiente")
-            LabeledContent("Odometro", value: display(odometerMiles, suffix: "mi"))
+            if odometerMiles.asDouble == nil {
+                LabeledContent("Odometro", value: "Pendiente")
+                Button("Completar odometro") {
+                    moveToOdometerReview()
+                }
+                .accessibilityIdentifier("snapshot.completeOdometer")
+            } else {
+                LabeledContent("Odometro", value: display(odometerMiles, suffix: "mi"))
+            }
             LabeledContent("Trip", value: display(tripMiles, suffix: "mi"))
             LabeledContent("Espacios restantes", value: CartrackFormatters.decimal(fuelLevelRemaining))
         }
@@ -290,8 +304,13 @@ struct SnapshotFormView: View {
     }
 
     private func save() {
-        guard let vehicle = selectedVehicle, let odometerMilesValue = odometerMiles.asDouble else {
-            errorMessage = "Selecciona vehiculo y odometro valido."
+        guard let vehicle = selectedVehicle else {
+            errorMessage = "Selecciona un vehiculo."
+            return
+        }
+        guard let odometerMilesValue = odometerMiles.asDouble else {
+            moveToOdometerReview()
+            errorMessage = "Completa el odometro manualmente para guardar el snapshot."
             return
         }
 
@@ -374,6 +393,13 @@ struct SnapshotFormView: View {
         if event != nil && existingOdometerPath == nil { removed.insert(.odometer) }
         if event != nil && existingFuelLevelPath == nil { removed.insert(.fuelLevel) }
         return removed
+    }
+
+    private func moveToOdometerReview() {
+        wizardStep = .review
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            focusedField = .odometer
+        }
     }
 
     private func display(_ value: String, suffix: String = "") -> String {

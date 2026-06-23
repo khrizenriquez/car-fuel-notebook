@@ -54,6 +54,28 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(waitForStaticText(containing: "8", in: app))
     }
 
+    func testMissingSnapshotOdometerReturnsToReviewForManualCorrection() throws {
+        let app = launchApp()
+
+        createVehicle(in: app)
+
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.snapshot"].tap()
+        app.buttons["snapshot.next"].tap()
+        type("3.4", into: app.textFields["snapshot.trip"])
+        app.buttons["snapshot.next"].tap()
+        app.buttons["snapshot.save"].tap()
+
+        XCTAssertTrue(app.alerts["No se pudo guardar"].waitForExistence(timeout: 5))
+        app.buttons["OK"].tap()
+        XCTAssertTrue(app.textFields["snapshot.odometer"].waitForExistence(timeout: 5))
+
+        type("123456", into: app.textFields["snapshot.odometer"])
+        app.buttons["snapshot.next"].tap()
+        app.buttons["snapshot.save"].tap()
+        XCTAssertTrue(app.buttons["capture.snapshot"].waitForExistence(timeout: 5))
+    }
+
     func testEditFillUpThenResetSelectedVehicleData() throws {
         let app = launchApp()
 
