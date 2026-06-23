@@ -37,6 +37,8 @@ struct OCRTextParser {
     }
 
     func parseLargestMileage(from text: String) -> Double? {
+        parseInstrumentClusterOdometer(from: text)
+            ??
         parseDecimal(afterKeywords: ["odometro", "odometer", "odo", "millas", "mileage"], in: text, min: 1_000, max: 999_999)
             ??
         extractNumbers(from: text)
@@ -48,8 +50,10 @@ struct OCRTextParser {
     func parseTripMileage(from text: String) -> Double? {
         parseDecimal(afterKeywords: ["trip meter", "tripmeter", "trip"], in: text, min: 0, max: 2_000)
             ??
+        parseInstrumentClusterTrip(from: text)
+            ??
         extractNumbers(from: text)
-            .filter { $0 >= 0 && $0 < 2_000 }
+            .filter { $0 >= 0 && $0 < 2_000 && $0.truncatingRemainder(dividingBy: 1) != 0 }
             .sorted(by: >)
             .first
     }
@@ -58,7 +62,6 @@ struct OCRTextParser {
         guard let value = parseFraction(afterKeywords: ["espacios restantes", "spaces remaining", "quedan", "restante", "nivel", "fuel level"], in: text, min: 0, max: fuelScaleMax)
             ?? parseDecimal(afterKeywords: ["espacios restantes", "spaces remaining", "quedan", "restante", "nivel", "fuel level"], in: text, min: 0, max: fuelScaleMax)
             ?? parseDecimal(beforeKeywords: ["espacios", "spaces", "barras"], in: text, min: 0, max: fuelScaleMax)
-            ?? bestDecimalCandidate(in: text, min: 0, max: fuelScaleMax)
         else { return nil }
         return FuelLevelScale.normalize(value, maxValue: fuelScaleMax)
     }
@@ -155,6 +158,76 @@ struct OCRTextParser {
 
     private func bestDecimalCandidate(in text: String, min: Double, max: Double) -> Double? {
         extractNumbers(from: text).first(where: { $0 >= min && $0 <= max })
+    }
+
+    private func parseInstrumentClusterOdometer(from text: String) -> Double? {
+        let lines = text.components(separatedBy: .newlines)
+        for line in lines {
+            guard let milesRange = line.range(of: #"miles?|mils?|millas?"#, options: [.regularExpression, .caseInsensitive]) else { continue }
+            let prefix = String(line[..<milesRange.lowerBound])
+            if let value = instrumentOdometerCandidate(from: prefix) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func parseInstrumentClusterTrip(from text: String) -> Double? {
+        let lines = text.components(separatedBy: .newlines)
+        for line in lines {
+            guard let milesRange = line.range(of: #"miles?|mils?|millas?"#, options: [.regularExpression, .caseInsensitive]) else { continue }
+            let suffix = String(line[milesRange.upperBound...])
+            if let value = instrumentTripCandidate(from: suffix) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func instrumentOdometerCandidate(from text: String) -> Double? {
+        extractNumbers(from: correctedSevenSegmentText(text))
+            .filter { $0 >= 10_000 && $0 <= 999_999 }
+            .max()
+    }
+
+    private func instrumentTripCandidate(from text: String) -> Double? {
+        let corrected = correctedSevenSegmentText(text)
+        if let decimal = extractNumbers(from: corrected)
+            .first(where: { $0 >= 0 && $0 < 2_000 && $0.truncatingRemainder(dividingBy: 1) != 0 }) {
+            return decimal
+        }
+
+        let pattern = #"(?<!\d)0(\d{2,3})(?!\d)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let nsText = corrected as NSString
+        return regex.matches(in: corrected, range: NSRange(location: 0, length: nsText.length))
+            .compactMap { match -> Double? in
+                guard match.numberOfRanges == 2,
+                      let raw = Double(nsText.substring(with: match.range(at: 1)))
+                else { return nil }
+                let value = raw / 10
+                return value >= 0 && value < 2_000 ? value : nil
+            }
+            .first
+    }
+
+    private func correctedSevenSegmentText(_ text: String) -> String {
+        var corrected = ""
+        for character in text {
+            switch character {
+            case "I", "l", "|", "!":
+                corrected.append("1")
+            case "O", "o", "D", "Q":
+                corrected.append("0")
+            case "S", "s":
+                corrected.append("5")
+            case "B":
+                corrected.append("8")
+            default:
+                corrected.append(character)
+            }
+        }
+        return corrected
     }
 
     private func normalizeNumber(_ raw: String) -> Double? {

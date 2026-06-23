@@ -68,4 +68,9 @@ private struct StubTextRecognizer: OCRTextRecognizing {
         guard let image else { return "" }
         return texts[ObjectIdentifier(image)] ?? ""
     }
+
+    func recognizeInstrumentClusterText(from image: UIImage?) async -> String {
+        guard let image else { return "" }
+        return texts[ObjectIdentifier(image)] ?? ""
+    }
 }

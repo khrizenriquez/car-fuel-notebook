@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -8,7 +9,7 @@ struct ImageCaptureField: View {
     @Binding var image: UIImage?
 
     @State private var isShowingPicker = false
-    @State private var sourceType: UIImagePickerController.SourceType = .photoLibrary
+    @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
         Section(title) {
@@ -20,14 +21,12 @@ struct ImageCaptureField: View {
 
             HStack {
                 Button("Camara") {
-                    sourceType = .camera
                     isShowingPicker = true
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button("Fotos") {
-                    sourceType = .photoLibrary
-                    isShowingPicker = true
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    Text("Fotos")
                 }
                 .buttonStyle(.bordered)
 
@@ -40,8 +39,26 @@ struct ImageCaptureField: View {
             }
         }
         .sheet(isPresented: $isShowingPicker) {
-            ImagePickerView(image: $image, sourceType: sourceType)
+            ImagePickerView(image: $image, sourceType: .camera)
         }
+        .task(id: selectedPhotoItem) {
+            await loadSelectedPhoto()
+        }
+    }
+
+    @MainActor
+    private func loadSelectedPhoto() async {
+        guard let selectedPhotoItem else { return }
+        do {
+            if let data = try await selectedPhotoItem.loadTransferable(type: Data.self),
+               let selectedImage = UIImage(data: data) {
+                image = selectedImage
+                existingPath = nil
+            }
+        } catch {
+            // Keep the previous image if Photos fails to deliver data.
+        }
+        self.selectedPhotoItem = nil
     }
 
     @ViewBuilder

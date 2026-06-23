@@ -82,6 +82,36 @@ final class OCRTextParserCoreTests: XCTestCase {
         XCTAssertEqualOptional(result.fuelLevelRemaining, 6.25, accuracy: 0.001)
     }
 
+    func testParserReadsEnhancedBmwSevenSegmentOdometerOCR() {
+        let odometerOCR = """
+        DTET4 miles 0730
+        I23456 mils 073.0
+        MPH
+        """
+
+        let result = parser.parseSnapshot(
+            odometerText: odometerOCR,
+            fuelLevelText: "",
+            fuelScaleMax: 8
+        )
+
+        XCTAssertEqualOptional(result.odometerMiles, 123456, accuracy: 0.001)
+        XCTAssertEqualOptional(result.tripMiles, 73.0, accuracy: 0.001)
+    }
+
+    func testFuelLevelParserDoesNotUseAnalogGaugeNoiseWithoutContext() {
+        let analogGaugeOCR = """
+        RAKE
+        2
+        4
+        1/2
+        1/1
+        1/minx1000
+        """
+
+        XCTAssertNil(parser.parseFuelLevel(from: analogGaugeOCR, fuelScaleMax: 8))
+    }
+
     func testParsingFallsBackToReasonableCandidates() {
         XCTAssertEqualOptional(parser.parseGallons(from: "11.34 32.10 329.03"), 11.34, accuracy: 0.001)
         XCTAssertEqualOptional(parser.parsePricePerGallon(from: "abc 32.10 xyz"), 32.10, accuracy: 0.001)
