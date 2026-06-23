@@ -192,6 +192,23 @@ final class OCRTextParserCoreTests: XCTestCase {
         XCTAssertEqualOptional(result.totalCost, 394.30, accuracy: 0.001)
     }
 
+    func testParserReadsTotalWhenOCRSplitsPaidTotalAcrossLines() {
+        let invoice = """
+        Cantidad DESCRIPCION Precio U. Total
+        11.3468
+        SC-PREMIUM
+        34.75
+        394.30
+        Total
+        Q
+        394.30
+        Impuesto IDP: Q 53.33
+        Monto total a pagar sin apoyo social temporal GTQ 451.03
+        """
+
+        XCTAssertEqualOptional(parser.parseTotalCost(from: invoice), 394.30, accuracy: 0.001)
+    }
+
     func testParserUsesContextForNoisyFuelLevelInsteadOfVehicleModelNumber() {
         let result = parser.parseSnapshot(
             odometerText: "BMW Z4 2.5i\nODO 123620\nTRIP 164.0",

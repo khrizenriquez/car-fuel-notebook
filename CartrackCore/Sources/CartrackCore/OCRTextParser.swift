@@ -37,7 +37,13 @@ struct OCRTextParser {
     func parseTotalCost(from text: String) -> Double? {
         parseFuelLineItem(from: text)?.totalCost
             ?? parseExplicitTotalLine(from: text)
-            ?? parseDecimal(afterKeywords: ["total pagado", "total a pagar", "importe"], in: text, min: 20, max: 5_000)
+            ?? parseDecimal(
+                afterKeywords: ["total pagado", "total a pagar", "importe"],
+                in: text,
+                min: 20,
+                max: 5_000,
+                excludingLinesContaining: ["sin apoyo", "apoyo social"]
+            )
             ?? bestDecimalCandidate(in: text, min: 20, max: 5_000)
     }
 
@@ -80,12 +86,19 @@ struct OCRTextParser {
         }
     }
 
-    private func parseDecimal(afterKeywords keywords: [String], in text: String, min: Double, max: Double) -> Double? {
+    private func parseDecimal(
+        afterKeywords keywords: [String],
+        in text: String,
+        min: Double,
+        max: Double,
+        excludingLinesContaining excludedTerms: [String] = []
+    ) -> Double? {
         let lowercased = text.lowercased()
         let lines = lowercased.components(separatedBy: .newlines)
 
         for keyword in keywords {
             for line in lines where line.contains(keyword.lowercased()) {
+                guard !containsExcludedTerm(line, excludedTerms: excludedTerms) else { continue }
                 if let value = extractNumbers(from: line).first(where: { $0 >= min && $0 <= max }) {
                     return value
                 }
@@ -95,6 +108,7 @@ struct OCRTextParser {
         for keyword in keywords {
             guard let range = lowercased.range(of: keyword.lowercased()) else { continue }
             let suffix = String(lowercased[range.lowerBound...].prefix(60))
+            guard !containsExcludedTerm(suffix, excludedTerms: excludedTerms) else { continue }
             if let match = extractNumbers(from: suffix).first(where: { $0 >= min && $0 <= max }) {
                 return match
             }
@@ -195,20 +209,37 @@ struct OCRTextParser {
 
     private func parseExplicitTotalLine(from text: String) -> Double? {
         let lines = text.components(separatedBy: .newlines)
-        for line in lines {
+        for (index, line) in lines.enumerated() {
             let lowercased = line.lowercased()
             guard lowercased.contains("total"),
-                  !lowercased.contains("sin apoyo"),
-                  !lowercased.contains("apoyo social"),
-                  !lowercased.contains("impuesto"),
-                  !lowercased.contains("idp")
+                  !isNonPaidTotalLine(lowercased)
             else { continue }
 
             if let value = extractNumbers(from: line).last(where: { $0 >= 20 && $0 <= 5_000 }) {
                 return value
             }
+
+            let lookahead = lines.dropFirst(index + 1).prefix(3)
+            for nextLine in lookahead {
+                let nextLowercased = nextLine.lowercased()
+                guard !isNonPaidTotalLine(nextLowercased) else { break }
+                if let value = extractNumbers(from: nextLine).last(where: { $0 >= 20 && $0 <= 5_000 }) {
+                    return value
+                }
+            }
         }
         return nil
+    }
+
+    private func isNonPaidTotalLine(_ lowercasedLine: String) -> Bool {
+        containsExcludedTerm(
+            lowercasedLine,
+            excludedTerms: ["sin apoyo", "apoyo social", "impuesto", "idp", "cantidad", "descripcion", "precio u"]
+        )
+    }
+
+    private func containsExcludedTerm(_ text: String, excludedTerms: [String]) -> Bool {
+        excludedTerms.contains { text.contains($0) }
     }
 
     private func parseInstrumentClusterOdometer(from text: String) -> Double? {

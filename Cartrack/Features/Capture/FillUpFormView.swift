@@ -307,6 +307,10 @@ struct FillUpFormView: View {
             LabeledContent("Galones", value: display(gallons, suffix: "gal"))
             LabeledContent("Precio/galon", value: display(pricePerGallon, prefix: "Q"))
             LabeledContent("Total", value: display(totalCost, prefix: "Q"))
+            Button("Editar montos de factura") {
+                wizardStep = .review
+            }
+            .accessibilityIdentifier("fill.editInvoiceAmounts")
             LabeledContent("Espacios restantes", value: CartrackFormatters.decimal(fuelLevelRemaining))
             if !stationName.trimmed.isEmpty {
                 LabeledContent("Gasolinera", value: stationName.trimmed)
