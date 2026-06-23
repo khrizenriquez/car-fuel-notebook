@@ -2,10 +2,11 @@ import Foundation
 
 struct OCRTextParser {
     func parseFillUp(invoiceText: String, odometerText: String, fuelLevelText: String, fuelScaleMax: Double) -> FillUpTextParseResult {
-        FillUpTextParseResult(
-            gallons: parseGallons(from: invoiceText),
-            pricePerGallon: parsePricePerGallon(from: invoiceText),
-            totalCost: parseTotalCost(from: invoiceText),
+        let lineItem = parseFuelLineItem(from: invoiceText)
+        return FillUpTextParseResult(
+            gallons: lineItem?.gallons ?? parseGallons(from: invoiceText),
+            pricePerGallon: lineItem?.pricePerGallon ?? parsePricePerGallon(from: invoiceText),
+            totalCost: lineItem?.totalCost ?? parseTotalCost(from: invoiceText),
             odometerMiles: parseLargestMileage(from: odometerText),
             tripMiles: parseTripMileage(from: odometerText),
             fuelLevelRemaining: parseFuelLevel(from: fuelLevelText, fuelScaleMax: fuelScaleMax)
@@ -21,18 +22,22 @@ struct OCRTextParser {
     }
 
     func parseGallons(from text: String) -> Double? {
+        parseFuelLineItem(from: text)?.gallons ??
         parseDecimal(afterKeywords: ["galones", "gallons", "cantidad", "cant. gal", "cant gal", "cant", "despachado", "volumen"], in: text, min: 1, max: 30)
             ?? parseDecimal(beforeKeywords: ["galones", "gallons", "gals", "gal"], in: text, min: 1, max: 30)
             ?? bestDecimalCandidate(in: text, min: 1, max: 30)
     }
 
     func parsePricePerGallon(from text: String) -> Double? {
+        parseFuelLineItem(from: text)?.pricePerGallon ??
         parseDecimal(afterKeywords: ["precio por galon", "precio unitario", "precio x galon", "precio gal", "p/gal", "p.gal", "p.u.", "p/u", "precio"], in: text, min: 10, max: 80)
             ?? bestDecimalCandidate(in: text, min: 10, max: 80)
     }
 
     func parseTotalCost(from text: String) -> Double? {
-        parseDecimal(afterKeywords: ["total pagado", "total a pagar", "monto total", "importe", "total"], in: text, min: 20, max: 5_000)
+        parseFuelLineItem(from: text)?.totalCost
+            ?? parseExplicitTotalLine(from: text)
+            ?? parseDecimal(afterKeywords: ["total pagado", "total a pagar", "importe"], in: text, min: 20, max: 5_000)
             ?? bestDecimalCandidate(in: text, min: 20, max: 5_000)
     }
 
@@ -67,7 +72,7 @@ struct OCRTextParser {
     }
 
     func extractNumbers(from text: String) -> [Double] {
-        let pattern = #"\d+(?:(?:[.,]\d+)|(?:\s+\d{3}))*"#
+        let pattern = #"(?<!\d)(?:\d{1,3}(?:[.,\s]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?!\d)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         let nsText = text as NSString
         return regex.matches(in: text, range: NSRange(location: 0, length: nsText.length)).compactMap { match in
@@ -158,6 +163,52 @@ struct OCRTextParser {
 
     private func bestDecimalCandidate(in text: String, min: Double, max: Double) -> Double? {
         extractNumbers(from: text).first(where: { $0 >= min && $0 <= max })
+    }
+
+    private func parseFuelLineItem(from text: String) -> FuelLineItem? {
+        let lines = text.components(separatedBy: .newlines)
+        for line in lines {
+            let lowercased = line.lowercased()
+            let numbers = extractNumbers(from: line)
+            guard numbers.count >= 3,
+                  lowercased.range(of: #"premium|regular|super|diesel|gasolina|combustible|sc-"#, options: .regularExpression) != nil
+            else { continue }
+
+            for index in numbers.indices.dropLast(2) {
+                let gallons = numbers[index]
+                let price = numbers[index + 1]
+                let total = numbers[index + 2]
+                guard gallons >= 1, gallons <= 30,
+                      price >= 10, price <= 80,
+                      total >= 20, total <= 5_000
+                else { continue }
+
+                let expectedTotal = gallons * price
+                let tolerance = max(0.05, expectedTotal * 0.01)
+                if abs(expectedTotal - total) <= tolerance {
+                    return FuelLineItem(gallons: gallons, pricePerGallon: price, totalCost: total)
+                }
+            }
+        }
+        return nil
+    }
+
+    private func parseExplicitTotalLine(from text: String) -> Double? {
+        let lines = text.components(separatedBy: .newlines)
+        for line in lines {
+            let lowercased = line.lowercased()
+            guard lowercased.contains("total"),
+                  !lowercased.contains("sin apoyo"),
+                  !lowercased.contains("apoyo social"),
+                  !lowercased.contains("impuesto"),
+                  !lowercased.contains("idp")
+            else { continue }
+
+            if let value = extractNumbers(from: line).last(where: { $0 >= 20 && $0 <= 5_000 }) {
+                return value
+            }
+        }
+        return nil
     }
 
     private func parseInstrumentClusterOdometer(from text: String) -> Double? {
@@ -276,6 +327,12 @@ struct OCRTextParser {
 
         return Double(compact.replacingOccurrences(of: " ", with: ""))
     }
+}
+
+private struct FuelLineItem {
+    let gallons: Double
+    let pricePerGallon: Double
+    let totalCost: Double
 }
 
 struct FillUpTextParseResult {

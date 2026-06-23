@@ -170,6 +170,28 @@ final class OCRTextParserCoreTests: XCTestCase {
         XCTAssertEqualOptional(result.fuelLevelRemaining, 8, accuracy: 0.001)
     }
 
+    func testParserPrefersActualPaidTotalOverTemporarySocialSupportReference() {
+        let invoice = """
+        DATOS DEL EMISOR
+        AEROPETROL SOCIEDAD ANONIMA
+        DATOS DEL COMPRADOR
+        Fecha: 20/06/2026
+        NIT: 00000000
+        Nombre: COMPRADOR DEMO
+        Cantidad DESCRIPCION Precio U. Total
+        11.3468 SC-PREMIUM 34.75 394.30
+        Total: Q 394.30
+        Impuesto IDP: Q 53.33
+        Monto total a pagar sin apoyo social temporal GTQ 451.03
+        """
+
+        let result = parser.parseFillUp(invoiceText: invoice, odometerText: "", fuelLevelText: "", fuelScaleMax: 8)
+
+        XCTAssertEqualOptional(result.gallons, 11.3468, accuracy: 0.0001)
+        XCTAssertEqualOptional(result.pricePerGallon, 34.75, accuracy: 0.001)
+        XCTAssertEqualOptional(result.totalCost, 394.30, accuracy: 0.001)
+    }
+
     func testParserUsesContextForNoisyFuelLevelInsteadOfVehicleModelNumber() {
         let result = parser.parseSnapshot(
             odometerText: "BMW Z4 2.5i\nODO 123620\nTRIP 164.0",
