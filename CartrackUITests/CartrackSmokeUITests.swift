@@ -54,7 +54,7 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(waitForStaticText(containing: "8", in: app))
     }
 
-    func testEditFillUpThenResetAllData() throws {
+    func testEditFillUpThenResetSelectedVehicleData() throws {
         let app = launchApp()
 
         createVehicle(in: app)
@@ -76,8 +76,12 @@ final class CartrackSmokeUITests: XCTestCase {
         app.buttons["settings.reset"].tap()
         app.buttons["settings.reset.confirm"].firstMatch.tap()
 
-        app.tabBars.buttons["Dashboard"].tap()
-        XCTAssertTrue(app.staticTexts["Agrega tu primer vehiculo"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Vehiculos"].tap()
+        XCTAssertTrue(app.staticTexts["Roadster BMW Z4 2003"].waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["Historial"].tap()
+        XCTAssertFalse(app.buttons["history.fillup.row"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["history.snapshot.row"].waitForExistence(timeout: 2))
     }
 
     func testCreateAndDeleteMonthlyAdjustment() throws {

@@ -60,7 +60,7 @@ private struct PersistenceUnavailableView: View {
         ContentUnavailableView {
             Label("Cartrack no pudo abrir la base local", systemImage: "externaldrive.badge.exclamationmark")
         } description: {
-            Text("Tus datos no se borraron automaticamente. Cierra y vuelve a abrir la app. Si el problema sigue, revisa el almacenamiento disponible antes de usar Reset total.")
+            Text("Tus datos no se borraron automaticamente. Cierra y vuelve a abrir la app. Si el problema sigue, revisa el almacenamiento disponible antes de borrar datos de un vehiculo.")
         } actions: {
             Text(error.localizedDescription)
                 .font(.footnote)

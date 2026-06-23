@@ -40,32 +40,39 @@ final class PersistenceIntegrationTests: XCTestCase {
         XCTAssertEqual(try IntegrationTestSupport.count(MonthlyManualAdjustment.self, in: context), 1)
     }
 
-    func testResetServiceDeletesAllDomainDataAndImageAssets() throws {
+    func testResetServiceDeletesSelectedVehicleDataAndPreservesVehicles() throws {
         let context = try IntegrationTestSupport.makeInMemoryContext()
         let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)
+        let otherVehicle = Vehicle(name: "Commuter", make: "Toyota", modelName: "Yaris", year: 2020)
         let fill = FuelFillEvent(vehicle: vehicle, odometerKilometers: 1_000, gallons: 10, pricePerGallon: 35, totalCost: 350)
         let snapshot = SnapshotEvent(vehicle: vehicle, odometerKilometers: 1_050, fuelLevelRemaining: 7)
         let adjustment = MonthlyManualAdjustment(monthStart: Date().startOfMonth(), vehicle: vehicle, manualDistanceKilometers: 10)
+        let otherFill = FuelFillEvent(vehicle: otherVehicle, odometerKilometers: 2_000, gallons: 8, pricePerGallon: 34, totalCost: 272)
         let imagePath = try ImageStorageService.shared.saveImage(makeImage(color: .orange), preferredName: "reset-test-\(UUID().uuidString)")
         let asset = ImageAsset(eventID: fill.id, ownerType: .fillUp, kind: .invoice, localPath: imagePath)
 
         context.insert(vehicle)
+        context.insert(otherVehicle)
         context.insert(fill)
         context.insert(snapshot)
         context.insert(adjustment)
+        context.insert(otherFill)
         context.insert(asset)
         try context.save()
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: imagePath))
 
-        try ResetService.resetAll(context: context)
+        try ResetService.resetData(for: vehicle, context: context)
 
-        XCTAssertEqual(try IntegrationTestSupport.count(Vehicle.self, in: context), 0)
-        XCTAssertEqual(try IntegrationTestSupport.count(FuelFillEvent.self, in: context), 0)
+        XCTAssertEqual(try IntegrationTestSupport.count(Vehicle.self, in: context), 2)
+        XCTAssertEqual(try IntegrationTestSupport.count(FuelFillEvent.self, in: context), 1)
         XCTAssertEqual(try IntegrationTestSupport.count(SnapshotEvent.self, in: context), 0)
         XCTAssertEqual(try IntegrationTestSupport.count(MonthlyManualAdjustment.self, in: context), 0)
         XCTAssertEqual(try IntegrationTestSupport.count(ImageAsset.self, in: context), 0)
         XCTAssertFalse(FileManager.default.fileExists(atPath: imagePath))
+
+        let remainingFills = try context.fetch(FetchDescriptor<FuelFillEvent>())
+        XCTAssertEqual(remainingFills.first?.vehicle?.id, otherVehicle.id)
     }
 
     private func makeImage(color: UIColor) -> UIImage {
