@@ -22,6 +22,13 @@ final class CartrackSmokeUITests: XCTestCase {
         createVehicle(in: app)
         saveFillUpAndSnapshot(in: app)
 
+        app.tabBars.buttons["Dashboard"].tap()
+        XCTAssertTrue(waitForStaticText(containing: "329.03", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "263", in: app))
+        XCTAssertTrue(
+            waitForStaticText(containing: "6.5", in: app) || waitForStaticText(containing: "6,5", in: app)
+        )
+
         app.tabBars.buttons["Historial"].tap()
         XCTAssertTrue(app.staticTexts["Llenado"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Snapshot"].waitForExistence(timeout: 5))
@@ -87,10 +94,10 @@ final class CartrackSmokeUITests: XCTestCase {
         let toyota = "Commuter Toyota Yaris 2020"
 
         app.tabBars.buttons["Dashboard"].tap()
-        XCTAssertTrue(waitForStaticText(containing: "420.00", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "720.00", in: app))
 
         selectVehicle(toyota, in: app, pickerIdentifier: "vehicle.filter.picker")
-        XCTAssertTrue(waitForStaticText(containing: "700.00", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "1,240.00", in: app) || waitForStaticText(containing: "1240.00", in: app))
 
         app.tabBars.buttons["Capturar"].tap()
         app.buttons["capture.fillup"].tap()

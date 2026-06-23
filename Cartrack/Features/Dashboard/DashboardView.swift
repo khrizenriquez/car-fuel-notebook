@@ -28,9 +28,37 @@ struct DashboardView: View {
         )
     }
 
+    private var currentMonthStart: Date {
+        Date().startOfMonth()
+    }
+
     private var currentMonthSummary: MonthlySummary? {
-        let currentMonth = Date().startOfMonth()
-        return summaries.first(where: { Calendar.current.isDate($0.monthStart, equalTo: currentMonth, toGranularity: .month) })
+        summaries.first(where: { Calendar.current.isDate($0.monthStart, equalTo: currentMonthStart, toGranularity: .month) })
+    }
+
+    private var currentMonthPurchases: MonthlyPurchaseSummary {
+        AnalyticsEngine.monthlyPurchases(
+            fills: fillEvents,
+            vehicleID: selectedVehicleID,
+            monthStart: currentMonthStart
+        )
+    }
+
+    private var selectedCurrentTankStatus: CurrentTankStatus? {
+        guard let vehicleID = selectedVehicleID ?? vehicles.first?.id else { return nil }
+        return AnalyticsEngine.currentTankStatus(
+            fills: fillEvents,
+            snapshots: snapshotEvents,
+            vehicleID: vehicleID
+        )
+    }
+
+    private var inProgressCurrentMonthDistance: Double {
+        guard let status = selectedCurrentTankStatus,
+              let latestFillDate = status.latestFill?.date,
+              Calendar.current.isDate(latestFillDate, equalTo: currentMonthStart, toGranularity: .month)
+        else { return 0 }
+        return status.distanceKilometers
     }
 
     private var previousMonthSummary: MonthlySummary? {
@@ -97,15 +125,18 @@ struct DashboardView: View {
             Text("Mes actual")
                 .font(.headline)
 
-            let spend = currentMonthSummary?.spend ?? 0
-            let km = currentMonthSummary?.totalDistanceKilometers ?? 0
+            let spend = currentMonthPurchases.spend > 0 ? currentMonthPurchases.spend : currentMonthSummary?.spend ?? 0
+            let km = (currentMonthSummary?.totalDistanceKilometers ?? 0) + inProgressCurrentMonthDistance
             let kmPerGallon = currentMonthSummary?.kmPerGallon ?? 0
             let delta = monthOverMonthDelta()
+            let spendSecondary = currentMonthPurchases.fillCount > 0
+                ? "\(currentMonthPurchases.fillCount) llenado\(currentMonthPurchases.fillCount == 1 ? "" : "s") • \(CartrackFormatters.decimal(currentMonthPurchases.gallons, suffix: "gal comprados"))"
+                : delta.map { "Cambio vs mes anterior: \($0)" } ?? "Sin comparacion todavia"
 
             MetricCard(
                 title: "Gasto",
                 primary: CartrackFormatters.currency(spend),
-                secondary: delta.map { "Cambio vs mes anterior: \($0)" } ?? "Sin comparacion todavia",
+                secondary: spendSecondary,
                 tint: .green
             )
 
@@ -113,7 +144,7 @@ struct DashboardView: View {
                 MetricCard(
                     title: "Distancia",
                     primary: CartrackFormatters.decimal(km, suffix: "km"),
-                    secondary: "Incluye ajustes manuales del mes",
+                    secondary: inProgressCurrentMonthDistance > 0 ? "Incluye el tanque en curso" : "Incluye ajustes manuales del mes",
                     tint: .blue
                 )
                 .accessibilityIdentifier("dashboard.distance")
@@ -149,17 +180,13 @@ struct DashboardView: View {
                 .font(.headline)
 
             if let vehicleID = selectedVehicleID ?? vehicles.first?.id {
-                let status = AnalyticsEngine.currentTankStatus(
-                    fills: fillEvents,
-                    snapshots: snapshotEvents,
-                    vehicleID: vehicleID
-                )
+                let status = selectedCurrentTankStatus ?? AnalyticsEngine.currentTankStatus(fills: fillEvents, snapshots: snapshotEvents, vehicleID: vehicleID)
 
                 HStack {
                     MetricCard(
-                        title: "Desde ultimo llenado",
-                        primary: CartrackFormatters.decimal(status.distanceKilometers, suffix: "km"),
-                        secondary: "Ultima lectura: \(status.latestReadingDate?.formatted(date: .abbreviated, time: .omitted) ?? "N/A")",
+                        title: status.latestFill == nil ? "Ultima lectura" : "Desde ultimo llenado",
+                        primary: currentTankPrimary(status),
+                        secondary: currentTankSecondary(status),
                         tint: .purple
                     )
                     MetricCard(
@@ -187,6 +214,12 @@ struct DashboardView: View {
             Text("Historico mensual")
                 .font(.headline)
 
+            if summaries.isEmpty {
+                Text("Aun no hay ciclos de tanque cerrados. Guarda al menos dos llenados para calcular rendimiento historico; mientras tanto, el gasto del mes y la ultima lectura se muestran arriba.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             ForEach(summaries.prefix(6)) { summary in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(summary.monthStart.formattedMonth())
@@ -210,5 +243,28 @@ struct DashboardView: View {
         guard let currentMonthSummary, let previousMonthSummary, previousMonthSummary.spend > 0 else { return nil }
         let percent = ((currentMonthSummary.spend - previousMonthSummary.spend) / previousMonthSummary.spend) * 100
         return "\(CartrackFormatters.decimal(percent, suffix: "%"))"
+    }
+
+    private func currentTankPrimary(_ status: CurrentTankStatus) -> String {
+        if status.latestFill == nil, let kilometers = status.latestReadingKilometers {
+            return CartrackFormatters.decimal(kilometers, suffix: "km")
+        }
+        return CartrackFormatters.decimal(status.distanceKilometers, suffix: "km")
+    }
+
+    private func currentTankSecondary(_ status: CurrentTankStatus) -> String {
+        guard let date = status.latestReadingDate else {
+            return "Ultima lectura: N/A"
+        }
+
+        let formattedDate = date.formatted(date: .abbreviated, time: .omitted)
+        guard let kilometers = status.latestReadingKilometers else {
+            return "Ultima lectura: \(formattedDate)"
+        }
+
+        if status.latestFill == nil {
+            return "Sin llenado base todavia • \(formattedDate)"
+        }
+        return "Ultima lectura: \(formattedDate) • \(CartrackFormatters.decimal(kilometers, suffix: "km"))"
     }
 }

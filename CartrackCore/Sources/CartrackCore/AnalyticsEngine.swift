@@ -41,10 +41,19 @@ struct MonthlySummary: Identifiable {
 struct CurrentTankStatus {
     let latestFill: FuelFillEvent?
     let latestReadingDate: Date?
+    let latestReadingKilometers: Double?
     let distanceKilometers: Double
     let spacesRemaining: Double?
     let estimatedAutonomyKilometers: Double?
     let estimatedFuelCostConsumed: Double?
+}
+
+struct MonthlyPurchaseSummary {
+    let monthStart: Date
+    let vehicleID: UUID?
+    let spend: Double
+    let gallons: Double
+    let fillCount: Int
 }
 
 struct MonthlyProjection {
@@ -169,7 +178,18 @@ enum AnalyticsEngine {
             .sorted { $0.date < $1.date }
 
         guard let latestFill = scopedFills.last else {
-            return CurrentTankStatus(latestFill: nil, latestReadingDate: nil, distanceKilometers: 0, spacesRemaining: nil, estimatedAutonomyKilometers: nil, estimatedFuelCostConsumed: nil)
+            let latestSnapshot = snapshots
+                .filter { $0.vehicle?.id == vehicleID }
+                .max { $0.date < $1.date }
+            return CurrentTankStatus(
+                latestFill: nil,
+                latestReadingDate: latestSnapshot?.date,
+                latestReadingKilometers: latestSnapshot?.odometerKilometers,
+                distanceKilometers: 0,
+                spacesRemaining: latestSnapshot?.fuelLevelRemaining,
+                estimatedAutonomyKilometers: nil,
+                estimatedFuelCostConsumed: nil
+            )
         }
 
         let scopedSnapshots = snapshots
@@ -190,10 +210,32 @@ enum AnalyticsEngine {
         return CurrentTankStatus(
             latestFill: latestFill,
             latestReadingDate: latestSnapshot?.date ?? latestFill.date,
+            latestReadingKilometers: latestReadingOdometer,
             distanceKilometers: distance,
             spacesRemaining: remainingSpaces,
             estimatedAutonomyKilometers: autonomy,
             estimatedFuelCostConsumed: costConsumed
+        )
+    }
+
+    static func monthlyPurchases(
+        fills: [FuelFillEvent],
+        vehicleID: UUID? = nil,
+        monthStart: Date,
+        calendar: Calendar = .current
+    ) -> MonthlyPurchaseSummary {
+        let normalizedMonth = monthStart.startOfMonth(using: calendar)
+        let scoped = fills.filter { fill in
+            (vehicleID == nil || fill.vehicle?.id == vehicleID) &&
+            calendar.isDate(fill.date, equalTo: normalizedMonth, toGranularity: .month)
+        }
+
+        return MonthlyPurchaseSummary(
+            monthStart: normalizedMonth,
+            vehicleID: vehicleID,
+            spend: scoped.map(\.totalCost).reduce(0, +),
+            gallons: scoped.map(\.gallons).reduce(0, +),
+            fillCount: scoped.count
         )
     }
 

@@ -210,6 +210,7 @@ final class AnalyticsEngineCoreTests: XCTestCase {
 
         XCTAssertEqual(status.latestFill?.id, secondFill.id)
         XCTAssertEqual(status.distanceKilometers, 80, accuracy: 0.001)
+        XCTAssertEqualOptional(status.latestReadingKilometers, 1_330, accuracy: 0.001)
         XCTAssertEqualOptional(status.spacesRemaining, 6, accuracy: 0.001)
         XCTAssertEqual(status.estimatedAutonomyKilometers ?? 0, 187.5, accuracy: 0.001)
         XCTAssertEqual(status.estimatedFuelCostConsumed ?? 0, 112, accuracy: 0.001)
@@ -276,8 +277,57 @@ final class AnalyticsEngineCoreTests: XCTestCase {
 
         XCTAssertNil(status.latestFill)
         XCTAssertNil(status.latestReadingDate)
+        XCTAssertNil(status.latestReadingKilometers)
         XCTAssertEqual(status.distanceKilometers, 0)
         XCTAssertNil(status.spacesRemaining)
+    }
+
+    func testCurrentTankStatusUsesLatestSnapshotWhenNoFillExistsYet() {
+        let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
+        let olderSnapshot = SnapshotEvent(
+            date: date(day: 12),
+            vehicle: vehicle,
+            odometerKilometers: 1_100,
+            fuelLevelRemaining: 7
+        )
+        let latestSnapshot = SnapshotEvent(
+            date: date(day: 13),
+            vehicle: vehicle,
+            odometerKilometers: 1_180,
+            fuelLevelRemaining: 6.5
+        )
+
+        let status = AnalyticsEngine.currentTankStatus(
+            fills: [],
+            snapshots: [olderSnapshot, latestSnapshot],
+            vehicleID: vehicle.id,
+            calendar: calendar
+        )
+
+        XCTAssertNil(status.latestFill)
+        XCTAssertEqual(status.latestReadingDate, latestSnapshot.date)
+        XCTAssertEqualOptional(status.latestReadingKilometers, 1_180, accuracy: 0.001)
+        XCTAssertEqual(status.distanceKilometers, 0, accuracy: 0.001)
+        XCTAssertEqualOptional(status.spacesRemaining, 6.5, accuracy: 0.001)
+        XCTAssertNil(status.estimatedAutonomyKilometers)
+        XCTAssertNil(status.estimatedFuelCostConsumed)
+    }
+
+    func testMonthlyPurchasesSummarizeOpenMonthFillSpendWithoutClosingCycle() {
+        let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
+        let currentFill = fill(vehicle: vehicle, day: 12, odometer: 1_000, gallons: 11.3468, total: 394.30)
+        let previousFill = fill(vehicle: vehicle, month: 5, day: 30, odometer: 900, gallons: 10, total: 300)
+
+        let purchases = AnalyticsEngine.monthlyPurchases(
+            fills: [previousFill, currentFill],
+            vehicleID: vehicle.id,
+            monthStart: date(month: 6, day: 1),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(purchases.fillCount, 1)
+        XCTAssertEqual(purchases.spend, 394.30, accuracy: 0.001)
+        XCTAssertEqual(purchases.gallons, 11.3468, accuracy: 0.001)
     }
 
     func testMonthlyProjectionScalesCurrentMonthPace() throws {
