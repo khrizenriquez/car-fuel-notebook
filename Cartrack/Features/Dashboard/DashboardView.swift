@@ -44,6 +44,15 @@ struct DashboardView: View {
         )
     }
 
+    private var currentMonthCaptures: MonthlyCaptureSummary {
+        AnalyticsEngine.monthlyCaptures(
+            fills: fillEvents,
+            snapshots: snapshotEvents,
+            vehicleID: selectedVehicleID,
+            monthStart: currentMonthStart
+        )
+    }
+
     private var selectedCurrentTankStatus: CurrentTankStatus? {
         guard let vehicleID = selectedVehicleID ?? vehicles.first?.id else { return nil }
         return AnalyticsEngine.currentTankStatus(
@@ -126,12 +135,16 @@ struct DashboardView: View {
                 .font(.headline)
 
             let spend = currentMonthPurchases.spend > 0 ? currentMonthPurchases.spend : currentMonthSummary?.spend ?? 0
-            let km = (currentMonthSummary?.totalDistanceKilometers ?? 0) + inProgressCurrentMonthDistance
+            let snapshotOnlyDistance = inProgressCurrentMonthDistance > 0 ? 0 : currentMonthCaptures.latestSnapshotTripKilometers ?? 0
+            let km = (currentMonthSummary?.totalDistanceKilometers ?? 0) + inProgressCurrentMonthDistance + snapshotOnlyDistance
             let kmPerGallon = currentMonthSummary?.kmPerGallon ?? 0
             let delta = monthOverMonthDelta()
             let spendSecondary = currentMonthPurchases.fillCount > 0
                 ? "\(currentMonthPurchases.fillCount) llenado\(currentMonthPurchases.fillCount == 1 ? "" : "s") • \(CartrackFormatters.decimal(currentMonthPurchases.gallons, suffix: "gal comprados"))"
-                : delta.map { "Cambio vs mes anterior: \($0)" } ?? "Sin comparacion todavia"
+                : currentMonthCaptures.totalCaptureCount > 0
+                    ? "\(currentMonthCaptures.snapshotCount) snapshot\(currentMonthCaptures.snapshotCount == 1 ? "" : "s") este mes"
+                    : delta.map { "Cambio vs mes anterior: \($0)" } ?? "Sin comparacion todavia"
+            let distanceSecondary = distanceSecondaryText(snapshotOnlyDistance: snapshotOnlyDistance)
 
             MetricCard(
                 title: "Gasto",
@@ -144,7 +157,7 @@ struct DashboardView: View {
                 MetricCard(
                     title: "Distancia",
                     primary: CartrackFormatters.decimal(km, suffix: "km"),
-                    secondary: inProgressCurrentMonthDistance > 0 ? "Incluye el tanque en curso" : "Incluye ajustes manuales del mes",
+                    secondary: distanceSecondary,
                     tint: .blue
                 )
                 .accessibilityIdentifier("dashboard.distance")
@@ -155,6 +168,14 @@ struct DashboardView: View {
                     tint: .orange
                 )
             }
+
+            MetricCard(
+                title: "Capturas",
+                primary: "\(currentMonthCaptures.totalCaptureCount)",
+                secondary: captureSummaryText(),
+                tint: .mint
+            )
+            .accessibilityIdentifier("dashboard.captures")
 
             if let projection = currentMonthProjection {
                 MetricCard(
@@ -243,6 +264,33 @@ struct DashboardView: View {
         guard let currentMonthSummary, let previousMonthSummary, previousMonthSummary.spend > 0 else { return nil }
         let percent = ((currentMonthSummary.spend - previousMonthSummary.spend) / previousMonthSummary.spend) * 100
         return "\(CartrackFormatters.decimal(percent, suffix: "%"))"
+    }
+
+    private func distanceSecondaryText(snapshotOnlyDistance: Double) -> String {
+        if inProgressCurrentMonthDistance > 0 {
+            return "Incluye el tanque en curso"
+        }
+        if snapshotOnlyDistance > 0 {
+            return "Distancia reportada por el ultimo snapshot"
+        }
+        if currentMonthCaptures.snapshotCount > 0 {
+            return "Snapshot registrado sin trip util"
+        }
+        return "Incluye ajustes manuales del mes"
+    }
+
+    private func captureSummaryText() -> String {
+        guard currentMonthCaptures.totalCaptureCount > 0 else {
+            return "Sin capturas este mes"
+        }
+
+        let fillText = "\(currentMonthCaptures.fillCount) llenado\(currentMonthCaptures.fillCount == 1 ? "" : "s")"
+        let snapshotText = "\(currentMonthCaptures.snapshotCount) snapshot\(currentMonthCaptures.snapshotCount == 1 ? "" : "s")"
+        let dateText = currentMonthCaptures.latestCaptureDate.map {
+            "ultima: \($0.formatted(date: .abbreviated, time: .shortened))"
+        }
+
+        return ([fillText, snapshotText] + [dateText].compactMap { $0 }).joined(separator: " • ")
     }
 
     private func currentTankPrimary(_ status: CurrentTankStatus) -> String {

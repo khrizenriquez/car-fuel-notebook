@@ -56,6 +56,19 @@ struct MonthlyPurchaseSummary {
     let fillCount: Int
 }
 
+struct MonthlyCaptureSummary {
+    let monthStart: Date
+    let vehicleID: UUID?
+    let fillCount: Int
+    let snapshotCount: Int
+    let latestCaptureDate: Date?
+    let latestSnapshotTripKilometers: Double?
+    let latestSnapshotOdometerKilometers: Double?
+    let latestSnapshotFuelLevelRemaining: Double?
+
+    var totalCaptureCount: Int { fillCount + snapshotCount }
+}
+
 struct MonthlyProjection {
     let monthStart: Date
     let elapsedDays: Int
@@ -236,6 +249,40 @@ enum AnalyticsEngine {
             spend: scoped.map(\.totalCost).reduce(0, +),
             gallons: scoped.map(\.gallons).reduce(0, +),
             fillCount: scoped.count
+        )
+    }
+
+    static func monthlyCaptures(
+        fills: [FuelFillEvent],
+        snapshots: [SnapshotEvent],
+        vehicleID: UUID? = nil,
+        monthStart: Date,
+        calendar: Calendar = .current
+    ) -> MonthlyCaptureSummary {
+        let normalizedMonth = monthStart.startOfMonth(using: calendar)
+        let scopedFills = fills.filter { fill in
+            (vehicleID == nil || fill.vehicle?.id == vehicleID) &&
+            calendar.isDate(fill.date, equalTo: normalizedMonth, toGranularity: .month)
+        }
+        let scopedSnapshots = snapshots.filter { snapshot in
+            (vehicleID == nil || snapshot.vehicle?.id == vehicleID) &&
+            calendar.isDate(snapshot.date, equalTo: normalizedMonth, toGranularity: .month)
+        }
+        let latestFillDate = scopedFills.map(\.date).max()
+        let latestSnapshot = scopedSnapshots.max { $0.date < $1.date }
+        let latestCaptureDate = [latestFillDate, latestSnapshot?.date]
+            .compactMap { $0 }
+            .max()
+
+        return MonthlyCaptureSummary(
+            monthStart: normalizedMonth,
+            vehicleID: vehicleID,
+            fillCount: scopedFills.count,
+            snapshotCount: scopedSnapshots.count,
+            latestCaptureDate: latestCaptureDate,
+            latestSnapshotTripKilometers: latestSnapshot?.tripKilometers,
+            latestSnapshotOdometerKilometers: latestSnapshot?.odometerKilometers,
+            latestSnapshotFuelLevelRemaining: latestSnapshot?.fuelLevelRemaining
         )
     }
 

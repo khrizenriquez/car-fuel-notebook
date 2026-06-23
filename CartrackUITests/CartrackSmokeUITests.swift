@@ -42,6 +42,18 @@ final class CartrackSmokeUITests: XCTestCase {
         )
     }
 
+    func testSnapshotOnlyShowsDashboardActivity() throws {
+        let app = launchApp()
+
+        createVehicle(in: app)
+        saveSnapshotOnly(in: app)
+
+        app.tabBars.buttons["Dashboard"].tap()
+        XCTAssertTrue(waitForStaticText(containing: "1", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "117", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "8", in: app))
+    }
+
     func testEditFillUpThenResetAllData() throws {
         let app = launchApp()
 
@@ -163,6 +175,17 @@ final class CartrackSmokeUITests: XCTestCase {
         for _ in 0..<6 {
             decrementFuelLevel.tap()
         }
+        app.buttons["snapshot.next"].tap()
+        app.buttons["snapshot.save"].tap()
+    }
+
+    private func saveSnapshotOnly(in app: XCUIApplication) {
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.snapshot"].tap()
+
+        app.buttons["snapshot.next"].tap()
+        type("123456", into: app.textFields["snapshot.odometer"])
+        type("73.0", into: app.textFields["snapshot.trip"])
         app.buttons["snapshot.next"].tap()
         app.buttons["snapshot.save"].tap()
     }

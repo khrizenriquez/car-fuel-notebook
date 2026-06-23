@@ -315,7 +315,7 @@ final class AnalyticsEngineCoreTests: XCTestCase {
 
     func testMonthlyPurchasesSummarizeOpenMonthFillSpendWithoutClosingCycle() {
         let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
-        let currentFill = fill(vehicle: vehicle, day: 12, odometer: 1_000, gallons: 11.3468, total: 394.30)
+        let currentFill = fill(vehicle: vehicle, day: 12, odometer: 1_000, gallons: 12.5, total: 412.75)
         let previousFill = fill(vehicle: vehicle, month: 5, day: 30, odometer: 900, gallons: 10, total: 300)
 
         let purchases = AnalyticsEngine.monthlyPurchases(
@@ -326,8 +326,35 @@ final class AnalyticsEngineCoreTests: XCTestCase {
         )
 
         XCTAssertEqual(purchases.fillCount, 1)
-        XCTAssertEqual(purchases.spend, 394.30, accuracy: 0.001)
-        XCTAssertEqual(purchases.gallons, 11.3468, accuracy: 0.001)
+        XCTAssertEqual(purchases.spend, 412.75, accuracy: 0.001)
+        XCTAssertEqual(purchases.gallons, 12.5, accuracy: 0.001)
+    }
+
+    func testMonthlyCapturesExposeSnapshotOnlyActivityForDashboard() {
+        let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
+        let snapshot = SnapshotEvent(
+            date: date(day: 22),
+            vehicle: vehicle,
+            odometerKilometers: 173_599.9,
+            tripKilometers: UnitConversion.milesToKilometers(73),
+            fuelLevelRemaining: 8
+        )
+
+        let captures = AnalyticsEngine.monthlyCaptures(
+            fills: [],
+            snapshots: [snapshot],
+            vehicleID: vehicle.id,
+            monthStart: date(month: 6, day: 1),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(captures.fillCount, 0)
+        XCTAssertEqual(captures.snapshotCount, 1)
+        XCTAssertEqual(captures.totalCaptureCount, 1)
+        XCTAssertEqual(captures.latestCaptureDate, snapshot.date)
+        XCTAssertEqualOptional(captures.latestSnapshotTripKilometers, UnitConversion.milesToKilometers(73), accuracy: 0.001)
+        XCTAssertEqualOptional(captures.latestSnapshotOdometerKilometers, 173_599.9, accuracy: 0.001)
+        XCTAssertEqualOptional(captures.latestSnapshotFuelLevelRemaining, 8, accuracy: 0.001)
     }
 
     func testMonthlyProjectionScalesCurrentMonthPace() throws {
