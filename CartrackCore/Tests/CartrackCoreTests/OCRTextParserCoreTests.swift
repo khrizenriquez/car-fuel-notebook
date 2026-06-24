@@ -170,7 +170,7 @@ final class OCRTextParserCoreTests: XCTestCase {
         XCTAssertEqualOptional(result.fuelLevelRemaining, 8, accuracy: 0.001)
     }
 
-    func testParserPrefersActualPaidTotalOverTemporarySocialSupportReference() {
+    func testParserPrefersTemporarySocialSupportTotalAsFullSpend() {
         let invoice = """
         DATOS DEL EMISOR
         AEROPETROL SOCIEDAD ANONIMA
@@ -189,10 +189,25 @@ final class OCRTextParserCoreTests: XCTestCase {
 
         XCTAssertEqualOptional(result.gallons, 11.3468, accuracy: 0.0001)
         XCTAssertEqualOptional(result.pricePerGallon, 34.75, accuracy: 0.001)
+        XCTAssertEqualOptional(result.totalCost, 451.03, accuracy: 0.001)
+    }
+
+    func testParserUsesLineItemTotalWhenNoTemporarySocialSupportTotalExists() {
+        let invoice = """
+        Cantidad DESCRIPCION Precio U. Total
+        11.3468 SC-PREMIUM 34.75 394.30
+        Total: Q 394.30
+        Impuesto IDP: Q 53.33
+        """
+
+        let result = parser.parseFillUp(invoiceText: invoice, odometerText: "", fuelLevelText: "", fuelScaleMax: 8)
+
+        XCTAssertEqualOptional(result.gallons, 11.3468, accuracy: 0.0001)
+        XCTAssertEqualOptional(result.pricePerGallon, 34.75, accuracy: 0.001)
         XCTAssertEqualOptional(result.totalCost, 394.30, accuracy: 0.001)
     }
 
-    func testParserReadsTotalWhenOCRSplitsPaidTotalAcrossLines() {
+    func testParserReadsTemporarySocialSupportTotalWhenOCRSplitsPaidTotalAcrossLines() {
         let invoice = """
         Cantidad DESCRIPCION Precio U. Total
         11.3468
@@ -206,7 +221,7 @@ final class OCRTextParserCoreTests: XCTestCase {
         Monto total a pagar sin apoyo social temporal GTQ 451.03
         """
 
-        XCTAssertEqualOptional(parser.parseTotalCost(from: invoice), 394.30, accuracy: 0.001)
+        XCTAssertEqualOptional(parser.parseTotalCost(from: invoice), 451.03, accuracy: 0.001)
     }
 
     func testParserUsesContextForNoisyFuelLevelInsteadOfVehicleModelNumber() {

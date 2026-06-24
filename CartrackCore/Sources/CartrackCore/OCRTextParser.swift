@@ -6,7 +6,7 @@ struct OCRTextParser {
         return FillUpTextParseResult(
             gallons: lineItem?.gallons ?? parseGallons(from: invoiceText),
             pricePerGallon: lineItem?.pricePerGallon ?? parsePricePerGallon(from: invoiceText),
-            totalCost: lineItem?.totalCost ?? parseTotalCost(from: invoiceText),
+            totalCost: parseTotalCost(from: invoiceText),
             odometerMiles: parseLargestMileage(from: odometerText),
             tripMiles: parseTripMileage(from: odometerText),
             fuelLevelRemaining: parseFuelLevel(from: fuelLevelText, fuelScaleMax: fuelScaleMax)
@@ -35,14 +35,14 @@ struct OCRTextParser {
     }
 
     func parseTotalCost(from text: String) -> Double? {
-        parseFuelLineItem(from: text)?.totalCost
+        parseTemporarySocialSupportTotal(from: text)
+            ?? parseFuelLineItem(from: text)?.totalCost
             ?? parseExplicitTotalLine(from: text)
             ?? parseDecimal(
                 afterKeywords: ["total pagado", "total a pagar", "importe"],
                 in: text,
                 min: 20,
-                max: 5_000,
-                excludingLinesContaining: ["sin apoyo", "apoyo social"]
+                max: 5_000
             )
             ?? bestDecimalCandidate(in: text, min: 20, max: 5_000)
     }
@@ -205,6 +205,15 @@ struct OCRTextParser {
             }
         }
         return nil
+    }
+
+    private func parseTemporarySocialSupportTotal(from text: String) -> Double? {
+        parseDecimal(
+            afterKeywords: ["monto total a pagar sin apoyo social temporal"],
+            in: text,
+            min: 20,
+            max: 5_000
+        )
     }
 
     private func parseExplicitTotalLine(from text: String) -> Double? {
