@@ -208,12 +208,29 @@ struct OCRTextParser {
     }
 
     private func parseTemporarySocialSupportTotal(from text: String) -> Double? {
-        parseDecimal(
-            afterKeywords: ["monto total a pagar sin apoyo social temporal"],
-            in: text,
-            min: 20,
-            max: 5_000
-        )
+        let lines = text.components(separatedBy: .newlines)
+        for (index, line) in lines.enumerated() {
+            let lowercased = line.lowercased()
+            guard lowercased.contains("sin apoyo")
+                    || lowercased.contains("apoyo social")
+                    || lowercased.contains("temporal")
+            else { continue }
+
+            let window = lines[index..<min(lines.count, index + 4)].joined(separator: " ")
+            if let value = extractNumbers(from: window).last(where: { $0 >= 20 && $0 <= 5_000 }) {
+                return value
+            }
+        }
+
+        let normalizedText = text
+            .lowercased()
+            .components(separatedBy: .whitespacesAndNewlines)
+            .joined(separator: " ")
+        guard let range = normalizedText.range(of: "monto total a pagar sin apoyo social temporal") else {
+            return nil
+        }
+        let suffix = String(normalizedText[range.lowerBound...].prefix(120))
+        return extractNumbers(from: suffix).last(where: { $0 >= 20 && $0 <= 5_000 })
     }
 
     private func parseExplicitTotalLine(from text: String) -> Double? {
@@ -228,13 +245,15 @@ struct OCRTextParser {
                 return value
             }
 
-            let lookahead = lines.dropFirst(index + 1).prefix(3)
+            var lookaheadValues: [Double] = []
+            let lookahead = lines.dropFirst(index + 1).prefix(5)
             for nextLine in lookahead {
                 let nextLowercased = nextLine.lowercased()
                 guard !isNonPaidTotalLine(nextLowercased) else { break }
-                if let value = extractNumbers(from: nextLine).last(where: { $0 >= 20 && $0 <= 5_000 }) {
-                    return value
-                }
+                lookaheadValues.append(contentsOf: extractNumbers(from: nextLine).filter { $0 >= 20 && $0 <= 5_000 })
+            }
+            if let value = lookaheadValues.last {
+                return value
             }
         }
         return nil

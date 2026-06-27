@@ -224,6 +224,42 @@ final class OCRTextParserCoreTests: XCTestCase {
         XCTAssertEqualOptional(parser.parseTotalCost(from: invoice), 451.03, accuracy: 0.001)
     }
 
+    func testParserDoesNotUseUnitPriceWhenReceiptColumnsAreSplitAcrossLines() {
+        let invoice = """
+        Cantidad
+        11.3468
+        DESCRIPCION
+        SC-PREMIUM
+        Precio U.
+        34.75
+        Total
+        394.30
+        Impuesto IDP: Q 53.33
+        Monto total a pagar sin apoyo social temporal
+        GTQ 451.03
+        """
+
+        let result = parser.parseFillUp(invoiceText: invoice, odometerText: "", fuelLevelText: "", fuelScaleMax: 8)
+
+        XCTAssertEqualOptional(result.totalCost, 451.03, accuracy: 0.001)
+    }
+
+    func testParserReadsTemporarySocialSupportTotalWhenLabelIsBrokenAcrossLines() {
+        let invoice = """
+        Cantidad
+        11.3468
+        SC-PREMIUM
+        34.75
+        Total
+        394.30
+        Impuesto IDP: Q 53.33
+        Monto total a pagar sin apoyo so
+        cial temporal GTQ 451.03
+        """
+
+        XCTAssertEqualOptional(parser.parseTotalCost(from: invoice), 451.03, accuracy: 0.001)
+    }
+
     func testParserUsesContextForNoisyFuelLevelInsteadOfVehicleModelNumber() {
         let result = parser.parseSnapshot(
             odometerText: "BMW Z4 2.5i\nODO 123620\nTRIP 164.0",
