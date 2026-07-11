@@ -8,6 +8,8 @@ Fuel events, vehicle records, manual adjustments, and image references are persi
 
 The repository ignores common local database and capture-export names such as `*.sqlite`, `*.db`, `Captures/`, `Invoices/`, `Odometer/`, and `FuelLevel/` to reduce the chance of publishing private driving or invoice data by accident.
 
+Public demo seed data, UI tests, and README screenshots should use sanitized station names and non-personal coordinates only. Do not commit exact refuel routes, receipts, tax identifiers, or exported local backups from real usage.
+
 ## Reporting Issues
 Before publishing this repository, choose the private reporting channel you want to use for security issues. Until then, keep security review local and do not include real invoices, license plates, location history, or odometer photos in public issues.
 

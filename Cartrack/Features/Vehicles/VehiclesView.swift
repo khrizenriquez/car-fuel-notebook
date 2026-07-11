@@ -21,7 +21,10 @@ struct VehiclesView: View {
                         Text(vehicle.displayName)
                             .font(.headline)
                             .foregroundStyle(.primary)
-                        Text("Escala: 0 a \(CartrackFormatters.decimal(vehicle.fuelScaleMax)) en pasos de \(CartrackFormatters.decimal(vehicle.fuelScaleStep))")
+                        Text("\(vehicle.odometerUnit.title) • tanque \(CartrackFormatters.decimal(vehicle.tankCapacityGallons, suffix: "gal")) • \(vehicle.fuelSegments) segmentos")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Text("Referencia: \(CartrackFormatters.decimal(vehicle.fuelEconomyReferenceKilometersPerGallon, suffix: "km/gal")) • paso \(CartrackFormatters.decimal(vehicle.fuelScaleStep))")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

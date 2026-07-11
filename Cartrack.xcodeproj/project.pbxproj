@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0496858D584DD653F4FA5184 /* ReminderServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB2C03887D9EA92BC4D1C2F6 /* ReminderServiceTests.swift */; };
 		05596DB61278477E06491194 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF41D98D0DCB18A741543C28 /* RootTabView.swift */; };
+		0617D3B5A92E4C7F8D1E2034 /* ReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0617D3B5A92E4C7F8D1E2033 /* ReportsView.swift */; };
 		085AFC4E3D43D4C2903E6F8A /* VehicleFilterPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2112C49AAD17241AF9F6C915 /* VehicleFilterPicker.swift */; };
 		08E00C2324DC4E469ABD2AD0 /* CartrackModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8D9FF5823C3BE7335FBD9F /* CartrackModelContainer.swift */; };
 		1180B3C13BD3D7747670B211 /* FillUpFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EDE99D9FCD8D62647ACD1E /* FillUpFormView.swift */; };
@@ -21,6 +22,7 @@
 		3A3D15E12EAEBCD8D8DB12C9 /* CartrackApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A6690A25315351038C48DB /* CartrackApp.swift */; };
 		48824FA8195726E55A271191 /* FuelLevelInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA857B0C338F6B5B6D4E586 /* FuelLevelInputView.swift */; };
 		4DC033EC45B939FECE408E63 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E569B66EB1B5482CE171B57C /* SettingsView.swift */; };
+		51A8D25A8AB3FD7F2E02DF48 /* BackupTransferService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51A8D25B8AB3FD7F2E02DF48 /* BackupTransferService.swift */; };
 		5750F0AFA0F9A6C13EA601BC /* ImageAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCEAC704F14E62D3EFB01E6F /* ImageAsset.swift */; };
 		5CF142A2E92BA0E0E3D7DB97 /* PersistenceIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27D40BB18EE139CB1D48E486 /* PersistenceIntegrationTests.swift */; };
 		612287096E1C00EB596ED137 /* OCRServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BCD7F91FC06D9D4E63F94F /* OCRServiceTests.swift */; };
@@ -46,6 +48,7 @@
 		D3D68F688CB54030484B9B8E /* SnapshotFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45E20D64B31BC9CB97675E16 /* SnapshotFormView.swift */; };
 		D7CFD70C4E79DBB312AA6608 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA0E28CF6993D7194DDD4AC /* LocationService.swift */; };
 		DD27109297C02E400A9B3D30 /* MetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06D942DBE88E36805F515D3C /* MetricCard.swift */; };
+		E1CB4EFD12B0CF47FE8B17E7 /* RefuelLocationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1CB4EFC12B0CF47FE8B17E7 /* RefuelLocationsView.swift */; };
 		E57E26AADA0305DDD43DCCA8 /* SnapshotEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FD4F7729093346366B2081 /* SnapshotEvent.swift */; };
 		EA7E2A6DFA517498F2589AA7 /* EventDeletionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074F78E8A5C91C899A23D9F3 /* EventDeletionService.swift */; };
 		F23A93CCEA791B406B907959 /* EventImageIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1D2CB594198A9FD634AB79 /* EventImageIntegrationTests.swift */; };
@@ -53,6 +56,7 @@
 		F6F8E37BFA11E2B21B5A9CB0 /* ImageStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B053F87204BD496D0BFA0B /* ImageStorageService.swift */; };
 		FC511F0BFE43C247F4EBC3C7 /* EventImageSynchronizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76FC0740B076E21336E3803 /* EventImageSynchronizer.swift */; };
 		FF2BD2DA716F16B90AD9E22D /* ImagePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0D4DDF1378FE286FF2F8E8 /* ImagePickerView.swift */; };
+		FFB60FAAEDF20575C19DAB52 /* LocalExampleImageOCRTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AF591B1EB0F18C7ACE57236 /* LocalExampleImageOCRTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -84,12 +88,15 @@
 		24FD4F7729093346366B2081 /* SnapshotEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotEvent.swift; sourceTree = "<group>"; };
 		27D40BB18EE139CB1D48E486 /* PersistenceIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceIntegrationTests.swift; sourceTree = "<group>"; };
 		27F551451AAE68896BB8F2BD /* Vehicle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vehicle.swift; sourceTree = "<group>"; };
+		0617D3B5A92E4C7F8D1E2033 /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsView.swift; sourceTree = "<group>"; };
+		2AF591B1EB0F18C7ACE57236 /* LocalExampleImageOCRTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalExampleImageOCRTests.swift; sourceTree = "<group>"; };
 		389866583F867F3ECD8F5D6B /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
 		3D64CAF23F97871DFD566F7B /* OCRTextParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRTextParser.swift; sourceTree = "<group>"; };
 		40BA6F35BFC66A9CFB07752C /* VehiclesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehiclesView.swift; sourceTree = "<group>"; };
 		43B053F87204BD496D0BFA0B /* ImageStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageStorageService.swift; sourceTree = "<group>"; };
 		45E20D64B31BC9CB97675E16 /* SnapshotFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotFormView.swift; sourceTree = "<group>"; };
 		51B68F3DB8A65C8315B9EDCC /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
+		51A8D25B8AB3FD7F2E02DF48 /* BackupTransferService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupTransferService.swift; sourceTree = "<group>"; };
 		60E7D2DE135909B0A8BD3C5B /* AnalyticsEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsEngineTests.swift; sourceTree = "<group>"; };
 		63176E5CAB0BC256821CE983 /* FuelLevelScaleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelLevelScaleTests.swift; sourceTree = "<group>"; };
 		6D0D4DDF1378FE286FF2F8E8 /* ImagePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePickerView.swift; sourceTree = "<group>"; };
@@ -112,6 +119,7 @@
 		DAB06CAD28A92CB25DD84DFE /* FuelFillEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelFillEvent.swift; sourceTree = "<group>"; };
 		DCEAC704F14E62D3EFB01E6F /* ImageAsset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageAsset.swift; sourceTree = "<group>"; };
 		E0E6DD9BF5CC5DCB908617C5 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		E1CB4EFC12B0CF47FE8B17E7 /* RefuelLocationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefuelLocationsView.swift; sourceTree = "<group>"; };
 		E276327027964F1575207C55 /* MonthlyAdjustmentEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyAdjustmentEditor.swift; sourceTree = "<group>"; };
 		E53F3A235432499EA5F840B7 /* Cartrack.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cartrack.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E569B66EB1B5482CE171B57C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -161,6 +169,14 @@
 				E276327027964F1575207C55 /* MonthlyAdjustmentEditor.swift */,
 			);
 			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		6490E7B8C13D4A2F9E5B6071 /* Reports */ = {
+			isa = PBXGroup;
+			children = (
+				0617D3B5A92E4C7F8D1E2033 /* ReportsView.swift */,
+			);
+			path = Reports;
 			sourceTree = "<group>";
 		};
 		63EAAD9FE553B78792FE5A94 /* CartrackCore */ = {
@@ -219,6 +235,7 @@
 		8D121FDB83E30A48DA8E74FD /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				51A8D25B8AB3FD7F2E02DF48 /* BackupTransferService.swift */,
 				074F78E8A5C91C899A23D9F3 /* EventDeletionService.swift */,
 				F76FC0740B076E21336E3803 /* EventImageSynchronizer.swift */,
 				43B053F87204BD496D0BFA0B /* ImageStorageService.swift */,
@@ -255,6 +272,7 @@
 				656E11991A3AC5507A6FE6C5 /* Capture */,
 				62B9FC9300F6AD9088B3DC0E /* Dashboard */,
 				E4B4DAAE2783D81629A76313 /* History */,
+				6490E7B8C13D4A2F9E5B6071 /* Reports */,
 				6FA302BE4C5E05C7CE149250 /* Settings */,
 				79F8251F73B35D2F57746041 /* Shared */,
 				A704BD3CA86AD0A583BD6C75 /* Vehicles */,
@@ -266,6 +284,7 @@
 			isa = PBXGroup;
 			children = (
 				C8AA7FDF4351E490A949352B /* HistoryView.swift */,
+				E1CB4EFC12B0CF47FE8B17E7 /* RefuelLocationsView.swift */,
 			);
 			path = History;
 			sourceTree = "<group>";
@@ -277,6 +296,7 @@
 				FF1D2CB594198A9FD634AB79 /* EventImageIntegrationTests.swift */,
 				63176E5CAB0BC256821CE983 /* FuelLevelScaleTests.swift */,
 				0DB9F73C44EA10A6F95D1453 /* IntegrationTestSupport.swift */,
+				2AF591B1EB0F18C7ACE57236 /* LocalExampleImageOCRTests.swift */,
 				16BCD7F91FC06D9D4E63F94F /* OCRServiceTests.swift */,
 				27D40BB18EE139CB1D48E486 /* PersistenceIntegrationTests.swift */,
 				CB2C03887D9EA92BC4D1C2F6 /* ReminderServiceTests.swift */,
@@ -398,6 +418,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C1E7B9B67BA30244192E37B6 /* AnalyticsEngine.swift in Sources */,
+				51A8D25A8AB3FD7F2E02DF48 /* BackupTransferService.swift in Sources */,
 				73B251F7896EC1167CF1626B /* CaptureHomeView.swift in Sources */,
 				3A3D15E12EAEBCD8D8DB12C9 /* CartrackApp.swift in Sources */,
 				08E00C2324DC4E469ABD2AD0 /* CartrackModelContainer.swift in Sources */,
@@ -422,8 +443,10 @@
 				8424EEECE40C0E0BF37FAAA5 /* MonthlyAdjustmentEditor.swift in Sources */,
 				1DCE7E5963093E5A535656B2 /* MonthlyManualAdjustment.swift in Sources */,
 				3338A17F96961ECCCA7DA5F8 /* OCRService.swift in Sources */,
+				E1CB4EFD12B0CF47FE8B17E7 /* RefuelLocationsView.swift in Sources */,
 				16CF094640D71334435A0589 /* OCRTextParser.swift in Sources */,
 				684343DF568168AA1F7DB88A /* ReminderService.swift in Sources */,
+				0617D3B5A92E4C7F8D1E2034 /* ReportsView.swift in Sources */,
 				AE05BB6C607FC993D6E29690 /* ResetService.swift in Sources */,
 				05596DB61278477E06491194 /* RootTabView.swift in Sources */,
 				4DC033EC45B939FECE408E63 /* SettingsView.swift in Sources */,
@@ -446,6 +469,7 @@
 				F23A93CCEA791B406B907959 /* EventImageIntegrationTests.swift in Sources */,
 				6B4F25329D1D4FCBA606AC85 /* FuelLevelScaleTests.swift in Sources */,
 				82BE7E917C43AB59E622F5E6 /* IntegrationTestSupport.swift in Sources */,
+				FFB60FAAEDF20575C19DAB52 /* LocalExampleImageOCRTests.swift in Sources */,
 				612287096E1C00EB596ED137 /* OCRServiceTests.swift in Sources */,
 				5CF142A2E92BA0E0E3D7DB97 /* PersistenceIntegrationTests.swift in Sources */,
 				0496858D584DD653F4FA5184 /* ReminderServiceTests.swift in Sources */,

@@ -12,6 +12,7 @@ final class FuelFillEvent {
     var gallons: Double
     var pricePerGallon: Double
     var totalCost: Double
+    var isFullTank: Bool
     var stationName: String
     var fuelLevelRemaining: Double
     var latitude: Double?
@@ -36,6 +37,7 @@ final class FuelFillEvent {
         gallons: Double = 0,
         pricePerGallon: Double = 0,
         totalCost: Double = 0,
+        isFullTank: Bool = true,
         stationName: String = "",
         fuelLevelRemaining: Double = FuelLevelScale.defaultMax,
         latitude: Double? = nil,
@@ -57,6 +59,7 @@ final class FuelFillEvent {
         self.gallons = gallons
         self.pricePerGallon = pricePerGallon
         self.totalCost = totalCost
+        self.isFullTank = isFullTank
         self.stationName = stationName
         self.fuelLevelRemaining = fuelLevelRemaining
         self.latitude = latitude

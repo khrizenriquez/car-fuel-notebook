@@ -5,6 +5,11 @@ extension Date {
         calendar.date(from: calendar.dateComponents([.year, .month], from: self)) ?? self
     }
 
+    func startOfWeek(using calendar: Calendar = .current) -> Date {
+        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: self)
+        return calendar.date(from: components) ?? self
+    }
+
     func formattedMonth(using calendar: Calendar = .current) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar

@@ -1,71 +1,171 @@
 # Car Fuel Notebook
 
-Car Fuel Notebook is a local-first iPhone app for keeping a real-world fuel log. It is designed for drivers who want to understand how much they spend on fuel, how far they drive, and how efficient each tank really is.
+Car Fuel Notebook is a local-first iPhone app for recording refuels, odometer readings, fuel-level snapshots, and the cost of running a vehicle over time.
 
-The app was built around a BMW Z4 workflow, but the data model supports multiple vehicles from day one.
+It is designed around a real-world workflow: after a fuel stop, the user should only need to upload photos of the receipt, odometer, and optionally the tank gauge, review the OCR suggestions, and save the event. The app then keeps the full history locally and calculates weekly, monthly, and per-tank analytics.
 
-## What It Does
+## Why This App Exists
 
-- Records fuel fill-ups with invoice, odometer, and fuel-level evidence.
-- Records intermediate snapshots with odometer and fuel-level photos.
-- Uses on-device OCR to prefill values from readable text.
-- Lets the user review and edit all captured values before saving.
-- Tracks fuel level as `spaces remaining` on a configurable scale, such as `0` to `8`.
-- Shows monthly spending, distance, fuel economy, cost per kilometer, and tank history.
-- Stores all v1 data locally on the device.
+Many fuel trackers capture only totals. This app keeps the evidence behind each entry:
 
-## Capture Flow
+- Receipt photo for gallons, total paid, and price per gallon.
+- Odometer photo for mileage validation.
+- Fuel-level photo for post-refuel and between-refuel snapshots.
+- Geolocation for remembering where refuels happened.
 
-Fill-ups and snapshots use a simple wizard:
+That lets the app answer practical questions such as:
 
-1. Add evidence photos.
-2. Review OCR-prefilled fields and correct anything that looks wrong.
-3. Confirm the summary and save.
+- How many gallons did I buy this week and this month?
+- How much did I spend in total?
+- What price was fuel each time I refueled?
+- How many kilometers per gallon is the car delivering?
+- How many liters per kilometer is the car consuming?
+- Where do I usually refuel?
 
-OCR works best for text-heavy images such as receipts and digital odometer displays. Analog fuel gauges are kept as evidence, but the fuel level should still be confirmed manually with the app's quarter-step fuel-level control.
+## Key Features
 
-## Privacy Model
+- Local-first SwiftUI iPhone app with SwiftData persistence.
+- Multi-vehicle support.
+- Fill-up workflow with receipt, odometer, and fuel-level evidence.
+- Snapshot workflow for odometer and fuel-level updates between fill-ups.
+- On-device OCR using Apple Vision.
+- Manual review and correction before saving.
+- Weekly and monthly fuel metrics on the dashboard.
+- Refuel map and timeline history.
+- Local CSV and PDF report export.
+- Local backup export and import, including stored images.
+- Reminder support for recurring captures.
 
-This project is intentionally local-first.
+## How It Works
+
+### 1. Add a vehicle
+
+Create a vehicle with its name, make, model, year, odometer unit, tank capacity, and reference fuel economy.
+
+This configuration controls how the app interprets readings and how it calculates dashboard metrics.
+
+### 2. Save a full fill-up
+
+Use the **Fill-up** flow when you have a receipt.
+
+1. Add the receipt image.
+2. Add the odometer image.
+3. Optionally add the fuel-level image.
+4. Review OCR suggestions.
+5. Correct anything ambiguous.
+6. Save the event.
+
+When a full fill-up is saved, the app stores:
+
+- Refuel date.
+- Odometer reading.
+- Gallons purchased.
+- Price per gallon.
+- Total paid.
+- Tank status.
+- Optional geolocation.
+- The linked evidence photos.
+
+### 3. Save a snapshot between fill-ups
+
+Use the **Snapshot** flow when you want to track mileage or tank level without a receipt.
+
+1. Add the odometer image.
+2. Optionally add the tank-gauge image.
+3. Review OCR output.
+4. Save after manual confirmation.
+
+This is especially useful for building a better weekly and monthly history without forcing a full refuel event.
+
+### 4. Review weekly and monthly analytics
+
+The dashboard summarizes:
+
+- Weekly gallons purchased.
+- Monthly gallons purchased.
+- Total spend.
+- Price trends per fill-up.
+- Kilometers per gallon.
+- Liters per kilometer.
+- Tank-cycle comparisons.
+- Current tank estimate based on the last full fill and latest snapshot.
+
+### 5. Review where the car was refueled
+
+The history tab keeps both the chronological log and the refuel map.
+
+The map uses the saved event coordinates so the user can quickly identify recurring stations and refuel patterns.
+
+### 6. Move data to another device
+
+The app does not depend on cloud sync today.
+
+Instead, it supports a local backup package export and import flow:
+
+1. Export a backup from **Settings**.
+2. Share the generated `.cartrackbackup.json` file.
+3. Import that backup on another device.
+
+The backup includes structured records and stored evidence images. PDF export is available for reporting, not for round-trip data import.
+
+## Screenshots
+
+### Dashboard overview
+
+![Dashboard overview](docs/assets/readme/dashboard-overview.png)
+
+### Capture home
+
+![Capture home](docs/assets/readme/capture-home.png)
+
+### History log
+
+![History log](docs/assets/readme/history-log.png)
+
+### Refuel map
+
+![Refuel map](docs/assets/readme/refuel-map.png)
+
+### Backup and import
+
+![Backup and import](docs/assets/readme/settings-backup.png)
+
+## OCR Expectations
+
+OCR is helpful, but it is intentionally not trusted blindly.
+
+- Receipts with clean printed text should prefill gallons, price per gallon, and total.
+- Digital odometer clusters may prefill successfully when the image is sharp enough.
+- Analog fuel gauges should remain review-first and often require manual confirmation.
+- Ambiguous cluster photos should fall back to manual correction instead of inventing values.
+
+That behavior is covered both by parser tests and by local example-image tests using private, ignored fixtures on the developer machine.
+
+## Privacy And Security
+
+This repository is intentionally safe to publish:
 
 - No backend.
-- No cloud sync.
 - No analytics SDK.
+- No cloud credentials.
 - No API keys.
-- No third-party credentials.
-- No real invoice, odometer, or fuel photos are stored in this repository.
+- No committed private databases.
+- No committed private evidence photos.
+- No committed personal route exports.
 
-Captured photos and local database records are app data. They should stay on the device and out of GitHub issues, fixtures, commits, and screenshots unless they are fully redacted.
+Public seed data and README screenshots use sanitized demo content only.
 
-See [SECURITY.md](SECURITY.md) for the repository safety policy.
+Repository publishing and local privacy expectations are documented in [SECURITY.md](SECURITY.md).
 
-## Current Status
+## Repository Layout
 
-The iOS app target is currently named `Cartrack` internally. The GitHub project name is `car-fuel-notebook`.
-
-Implemented locally:
-
-- SwiftUI iPhone app.
-- SwiftData local persistence.
-- Multi-vehicle support.
-- Fill-up and snapshot capture wizards.
-- On-device OCR service using Apple's Vision framework.
-- Manual correction for captured values.
-- Fuel-level validation from `0.00` to the vehicle's configured maximum.
-- Monthly dashboard, history, vehicle management, reminders, and reset flow.
-- Unit, integration, and UI test coverage.
-
-Screenshots will be added later once the first polished app screens are ready.
-
-## Project Structure
-
-- `Cartrack/`: SwiftUI app, screens, capture services, image storage, reminders, reset flow, and app shell.
-- `CartrackCore/`: shared domain logic, SwiftData models, OCR parsing, fuel-level rules, unit conversion, and analytics.
-- `CartrackCore/Tests/`: strict domain-level unit tests.
-- `CartrackTests/`: iOS integration tests.
-- `CartrackUITests/`: smoke tests for the main app workflows.
-- `Scripts/`: local verification, coverage, simulator selection, and publish helpers.
-- `docs/`: design notes, ADRs, release checks, and testing notes.
+- `Cartrack/` contains the SwiftUI app, capture flows, dashboard, history, settings, reporting, backup, and services.
+- `CartrackCore/` contains shared models, analytics, unit conversion, OCR parsing, and domain rules.
+- `CartrackCore/Tests/` contains domain-level tests.
+- `CartrackTests/` contains iOS integration tests and private local-image validation.
+- `CartrackUITests/` contains functional UI coverage for the simulator.
+- `Scripts/` contains local verification, simulator selection, and publish preflight helpers.
+- `docs/` contains ADRs, design notes, release notes, and testing documentation.
 
 ## Requirements
 
@@ -73,51 +173,45 @@ Screenshots will be added later once the first polished app screens are ready.
 - iOS Simulator support.
 - Swift 6 compatible toolchain.
 
-The local verification script prefers an `iPhone Air` simulator when available, but it can run on another installed iPhone simulator.
+`Scripts/select_ios_simulator.sh` prefers an `iPhone Air` simulator when available.
 
-## Run The Tests
+## Local Verification
 
-Fast core tests with the 90% coverage gate:
+Run core coverage:
 
 ```bash
 Scripts/check_core_coverage.sh 90
 ```
 
-Full local quality gate:
+Run the full local verification suite:
 
 ```bash
 Scripts/verify_local.sh
 ```
 
-Latest verified local result:
+Run the publish preflight:
 
-- Core tests: `49` passing.
-- Core line coverage: `94.21%`.
-- iOS integration tests: `20` passing.
-- iOS UI smoke tests: `5` passing.
-- Full result: `TEST SUCCEEDED`.
+```bash
+Scripts/preflight_publish.sh --require-remote
+```
 
-## GitHub Actions
+If private local example images are placed in the ignored `Invoices/Examples/`, `Odometer/Examples/`, and `FuelLevel/Examples/` folders, `CartrackTests/LocalExampleImageOCRTests.swift` also validates the real receipt and dashboard examples without committing those files to Git.
 
-The repository includes a GitHub Actions workflow for macOS runners. It runs:
+## CI
 
-- Core coverage with a 90% threshold.
-- iPhone app, integration, and UI tests.
+The repository includes a macOS GitHub Actions workflow that runs:
 
-The workflow does not require signing certificates, secrets, distribution profiles, or cloud credentials.
+- Core coverage with the 90% threshold.
+- App, integration, and UI tests in the simulator.
+
+It does not require signing certificates, cloud services, or repository secrets for the current local-first scope.
 
 ## Safe Publishing Checklist
 
-Before pushing or opening issues with real examples:
+Before pushing:
 
-- Run `Scripts/preflight_publish.sh --require-remote`.
-- Do not commit real fuel invoices, odometer photos, dashboard photos, or location exports.
-- Add only redacted OCR transcript fixtures under `CartrackCore/Tests/CartrackCoreTests/Fixtures/OCR/`.
-- Keep `.env`, local databases, build outputs, and exported captures out of git.
-
-## Roadmap
-
-- Add polished screenshots to this README.
-- Add more redacted OCR fixtures from real-world receipt formats.
-- Improve dashboard comparisons and projections after more driving data exists.
-- Explore computer-vision assistance for analog fuel gauges after enough labeled examples are available.
+1. Run `Scripts/verify_local.sh`.
+2. Run `Scripts/preflight_publish.sh --require-remote`.
+3. Make sure no real invoices, odometer photos, or exported backups are tracked.
+4. Keep only sanitized OCR text fixtures in version control.
+5. Review `SECURITY.md` before opening the repository publicly.

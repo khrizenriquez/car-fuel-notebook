@@ -12,6 +12,13 @@ final class StringAndDateCoreTests: XCTestCase {
         XCTAssertNil("abc".asDouble)
     }
 
+    func testAsDoubleAcceptsThousandsAndMixedLocaleSeparators() {
+        XCTAssertEqual("107,801".asDouble, 107801)
+        XCTAssertEqual("1.234,56".asDouble, 1234.56)
+        XCTAssertEqual("1,234.56".asDouble, 1234.56)
+        XCTAssertEqual("123 456".asDouble, 123456)
+    }
+
     func testOptionalNilIfBlank() {
         XCTAssertNil(Optional("   ").nilIfBlank)
         XCTAssertEqual(Optional("Z4").nilIfBlank, "Z4")

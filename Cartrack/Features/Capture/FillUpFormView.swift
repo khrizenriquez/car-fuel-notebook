@@ -46,6 +46,7 @@ struct FillUpFormView: View {
     @State private var gallons = ""
     @State private var pricePerGallon = ""
     @State private var totalCost = ""
+    @State private var isFullTank = true
     @State private var stationName = ""
     @State private var notes = ""
     @State private var fuelLevelRemaining = FuelLevelScale.defaultMax
@@ -71,6 +72,10 @@ struct FillUpFormView: View {
 
     private var selectedVehicle: Vehicle? {
         vehicles.first(where: { $0.id == selectedVehicleID })
+    }
+
+    private var odometerUnit: OdometerUnit {
+        selectedVehicle?.odometerUnit ?? .miles
     }
 
     private var isUITesting: Bool {
@@ -229,10 +234,10 @@ struct FillUpFormView: View {
     private var dataSection: some View {
         Section("Datos") {
             DatePicker("Fecha", selection: $date, displayedComponents: [.date, .hourAndMinute])
-            TextField("Odometro en millas", text: $odometerMiles)
+            TextField("Odometro en \(odometerUnit.inputLabel)", text: $odometerMiles)
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("fill.odometer")
-            TextField("Trip en millas", text: $tripMiles)
+            TextField("Trip en \(odometerUnit.inputLabel)", text: $tripMiles)
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("fill.trip")
             TextField("Galones", text: $gallons)
@@ -244,6 +249,8 @@ struct FillUpFormView: View {
             TextField("Total pagado", text: $totalCost)
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("fill.total")
+            Toggle("Tanque lleno", isOn: $isFullTank)
+                .accessibilityIdentifier("fill.fullTank")
             TextField("Gasolinera o nota corta", text: $stationName)
                 .accessibilityIdentifier("fill.station")
             TextField("Notas", text: $notes, axis: .vertical)
@@ -302,11 +309,12 @@ struct FillUpFormView: View {
     private var confirmationSection: some View {
         Section("Resumen") {
             LabeledContent("Vehiculo", value: selectedVehicle?.displayName ?? "Pendiente")
-            LabeledContent("Odometro", value: display(odometerMiles, suffix: "mi"))
-            LabeledContent("Trip", value: display(tripMiles, suffix: "mi"))
+            LabeledContent("Odometro", value: display(odometerMiles, suffix: odometerUnit.rawValue))
+            LabeledContent("Trip", value: display(tripMiles, suffix: odometerUnit.rawValue))
             LabeledContent("Galones", value: display(gallons, suffix: "gal"))
             LabeledContent("Precio/galon", value: display(pricePerGallon, prefix: "Q"))
             LabeledContent("Total", value: display(totalCost, prefix: "Q"))
+            LabeledContent("Cierre de tanque", value: isFullTank ? "Tanque lleno" : "Carga parcial")
             Button("Editar montos de factura") {
                 wizardStep = .review
             }
@@ -334,8 +342,8 @@ struct FillUpFormView: View {
         gallons = gallons.isEmpty ? result.gallons.map { String($0) } ?? gallons : gallons
         pricePerGallon = pricePerGallon.isEmpty ? result.pricePerGallon.map { String($0) } ?? pricePerGallon : pricePerGallon
         totalCost = totalCost.isEmpty ? result.totalCost.map { String($0) } ?? totalCost : totalCost
-        odometerMiles = odometerMiles.isEmpty ? result.odometerMiles.map { String($0) } ?? odometerMiles : odometerMiles
-        tripMiles = tripMiles.isEmpty ? result.tripMiles.map { String($0) } ?? tripMiles : tripMiles
+        odometerMiles = odometerMiles.isEmpty ? result.odometerMiles.map(formatOCRDistanceInput) ?? odometerMiles : odometerMiles
+        tripMiles = tripMiles.isEmpty ? result.tripMiles.map(formatOCRDistanceInput) ?? tripMiles : tripMiles
         if let value = result.fuelLevelRemaining {
             fuelLevelRemaining = value
         }
@@ -361,16 +369,22 @@ struct FillUpFormView: View {
             return
         }
 
+        let odometerKilometersValue = normalizedKilometers(forInputDistance: odometerMilesValue, unit: vehicle.odometerUnit)
+        let odometerMilesOriginalValue = normalizedMiles(forInputDistance: odometerMilesValue, unit: vehicle.odometerUnit)
+        let tripMilesOriginalValue = tripMiles.asDouble.map { normalizedMiles(forInputDistance: $0, unit: vehicle.odometerUnit) }
+        let tripKilometersValue = tripMiles.asDouble.map { normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit) }
+
         let fillEvent = event ?? FuelFillEvent(vehicle: vehicle)
         fillEvent.vehicle = vehicle
         fillEvent.date = date
-        fillEvent.odometerMilesOriginal = odometerMilesValue
-        fillEvent.odometerKilometers = UnitConversion.milesToKilometers(odometerMilesValue)
-        fillEvent.tripMilesOriginal = tripMiles.asDouble
-        fillEvent.tripKilometers = tripMiles.asDouble.map(UnitConversion.milesToKilometers)
+        fillEvent.odometerMilesOriginal = odometerMilesOriginalValue
+        fillEvent.odometerKilometers = odometerKilometersValue
+        fillEvent.tripMilesOriginal = tripMilesOriginalValue
+        fillEvent.tripKilometers = tripKilometersValue
         fillEvent.gallons = gallonsValue
         fillEvent.pricePerGallon = pricePerGallonValue
         fillEvent.totalCost = totalCostValue
+        fillEvent.isFullTank = isFullTank
         fillEvent.stationName = stationName.trimmed
         fillEvent.fuelLevelRemaining = FuelLevelScale.normalize(
             fuelLevelRemaining,
@@ -419,11 +433,12 @@ struct FillUpFormView: View {
     private func loadExistingData() {
         selectedVehicleID = event?.vehicle?.id ?? vehicles.first?.id
         date = event?.date ?? .now
-        odometerMiles = event?.odometerMilesOriginal.map { String($0) } ?? ""
-        tripMiles = event?.tripMilesOriginal.map { String($0) } ?? ""
+        odometerMiles = event.flatMap { storedDistanceInput(odometerKilometers: $0.odometerKilometers, odometerMilesOriginal: $0.odometerMilesOriginal, vehicle: $0.vehicle) } ?? ""
+        tripMiles = event.flatMap { storedDistanceInput(odometerKilometers: $0.tripKilometers, odometerMilesOriginal: $0.tripMilesOriginal, vehicle: $0.vehicle) } ?? ""
         gallons = event.map { String($0.gallons) } ?? ""
         pricePerGallon = event.map { String($0.pricePerGallon) } ?? ""
         totalCost = event.map { String($0.totalCost) } ?? ""
+        isFullTank = event?.isFullTank ?? true
         stationName = event?.stationName ?? ""
         notes = event?.notes ?? ""
         fuelLevelRemaining = event?.fuelLevelRemaining ?? FuelLevelScale.defaultMax
@@ -459,5 +474,40 @@ struct FillUpFormView: View {
         guard let parsed = value.asDouble else { return "Pendiente" }
         let formatted = CartrackFormatters.decimal(parsed)
         return "\(prefix)\(formatted)\(suffix.isEmpty ? "" : " \(suffix)")"
+    }
+
+    private func formatOCRDistanceInput(_ miles: Double) -> String {
+        let inputValue = odometerUnit == .miles ? miles : UnitConversion.milesToKilometers(miles)
+        return CartrackFormatters.decimal(inputValue)
+    }
+
+    private func normalizedKilometers(forInputDistance value: Double, unit: OdometerUnit) -> Double {
+        switch unit {
+        case .miles: UnitConversion.milesToKilometers(value)
+        case .kilometers: value
+        }
+    }
+
+    private func normalizedMiles(forInputDistance value: Double, unit: OdometerUnit) -> Double {
+        switch unit {
+        case .miles: value
+        case .kilometers: UnitConversion.kilometersToMiles(value)
+        }
+    }
+
+    private func storedDistanceInput(
+        odometerKilometers: Double?,
+        odometerMilesOriginal: Double?,
+        vehicle: Vehicle?
+    ) -> String {
+        guard let vehicle else { return "" }
+        let value: Double?
+        switch vehicle.odometerUnit {
+        case .miles:
+            value = odometerMilesOriginal ?? odometerKilometers.map(UnitConversion.kilometersToMiles)
+        case .kilometers:
+            value = odometerKilometers
+        }
+        return value.map { CartrackFormatters.decimal($0) } ?? ""
     }
 }

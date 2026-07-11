@@ -42,6 +42,27 @@ enum MonthlyAllocationMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum OdometerUnit: String, Codable, CaseIterable, Identifiable {
+    case miles = "mi"
+    case kilometers = "km"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .miles: "Millas"
+        case .kilometers: "Kilometros"
+        }
+    }
+
+    var inputLabel: String {
+        switch self {
+        case .miles: "millas"
+        case .kilometers: "kilometros"
+        }
+    }
+}
+
 struct EventCoordinate: Equatable {
     let latitude: Double
     let longitude: Double

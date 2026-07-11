@@ -52,6 +52,34 @@ final class OCRServiceTests: XCTestCase {
         XCTAssertEqual(result.fuelLevelRemaining ?? 0, 6.5, accuracy: 0.001)
     }
 
+    func testAnalyzeSnapshotPrefersDedicatedClusterReadingWhenAvailable() async {
+        let odometerImage = makeImage(color: .brown)
+        let fuelLevelImage = makeImage(color: .cyan)
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(odometerImage): "miles\n9.0",
+                ObjectIdentifier(fuelLevelImage): "Nivel 5 espacios",
+            ]),
+            clusterReader: StubClusterReader(readings: [
+                ObjectIdentifier(odometerImage): InstrumentClusterReading(
+                    odometerMiles: 108_288,
+                    tripMiles: 126.3
+                )
+            ])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: odometerImage,
+            fuelLevelImage: fuelLevelImage,
+            fuelScaleMax: FuelLevelScale.defaultMax
+        )
+
+        XCTAssertEqual(result.odometerMiles ?? 0, 108_288, accuracy: 0.001)
+        XCTAssertEqual(result.tripMiles ?? 0, 126.3, accuracy: 0.001)
+        XCTAssertTrue(result.odometerText.localizedCaseInsensitiveContains("odometer 108288 miles"))
+        XCTAssertTrue(result.odometerText.localizedCaseInsensitiveContains("trip 126.3"))
+    }
+
     private func makeImage(color: UIColor) -> UIImage {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
         return renderer.image { context in
@@ -72,5 +100,13 @@ private struct StubTextRecognizer: OCRTextRecognizing {
     func recognizeInstrumentClusterText(from image: UIImage?) async -> String {
         guard let image else { return "" }
         return texts[ObjectIdentifier(image)] ?? ""
+    }
+}
+
+private struct StubClusterReader: InstrumentClusterReadingProviding {
+    let readings: [ObjectIdentifier: InstrumentClusterReading]
+
+    func readDisplay(from image: UIImage) -> InstrumentClusterReading? {
+        readings[ObjectIdentifier(image)]
     }
 }

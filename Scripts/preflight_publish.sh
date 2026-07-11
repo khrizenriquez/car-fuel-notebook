@@ -94,7 +94,13 @@ require_gitignore_pattern ".build/"
 require_gitignore_pattern "xcuserdata/"
 
 info "Checking that private evidence files are not tracked"
-if git ls-files | rg -i '(invoice|odometer|fuellevel|capture|receipt|factura).*\.(heic|heif|jpg|jpeg|png|tiff|pdf)$'; then
+tracked_private_evidence="$(
+  git ls-files \
+    | rg -i '(invoice|odometer|fuellevel|capture|receipt|factura).*\.(heic|heif|jpg|jpeg|png|tiff|pdf)$' \
+    | rg -v '^(Invoices|Odometer|FuelLevel)/Examples/|^docs/assets/readme/' || true
+)"
+if [[ -n "$tracked_private_evidence" ]]; then
+  echo "$tracked_private_evidence"
   fail "Potential private evidence image/PDF is tracked. Remove it before publishing."
 fi
 

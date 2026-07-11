@@ -99,6 +99,24 @@ final class OCRTextParserCoreTests: XCTestCase {
         XCTAssertEqualOptional(result.tripMiles, 73.0, accuracy: 0.001)
     }
 
+    func testParserRejectsUnreliableInstrumentClusterMileageInsteadOfInventingSmallOdometer() {
+        let noisyClusterOCR = """
+        1094
+        miles
+        C00DD0
+        MPH
+        """
+
+        let result = parser.parseSnapshot(
+            odometerText: noisyClusterOCR,
+            fuelLevelText: "",
+            fuelScaleMax: 8
+        )
+
+        XCTAssertNil(result.odometerMiles)
+        XCTAssertNil(result.tripMiles)
+    }
+
     func testFuelLevelParserDoesNotUseAnalogGaugeNoiseWithoutContext() {
         let analogGaugeOCR = """
         RAKE

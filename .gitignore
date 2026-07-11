@@ -24,9 +24,15 @@ xcuserdata/
 Application Support/
 Documents/
 Captures/
-Invoices/
-Odometer/
-FuelLevel/
+Invoices/*
+Odometer/*
+FuelLevel/*
+!Invoices/Examples/
+!Invoices/Examples/**
+!Odometer/Examples/
+!Odometer/Examples/**
+!FuelLevel/Examples/
+!FuelLevel/Examples/**
 
 # Secrets should never be needed for v1, but keep common local files out.
 .env

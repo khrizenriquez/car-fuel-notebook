@@ -68,6 +68,10 @@ struct SnapshotFormView: View {
         vehicles.first(where: { $0.id == selectedVehicleID })
     }
 
+    private var odometerUnit: OdometerUnit {
+        selectedVehicle?.odometerUnit ?? .miles
+    }
+
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("--uitesting")
     }
@@ -211,11 +215,11 @@ struct SnapshotFormView: View {
     private var readingSection: some View {
         Section("Lectura") {
             DatePicker("Fecha", selection: $date, displayedComponents: [.date, .hourAndMinute])
-            TextField("Odometro en millas", text: $odometerMiles)
+            TextField("Odometro en \(odometerUnit.inputLabel)", text: $odometerMiles)
                 .keyboardType(.decimalPad)
                 .focused($focusedField, equals: .odometer)
                 .accessibilityIdentifier("snapshot.odometer")
-            TextField("Trip en millas (opcional)", text: $tripMiles)
+            TextField("Trip en \(odometerUnit.inputLabel) (opcional)", text: $tripMiles)
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("snapshot.trip")
             TextField("Notas", text: $notes, axis: .vertical)
@@ -271,9 +275,9 @@ struct SnapshotFormView: View {
                 }
                 .accessibilityIdentifier("snapshot.completeOdometer")
             } else {
-                LabeledContent("Odometro", value: display(odometerMiles, suffix: "mi"))
+                LabeledContent("Odometro", value: display(odometerMiles, suffix: odometerUnit.rawValue))
             }
-            LabeledContent("Trip", value: display(tripMiles, suffix: "mi"))
+            LabeledContent("Trip", value: display(tripMiles, suffix: odometerUnit.rawValue))
             LabeledContent("Espacios restantes", value: CartrackFormatters.decimal(fuelLevelRemaining))
         }
     }
@@ -289,8 +293,8 @@ struct SnapshotFormView: View {
         )
         odometerOCRText = result.odometerText
         fuelLevelOCRText = result.fuelLevelText
-        odometerMiles = odometerMiles.isEmpty ? result.odometerMiles.map { String($0) } ?? odometerMiles : odometerMiles
-        tripMiles = tripMiles.isEmpty ? result.tripMiles.map { String($0) } ?? tripMiles : tripMiles
+        odometerMiles = odometerMiles.isEmpty ? result.odometerMiles.map(formatOCRDistanceInput) ?? odometerMiles : odometerMiles
+        tripMiles = tripMiles.isEmpty ? result.tripMiles.map(formatOCRDistanceInput) ?? tripMiles : tripMiles
         if let value = result.fuelLevelRemaining {
             fuelLevelRemaining = value
         }
@@ -314,13 +318,18 @@ struct SnapshotFormView: View {
             return
         }
 
+        let odometerKilometersValue = normalizedKilometers(forInputDistance: odometerMilesValue, unit: vehicle.odometerUnit)
+        let odometerMilesOriginalValue = normalizedMiles(forInputDistance: odometerMilesValue, unit: vehicle.odometerUnit)
+        let tripMilesOriginalValue = tripMiles.asDouble.map { normalizedMiles(forInputDistance: $0, unit: vehicle.odometerUnit) }
+        let tripKilometersValue = tripMiles.asDouble.map { normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit) }
+
         let snapshot = event ?? SnapshotEvent(vehicle: vehicle)
         snapshot.vehicle = vehicle
         snapshot.date = date
-        snapshot.odometerMilesOriginal = odometerMilesValue
-        snapshot.odometerKilometers = UnitConversion.milesToKilometers(odometerMilesValue)
-        snapshot.tripMilesOriginal = tripMiles.asDouble
-        snapshot.tripKilometers = tripMiles.asDouble.map(UnitConversion.milesToKilometers)
+        snapshot.odometerMilesOriginal = odometerMilesOriginalValue
+        snapshot.odometerKilometers = odometerKilometersValue
+        snapshot.tripMilesOriginal = tripMilesOriginalValue
+        snapshot.tripKilometers = tripKilometersValue
         snapshot.fuelLevelRemaining = FuelLevelScale.normalize(
             fuelLevelRemaining,
             maxValue: vehicle.fuelScaleMax,
@@ -366,8 +375,8 @@ struct SnapshotFormView: View {
     private func loadExistingData() {
         selectedVehicleID = event?.vehicle?.id ?? vehicles.first?.id
         date = event?.date ?? .now
-        odometerMiles = event?.odometerMilesOriginal.map { String($0) } ?? ""
-        tripMiles = event?.tripMilesOriginal.map { String($0) } ?? ""
+        odometerMiles = event.flatMap { storedDistanceInput(odometerKilometers: $0.odometerKilometers, odometerMilesOriginal: $0.odometerMilesOriginal, vehicle: $0.vehicle) } ?? ""
+        tripMiles = event.flatMap { storedDistanceInput(odometerKilometers: $0.tripKilometers, odometerMilesOriginal: $0.tripMilesOriginal, vehicle: $0.vehicle) } ?? ""
         notes = event?.notes ?? ""
         fuelLevelRemaining = event?.fuelLevelRemaining ?? FuelLevelScale.defaultMax
         odometerOCRText = event?.odometerOCRText ?? ""
@@ -406,5 +415,40 @@ struct SnapshotFormView: View {
         guard let parsed = value.asDouble else { return "Pendiente" }
         let formatted = CartrackFormatters.decimal(parsed)
         return "\(formatted)\(suffix.isEmpty ? "" : " \(suffix)")"
+    }
+
+    private func formatOCRDistanceInput(_ miles: Double) -> String {
+        let inputValue = odometerUnit == .miles ? miles : UnitConversion.milesToKilometers(miles)
+        return CartrackFormatters.decimal(inputValue)
+    }
+
+    private func normalizedKilometers(forInputDistance value: Double, unit: OdometerUnit) -> Double {
+        switch unit {
+        case .miles: UnitConversion.milesToKilometers(value)
+        case .kilometers: value
+        }
+    }
+
+    private func normalizedMiles(forInputDistance value: Double, unit: OdometerUnit) -> Double {
+        switch unit {
+        case .miles: value
+        case .kilometers: UnitConversion.kilometersToMiles(value)
+        }
+    }
+
+    private func storedDistanceInput(
+        odometerKilometers: Double?,
+        odometerMilesOriginal: Double?,
+        vehicle: Vehicle?
+    ) -> String {
+        guard let vehicle else { return "" }
+        let value: Double?
+        switch vehicle.odometerUnit {
+        case .miles:
+            value = odometerMilesOriginal ?? odometerKilometers.map(UnitConversion.kilometersToMiles)
+        case .kilometers:
+            value = odometerKilometers
+        }
+        return value.map { CartrackFormatters.decimal($0) } ?? ""
     }
 }

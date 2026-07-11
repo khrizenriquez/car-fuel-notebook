@@ -13,18 +13,26 @@ final class ImageStorageService: @unchecked Sendable {
     private init() {}
 
     func saveImage(_ image: UIImage, preferredName: String = UUID().uuidString) throws -> String {
-        let directory = try imagesDirectory()
-        let url = directory.appendingPathComponent("\(preferredName).jpg")
         guard let data = image.jpegData(compressionQuality: 0.85) else {
             throw ImageStorageError.encodingFailed
         }
-        try data.write(to: url, options: .atomic)
-        try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: url.path)
-        return url.path
+        return try saveImageData(data, preferredName: preferredName)
     }
 
     func loadImage(at path: String) -> UIImage? {
         UIImage(contentsOfFile: path)
+    }
+
+    func loadImageData(at path: String) -> Data? {
+        fileManager.contents(atPath: path)
+    }
+
+    func saveImageData(_ data: Data, preferredName: String = UUID().uuidString) throws -> String {
+        let directory = try imagesDirectory()
+        let url = directory.appendingPathComponent("\(preferredName).jpg")
+        try data.write(to: url, options: .atomic)
+        try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: url.path)
+        return url.path
     }
 
     func deleteImage(at path: String) throws {

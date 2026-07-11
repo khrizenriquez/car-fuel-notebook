@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -10,6 +11,11 @@ struct SettingsView: View {
     @State private var selectedResetVehicleID: UUID?
     @State private var isShowingResetConfirmation = false
     @State private var resetError: String?
+    @State private var lastBackupURL: URL?
+    @State private var backupStatusMessage: String?
+    @State private var backupError: String?
+    @State private var isShowingBackupImporter = false
+    @State private var pendingImportURL: URL?
 
     private var selectedResetVehicle: Vehicle? {
         vehicles.first(where: { $0.id == selectedResetVehicleID }) ?? vehicles.first
@@ -22,6 +28,32 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 Text("El borrado de datos solo ocurre si tu lo confirmas aqui y no elimina vehiculos.")
                     .foregroundStyle(.secondary)
+                Text("El respaldo incluye vehiculos, llenados, snapshots, ajustes mensuales e imagenes locales.")
+                    .foregroundStyle(.secondary)
+
+                Button("Exportar respaldo") {
+                    exportBackup()
+                }
+                .accessibilityIdentifier("settings.backup.export")
+
+                Button("Importar respaldo") {
+                    isShowingBackupImporter = true
+                }
+                .accessibilityIdentifier("settings.backup.import")
+
+                if let backupStatusMessage {
+                    Text(backupStatusMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("settings.backup.status")
+                }
+
+                if let lastBackupURL {
+                    ShareLink(item: lastBackupURL) {
+                        Label("Compartir ultimo respaldo", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityIdentifier("settings.backup.share")
+                }
             }
 
             Section("Recordatorios") {
@@ -77,10 +109,42 @@ struct SettingsView: View {
         } message: {
             Text("El vehiculo se conservara. Esta accion no toca otros vehiculos.")
         }
+        .confirmationDialog(
+            "Importar respaldo y reemplazar datos locales?",
+            isPresented: Binding(
+                get: { pendingImportURL != nil },
+                set: { if !$0 { pendingImportURL = nil } }
+            )
+        ) {
+            Button("Importar y reemplazar", role: .destructive, action: importPendingBackup)
+                .accessibilityIdentifier("settings.backup.import.confirm")
+            Button("Cancelar", role: .cancel) {
+                pendingImportURL = nil
+            }
+        } message: {
+            Text("Esta accion reemplaza los datos locales actuales por el contenido del respaldo seleccionado.")
+        }
         .alert("No se pudo resetear", isPresented: Binding(get: { resetError != nil }, set: { _ in resetError = nil })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(resetError ?? "")
+        }
+        .alert("No se pudo importar o exportar el respaldo", isPresented: Binding(get: { backupError != nil }, set: { _ in backupError = nil })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(backupError ?? "")
+        }
+        .fileImporter(
+            isPresented: $isShowingBackupImporter,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                pendingImportURL = urls.first
+            case .failure(let error):
+                backupError = error.localizedDescription
+            }
         }
         .onChange(of: reminderEnabled) { _, enabled in
             Task {
@@ -127,6 +191,35 @@ struct SettingsView: View {
             ReminderService.shared.cancelInactivityReminder()
         } catch {
             resetError = error.localizedDescription
+        }
+    }
+
+    private func exportBackup() {
+        do {
+            let url = try BackupTransferService.exportBackup(from: modelContext)
+            lastBackupURL = url
+            backupStatusMessage = "Respaldo listo: \(url.lastPathComponent)"
+        } catch {
+            backupError = error.localizedDescription
+        }
+    }
+
+    private func importPendingBackup() {
+        guard let pendingImportURL else { return }
+
+        let didAccess = pendingImportURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                pendingImportURL.stopAccessingSecurityScopedResource()
+            }
+            self.pendingImportURL = nil
+        }
+
+        do {
+            let summary = try BackupTransferService.importBackup(from: pendingImportURL, into: modelContext)
+            backupStatusMessage = "Respaldo importado: \(summary.vehicleCount) vehiculos, \(summary.fillCount) llenados, \(summary.snapshotCount) snapshots y \(summary.imageCount) imagenes."
+        } catch {
+            backupError = error.localizedDescription
         }
     }
 }

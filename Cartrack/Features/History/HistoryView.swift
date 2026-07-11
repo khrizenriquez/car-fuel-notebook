@@ -21,6 +21,13 @@ struct HistoryView: View {
     @State private var rowsPendingDeletion: [HistoryRowModel] = []
     @State private var deletionError: String?
 
+    private var refuelLocations: [RefuelLocationPoint] {
+        AnalyticsEngine.refuelLocations(
+            fills: fillEvents,
+            vehicleID: selectedVehicleID
+        )
+    }
+
     private var rows: [HistoryRowModel] {
         let fills = fillEvents
             .filter { selectedVehicleID == nil || $0.vehicle?.id == selectedVehicleID }
@@ -30,7 +37,7 @@ struct HistoryView: View {
                     kind: .fillUp,
                     date: $0.date,
                     title: $0.vehicle?.displayName ?? "Llenado",
-                    subtitle: "\(CartrackFormatters.currency($0.totalCost)) • \(CartrackFormatters.decimal($0.gallons, suffix: "gal")) • \(CartrackFormatters.decimal($0.fuelLevelRemaining, suffix: "esp"))",
+                    subtitle: "\(CartrackFormatters.currency($0.totalCost)) • \(CartrackFormatters.decimal($0.gallons, suffix: "gal")) • \($0.isFullTank ? "tanque lleno" : "parcial") • \(CartrackFormatters.decimal($0.fuelLevelRemaining, suffix: "esp"))",
                     fillEvent: $0,
                     snapshotEvent: nil
                 )
@@ -65,6 +72,23 @@ struct HistoryView: View {
                 List {
                     Section {
                         VehicleFilterPicker(vehicles: vehicles, selectedVehicleID: $selectedVehicleID)
+                    }
+
+                    if !refuelLocations.isEmpty {
+                        Section("Puntos de recarga") {
+                            NavigationLink {
+                                RefuelLocationsView(locations: refuelLocations)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Ver mapa e historial de recargas")
+                                        .font(.subheadline.weight(.semibold))
+                                    Text("\(refuelLocations.count) punto(s) con geolocalizacion guardada")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .accessibilityIdentifier("history.refuelMap")
+                        }
                     }
 
                     ForEach(rows) { row in
