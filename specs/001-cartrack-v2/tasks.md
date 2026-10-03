@@ -17,7 +17,7 @@
   - Alcance: constitución, spec, plan, contratos, modelo, pruebas, migración, matriz, checklist y todo list.
   - Gate: enlaces internos, IDs completos, `git diff --check`.
 
-- [ ] **T01 — Aislar fixtures privados y cerrar la frontera de privacidad**
+- [x] **T01 — Aislar fixtures privados y cerrar la frontera de privacidad**
   - Commit: `Keep private vehicle evidence out of git`
   - Alcance: `.gitignore`, dejar de rastrear fotos privadas sin borrarlas localmente, ADR-007 y preflight.
   - Gate: archivos locales preservados; `git ls-files` no devuelve evidencia privada; preflight focalizado.

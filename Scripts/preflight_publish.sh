@@ -76,7 +76,7 @@ require_file "docs/testing/ocr-fixtures.md"
 require_file "docs/release/private-github-publish.md"
 require_file "docs/release/v1-readiness-audit.md"
 
-for adr in 001 002 003 004 005 006; do
+for adr in 001 002 003 004 005 006 007; do
   matches=(docs/adr/ADR-"$adr"-*.md)
   [[ -e "${matches[0]}" ]] || fail "Missing ADR-$adr"
 done
@@ -97,7 +97,7 @@ info "Checking that private evidence files are not tracked"
 tracked_private_evidence="$(
   git ls-files \
     | rg -i '(invoice|odometer|fuellevel|capture|receipt|factura).*\.(heic|heif|jpg|jpeg|png|tiff|pdf)$' \
-    | rg -v '^(Invoices|Odometer|FuelLevel)/Examples/|^docs/assets/readme/' || true
+    | rg -v '^docs/assets/readme/' || true
 )"
 if [[ -n "$tracked_private_evidence" ]]; then
   echo "$tracked_private_evidence"
