@@ -15,15 +15,15 @@
 | FR-007 | GAP | fixtures de calidad | T08 |
 | FR-008 | GAP | clasificación unitaria/integración | T08 |
 | FR-009 | CURRENT | UI de reemplazo selectivo | T12 |
-| FR-010 | CURRENT | test offline/red y OCR real | T03, T23 |
+| FR-010 | CURRENT | test offline/red y OCR real | T02, T23 |
 | FR-011 | GAP | candidatos/confianza unitarios | T08, T09 |
 | FR-012 | GAP | conflicto multiimagen | T09 |
 | FR-013 | GAP | selección por bandas | T09, T12 |
 | FR-014 | GAP | UI resaltado/explicación | T12 |
 | FR-015 | CURRENT | UI confirmación obligatoria | T12 |
 | FR-016 | GAP | persistencia de evidencia/corrección | T06, T13 |
-| FR-017 | GAP | matriz privada; tolerancias | T03, T04 |
-| FR-018 | GAP | fixtures de factura | T03, T09 |
+| FR-017 | GAP | matriz privada; tolerancias | T02, T03, T04 |
+| FR-018 | GAP | fixtures de factura | T02, T03, T09 |
 | FR-019 | GAP | fallback y calibración confirmada | T09, T16 |
 | FR-020 | CURRENT | unitarias de conversión/DTO | T06 |
 | FR-021 | GAP | archivo optimizado atómico | T14 |
@@ -90,8 +90,8 @@
 
 | ID | Evidencia objetivo | Tarea de cierre |
 |---|---|---|
-| SC-001 | reporte de fixtures digitales y fallback seguro | T03, T04, T23 |
-| SC-002 | reporte de fixtures de factura | T03, T23 |
+| SC-001 | reporte de fixtures digitales y fallback seguro | T02, T03, T04, T23 |
+| SC-002 | reporte de fixtures de factura | T02, T03, T23 |
 | SC-003 | `.xcresult` de simulador + checklist de iPhone físico | T23, T24 |
 | SC-004 | integración/UI de reanudación | T07, T12 |
 | SC-005 | reporte de migración/restauración | T05, T18 |

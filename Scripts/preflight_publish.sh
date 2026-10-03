@@ -104,6 +104,11 @@ if [[ -n "$tracked_private_evidence" ]]; then
   fail "Potential private evidence image/PDF is tracked. Remove it before publishing."
 fi
 
+info "Checking production OCR for exact-fixture response tables"
+if rg -n 'knownFixtureReading|knownInvoiceText|fixtureSignature' Cartrack CartrackCore; then
+  fail "Production OCR contains an exact-fixture response path forbidden by ADR-007."
+fi
+
 info "Running basic secret scan"
 if rg -n \
   -g '!/.build/**' \

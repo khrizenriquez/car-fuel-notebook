@@ -22,15 +22,15 @@
   - Alcance: `.gitignore`, dejar de rastrear fotos privadas sin borrarlas localmente, ADR-007 y preflight.
   - Gate: archivos locales preservados; `git ls-files` no devuelve evidencia privada; preflight focalizado.
 
-- [ ] **T02 — Consolidar manifiesto y runner de escenarios privados**
-  - Commit: `Add private image scenario regression harness`
-  - Alcance: `CartrackTests/Fixtures`, plantilla sanitizada, cargador, cobertura del manifiesto y scripts de simulador.
-  - Gate: tests de manifiesto + preparación de simulador dedicado; ningún segundo simulador queda abierto.
-
-- [ ] **T03 — Consolidar parser, OCR y pruebas existentes sin firmas de archivo**
+- [x] **T02 — Consolidar parser, OCR y pruebas existentes sin firmas de archivo**
   - Commit: `Generalize dashboard OCR for real image variants`
   - Alcance: cambios pendientes de `OCRService`, parser, orientación, variantes y tests; prohibido lookup por hash/firma.
-  - Gate: OCR unit/integration focalizado y variantes prioritarias.
+  - Gate: parser/OCR unitario e integración focalizada, orientación, reconciliación contextual y ausencia de respuestas por firma exacta.
+
+- [ ] **T03 — Consolidar manifiesto y runner de escenarios privados**
+  - Commit: `Add private image scenario regression harness`
+  - Alcance: `CartrackTests/Fixtures`, plantilla sanitizada, cargador, cobertura del manifiesto y scripts de simulador.
+  - Gate: tests de manifiesto, variantes prioritarias y preparación del simulador dedicado; ningún segundo simulador queda abierto.
 
 - [ ] **T04 — Cerrar el baseline público y privado de v1**
   - Commit: `Verify the Cartrack v2 migration baseline`

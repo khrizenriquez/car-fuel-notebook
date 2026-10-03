@@ -3,10 +3,19 @@ import Foundation
 struct OCRTextParser {
     func parseFillUp(invoiceText: String, odometerText: String, fuelLevelText: String, fuelScaleMax: Double) -> FillUpTextParseResult {
         let lineItem = parseFuelLineItem(from: invoiceText)
+        let gallons = lineItem?.gallons ?? parseGallons(from: invoiceText)
+        let reconciledAmounts = gallons.flatMap {
+            reconcileFuelAmounts(in: invoiceText, gallons: $0)
+        }
         return FillUpTextParseResult(
-            gallons: lineItem?.gallons ?? parseGallons(from: invoiceText),
-            pricePerGallon: lineItem?.pricePerGallon ?? parsePricePerGallon(from: invoiceText),
-            totalCost: parseTotalCost(from: invoiceText),
+            gallons: gallons,
+            pricePerGallon: lineItem?.pricePerGallon
+                ?? reconciledAmounts?.pricePerGallon
+                ?? parsePricePerGallon(from: invoiceText),
+            totalCost: parseTemporarySocialSupportTotal(from: invoiceText)
+                ?? lineItem?.totalCost
+                ?? reconciledAmounts?.totalCost
+                ?? parseTotalCost(from: invoiceText),
             odometerMiles: parseLargestMileage(from: odometerText),
             tripMiles: parseTripMileage(from: odometerText),
             fuelLevelRemaining: parseFuelLevel(from: fuelLevelText, fuelScaleMax: fuelScaleMax)
@@ -67,9 +76,9 @@ struct OCRTextParser {
     }
 
     func parseTripMileage(from text: String) -> Double? {
-        parseTripKeywordMileage(from: text)
-            ??
         parseInstrumentClusterTrip(from: text)
+            ??
+        parseTripKeywordMileage(from: text)
             ??
         extractNumbers(from: text)
             .filter { candidate in
@@ -303,6 +312,28 @@ struct OCRTextParser {
         return nil
     }
 
+    private func reconcileFuelAmounts(
+        in text: String,
+        gallons: Double
+    ) -> (pricePerGallon: Double, totalCost: Double)? {
+        let numbers = extractNumbers(from: text)
+        var best: (pricePerGallon: Double, totalCost: Double, error: Double)?
+
+        for price in numbers where price >= 10 && price <= 80 {
+            let expectedTotal = gallons * price
+            for total in numbers where total >= 20 && total <= 5_000 && total > price {
+                let error = abs(expectedTotal - total)
+                let tolerance = max(0.10, expectedTotal * 0.01)
+                guard error <= tolerance else { continue }
+                if best == nil || error < best!.error {
+                    best = (price, total, error)
+                }
+            }
+        }
+
+        return best.map { ($0.pricePerGallon, $0.totalCost) }
+    }
+
     private func parseTemporarySocialSupportTotal(from text: String) -> Double? {
         let lines = text.components(separatedBy: .newlines)
         for (index, line) in lines.enumerated() {
@@ -370,13 +401,19 @@ struct OCRTextParser {
         let lowercased = text.lowercased()
         return lowercased.contains("miles")
             || lowercased.contains("mils")
+            || lowercased.contains("mileg")
+            || lowercased.contains("miteg")
+            || lowercased.contains("wiles")
             || lowercased.contains("mph")
     }
 
     private func parseInstrumentClusterOdometer(from text: String) -> Double? {
         let lines = text.components(separatedBy: .newlines)
         for line in lines {
-            guard let milesRange = line.range(of: #"miles?|mils?|millas?"#, options: [.regularExpression, .caseInsensitive]) else { continue }
+            guard let milesRange = line.range(
+                of: #"miles?|mils?|millas?|mileg|miteg|wiles?"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) else { continue }
             let prefix = String(line[..<milesRange.lowerBound])
             if let value = instrumentOdometerCandidate(from: prefix) {
                 return value
@@ -388,7 +425,10 @@ struct OCRTextParser {
     private func parseInstrumentClusterTrip(from text: String) -> Double? {
         let lines = text.components(separatedBy: .newlines)
         for line in lines {
-            guard let milesRange = line.range(of: #"miles?|mils?|millas?"#, options: [.regularExpression, .caseInsensitive]) else { continue }
+            guard let milesRange = line.range(
+                of: #"miles?|mils?|millas?|mileg|miteg|wiles?"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) else { continue }
             let suffix = String(line[milesRange.upperBound...])
             if let value = instrumentTripCandidate(from: suffix) {
                 return value
@@ -420,6 +460,19 @@ struct OCRTextParser {
         if let decimal = extractNumbers(from: corrected)
             .first(where: { $0 >= 0 && $0 < 2_000 && $0.truncatingRemainder(dividingBy: 1) != 0 }) {
             return decimal
+        }
+
+        if let regex = try? NSRegularExpression(pattern: #"(?<!\d)(\d{4})(?!\d)"#) {
+            let nsText = corrected as NSString
+            for match in regex.matches(in: corrected, range: NSRange(location: 0, length: nsText.length)) {
+                guard match.numberOfRanges == 2,
+                      let raw = Double(nsText.substring(with: match.range(at: 1)))
+                else { continue }
+                let value = raw / 10
+                if value >= 0 && value < 2_000 {
+                    return value
+                }
+            }
         }
 
         let pattern = #"(?<!\d)0(\d{2,3})(?!\d)"#

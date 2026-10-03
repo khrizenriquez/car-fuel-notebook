@@ -9,6 +9,10 @@ extension String {
         normalizedNumericValue
     }
 
+    var asDecimalDouble: Double? {
+        normalizedDecimalValue
+    }
+
     private var normalizedNumericValue: Double? {
         let compact = trimmed.replacingOccurrences(of: " ", with: "")
         guard !compact.isEmpty else { return nil }
@@ -57,6 +61,24 @@ extension String {
         }
 
         return Double(compact)
+    }
+
+    private var normalizedDecimalValue: Double? {
+        let compact = trimmed.replacingOccurrences(of: " ", with: "")
+        guard !compact.isEmpty else { return nil }
+
+        let commaCount = compact.filter { $0 == "," }.count
+        let dotCount = compact.filter { $0 == "." }.count
+
+        if commaCount > 0 && dotCount > 0 {
+            return normalizedNumericValue
+        }
+
+        if commaCount + dotCount == 1 {
+            return Double(compact.replacingOccurrences(of: ",", with: "."))
+        }
+
+        return normalizedNumericValue
     }
 }
 
