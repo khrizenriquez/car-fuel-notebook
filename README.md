@@ -4,6 +4,18 @@ Car Fuel Notebook is a local-first iPhone app for recording refuels, odometer re
 
 It is designed around a real-world workflow: after a fuel stop, the user should only need to upload photos of the receipt, odometer, and optionally the tank gauge, review the OCR suggestions, and save the event. The app then keeps the full history locally and calculates weekly, monthly, and per-tank analytics.
 
+## Cartrack v2
+
+The approved v2 source of truth is the Spec Kit package under [`specs/001-cartrack-v2`](specs/001-cartrack-v2/spec.md). Start with:
+
+- [Product specification](specs/001-cartrack-v2/spec.md)
+- [Technical plan](specs/001-cartrack-v2/plan.md)
+- [Commit-by-commit todo list](specs/001-cartrack-v2/tasks.md)
+- [Acceptance matrix](specs/001-cartrack-v2/acceptance-matrix.md)
+- [Project constitution](.specify/memory/constitution.md)
+
+V2 remains offline and local-first. Images stay on the device; v2.1 is prepared to synchronize only minimal structured data through a separate cloud project.
+
 ## Why This App Exists
 
 Many fuel trackers capture only totals. This app keeps the evidence behind each entry:
