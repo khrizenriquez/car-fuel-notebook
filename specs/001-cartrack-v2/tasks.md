@@ -27,7 +27,7 @@
   - Alcance: cambios pendientes de `OCRService`, parser, orientación, variantes y tests; prohibido lookup por hash/firma.
   - Gate: parser/OCR unitario e integración focalizada, orientación, reconciliación contextual y ausencia de respuestas por firma exacta.
 
-- [ ] **T03 — Consolidar manifiesto y runner de escenarios privados**
+- [x] **T03 — Consolidar manifiesto y runner de escenarios privados**
   - Commit: `Add private image scenario regression harness`
   - Alcance: `CartrackTests/Fixtures`, plantilla sanitizada, cargador, cobertura del manifiesto y scripts de simulador.
   - Gate: tests de manifiesto, variantes prioritarias y preparación del simulador dedicado; ningún segundo simulador queda abierto.

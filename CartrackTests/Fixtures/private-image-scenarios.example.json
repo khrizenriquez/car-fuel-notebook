@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "sanitized-snapshot-example",
+      "kind": "snapshot",
+      "odometerImage": "PrivateFixtures/Odometer/example.jpg",
+      "fuelImage": "PrivateFixtures/FuelLevel/example.jpg",
+      "expected": {
+        "odometerMiles": 100000,
+        "tripMiles": 125.0,
+        "fuelLevelOCR": null
+      },
+      "tolerance": {
+        "odometerMiles": 1,
+        "tripMiles": 0.2
+      },
+      "ui": {
+        "manualFuelSpaces": 2,
+        "runInSimulator": true
+      }
+    },
+    {
+      "id": "sanitized-fill-up-example",
+      "kind": "fillUp",
+      "invoiceImage": "PrivateFixtures/Invoices/example.jpg",
+      "expected": {
+        "gallons": 10,
+        "pricePerGallon": 40,
+        "totalCost": 400
+      },
+      "ui": {
+        "runInSimulator": false
+      }
+    }
+  ]
+}

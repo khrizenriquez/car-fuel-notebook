@@ -3,89 +3,457 @@ import XCTest
 @testable import Cartrack
 
 final class LocalExampleImageOCRTests: XCTestCase {
-    func testOrderedOdometerFixturesParseExpectedMileageAndTrip() async throws {
-        let service = OCRService()
+    func testPrivateManifestCoversEveryAvailableImage() throws {
+        let manifest = try loadManifest()
+        let declaredPaths = Set(manifest.scenarios.flatMap(\.imagePaths))
+        let availablePaths = try availablePrivateImagePaths()
 
-        for fixture in odometerFixtures() {
-            let image = try loadImage(at: fixture.url)
-            let result = await service.analyzeSnapshot(
-                odometerImage: image,
+        XCTAssertEqual(
+            declaredPaths,
+            availablePaths,
+            """
+            El manifiesto privado debe clasificar todas las evidencias locales.
+            Sin declarar: \(availablePaths.subtracting(declaredPaths).sorted())
+            Sin archivo: \(declaredPaths.subtracting(availablePaths).sorted())
+            """
+        )
+    }
+
+    func testAllPrivateImageScenariosMatchExpectedOCR() async throws {
+        let manifest = try loadManifest()
+        let service = OCRService()
+        let scenarioFilter = ProcessInfo.processInfo.environment["CARTRACK_PRIVATE_SCENARIO_ID"]
+
+        for scenario in manifest.scenarios
+        where !scenario.excluded && (scenarioFilter == nil || scenario.id == scenarioFilter) {
+            let usablePreviousReading = previousReading(before: scenario, in: manifest)
+
+            switch scenario.kind {
+            case .snapshot:
+                let result = await service.analyzeSnapshot(
+                    odometerImage: try loadOptionalImage(
+                        relativePath: scenario.odometerImage,
+                        scenarioID: scenario.id
+                    ),
+                    fuelLevelImage: try loadOptionalImage(
+                        relativePath: scenario.fuelImage,
+                        scenarioID: scenario.id
+                    ),
+                    fuelScaleMax: FuelLevelScale.defaultMax,
+                    previousClusterReading: usablePreviousReading
+                )
+                assertSnapshot(result, matches: scenario)
+
+            case .fillUp:
+                let result = await service.analyzeFillUp(
+                    invoiceImage: try loadOptionalImage(
+                        relativePath: scenario.invoiceImage,
+                        scenarioID: scenario.id
+                    ),
+                    odometerImage: try loadOptionalImage(
+                        relativePath: scenario.odometerImage,
+                        scenarioID: scenario.id
+                    ),
+                    fuelLevelImage: try loadOptionalImage(
+                        relativePath: scenario.fuelImage,
+                        scenarioID: scenario.id
+                    ),
+                    fuelScaleMax: FuelLevelScale.defaultMax,
+                    previousClusterReading: usablePreviousReading
+                )
+                assertFillUp(result, matches: scenario)
+            }
+
+        }
+    }
+
+    func testPriorityDigitalScenariosDoNotDependOnExactFileSignature() async throws {
+        let manifest = try loadManifest()
+        let service = OCRService()
+        let priorityIDs = [
+            "z4-2026-07-23-1941",
+            "z4-2026-07-24-1351",
+            "z4-2026-07-24-2255",
+        ]
+
+        for scenarioID in priorityIDs {
+            guard let scenario = manifest.scenarios.first(where: { $0.id == scenarioID }) else {
+                XCTFail("Falta el escenario prioritario \(scenarioID)")
+                continue
+            }
+            guard let original = try loadOptionalImage(
+                relativePath: scenario.odometerImage,
+                scenarioID: scenario.id
+            ) else {
+                XCTFail("Falta imagen de odometro para \(scenario.id)")
+                continue
+            }
+            guard let variant = normalizedJPEGVariant(of: original) else {
+                XCTFail("No se pudo crear variante para \(scenario.id)")
+                continue
+            }
+            let previousReading = previousReading(
+                before: scenario,
+                in: manifest
+            )
+
+            let originalResult = await service.analyzeSnapshot(
+                odometerImage: original,
                 fuelLevelImage: nil,
-                fuelScaleMax: FuelLevelScale.defaultMax
+                fuelScaleMax: FuelLevelScale.defaultMax,
+                previousClusterReading: previousReading
             )
+            assertSnapshot(originalResult, matches: scenario)
 
-            XCTAssertFalse(result.odometerText.trimmed.isEmpty, fixture.url.lastPathComponent)
-            XCTAssertEqual(result.odometerMiles ?? 0, fixture.odometerMiles, accuracy: 1, fixture.url.lastPathComponent)
-            XCTAssertEqual(result.tripMiles ?? 0, fixture.tripMiles, accuracy: 0.2, fixture.url.lastPathComponent)
-            XCTAssertNil(result.fuelLevelRemaining, fixture.url.lastPathComponent)
-        }
-    }
-
-    func testOrderedFuelGaugeFixturesKeepFuelLevelManual() async throws {
-        let service = OCRService()
-
-        for url in fuelGaugeFixtureURLs() {
             let result = await service.analyzeSnapshot(
-                odometerImage: nil,
-                fuelLevelImage: try loadImage(at: url),
-                fuelScaleMax: FuelLevelScale.defaultMax
+                odometerImage: variant,
+                fuelLevelImage: nil,
+                fuelScaleMax: FuelLevelScale.defaultMax,
+                previousClusterReading: previousReading
             )
+            let isExact = optionalValuesMatch(
+                result.odometerMiles,
+                scenario.expected?.odometerMiles,
+                accuracy: scenario.tolerance.odometerMiles
+            ) && optionalValuesMatch(
+                result.tripMiles,
+                scenario.expected?.tripMiles,
+                accuracy: scenario.tolerance.tripMiles
+            )
+            let isSafeManualFallback = result.odometerMiles == nil && result.tripMiles == nil
 
-            XCTAssertNil(
-                result.fuelLevelRemaining,
-                "La aguja analogica de \(url.lastPathComponent) no debe convertirse en un valor automatico sin confirmacion manual."
+            XCTAssertTrue(
+                isExact || isSafeManualFallback,
+                """
+                Una variante nunca debe producir valores incorrectos:
+                \(snapshotDiagnostic(result, scenarioID: scenario.id))
+                """
             )
         }
     }
 
-    func testTexacoInvoiceFixtureParsesRequiredFuelPurchaseValues() async throws {
-        let service = OCRService()
-        let invoiceURL = repoRoot().appendingPathComponent("Invoices/Examples/2026-07-09_195613_IMG_5418.jpeg")
+    private func assertSnapshot(
+        _ result: SnapshotPrefill,
+        matches scenario: PrivateImageScenario,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let expected = scenario.expected else { return }
+        let diagnostic = snapshotDiagnostic(result, scenarioID: scenario.id)
 
-        let result = await service.analyzeFillUp(
-            invoiceImage: try loadImage(at: invoiceURL),
-            odometerImage: nil,
-            fuelLevelImage: nil,
-            fuelScaleMax: FuelLevelScale.defaultMax
+        assertOptional(
+            result.odometerMiles,
+            equals: expected.odometerMiles,
+            accuracy: scenario.tolerance.odometerMiles,
+            message: diagnostic,
+            file: file,
+            line: line
+        )
+        assertOptional(
+            result.tripMiles,
+            equals: expected.tripMiles,
+            accuracy: scenario.tolerance.tripMiles,
+            message: diagnostic,
+            file: file,
+            line: line
         )
 
-        XCTAssertEqual(result.gallons ?? 0, 3.791, accuracy: 0.0001)
-        XCTAssertEqual(result.pricePerGallon ?? 0, 39.57, accuracy: 0.001)
-        XCTAssertEqual(result.totalCost ?? 0, 150.00, accuracy: 0.001)
-        XCTAssertTrue(result.invoiceText.localizedCaseInsensitiveContains("TEXACO"))
-    }
-
-    private func odometerFixtures() -> [(url: URL, odometerMiles: Double, tripMiles: Double)] {
-        let root = repoRoot()
-        return [
-            ("Odometer/Examples/2026-06-14_173358_IMG_4676.jpeg", 107_729, 19.4),
-            ("Odometer/Examples/2026-07-08_171215_IMG_5366.jpeg", 108_288, 126.3),
-            ("Odometer/Examples/2026-07-09_081311_IMG_5381.jpeg", 108_309, 147.6),
-            ("Odometer/Examples/2026-07-09_180342_IMG_5413.jpeg", 108_335, 173.7),
-            ("Odometer/Examples/2026-07-09_195255_IMG_5416.jpeg", 108_337, 175.4),
-            ("Odometer/Examples/2026-07-09_210156_IMG_5419.jpeg", 108_355, 193.1),
-            ("Odometer/Examples/2026-07-10_074640_IMG_5421.jpeg", 108_365, 203.3),
-            ("Odometer/Examples/2026-07-10_135521_IMG_5427.jpeg", 108_375, 213.1),
-            ("Odometer/Examples/2026-07-10_225052_image-2.jpeg", 108_394, 232.3),
-        ].map { path, odometerMiles, tripMiles in
-            (root.appendingPathComponent(path), odometerMiles, tripMiles)
+        if expected.expectsFuelLevelOCR {
+            if let expectedFuelLevel = expected.fuelLevelOCR {
+                assertOptional(
+                    result.fuelLevelRemaining,
+                    equals: expectedFuelLevel,
+                    accuracy: scenario.tolerance.fuelLevelOCR,
+                    message: diagnostic,
+                    file: file,
+                    line: line
+                )
+            } else {
+                XCTAssertNil(
+                    result.fuelLevelRemaining,
+                    "scenario=\(scenario.id) expected=MANUAL_REQUIRED\n\(diagnostic)",
+                    file: file,
+                    line: line
+                )
+            }
         }
     }
 
-    private func fuelGaugeFixtureURLs() -> [URL] {
-        let root = repoRoot()
-        return [
-            "FuelLevel/Examples/2026-06-14_173400_IMG_4677.jpeg",
-            "FuelLevel/Examples/2026-07-06_170441_IMG_5331.jpeg",
-            "FuelLevel/Examples/2026-07-08_171218_IMG_5367.jpeg",
-            "FuelLevel/Examples/2026-07-09_081314_IMG_5382.jpeg",
-            "FuelLevel/Examples/2026-07-09_180348_IMG_5414.jpeg",
-            "FuelLevel/Examples/2026-07-09_195300_IMG_5417.jpeg",
-            "FuelLevel/Examples/2026-07-09_210205_IMG_5420.jpeg",
-            "FuelLevel/Examples/2026-07-10_074642_IMG_5422.jpeg",
-            "FuelLevel/Examples/2026-07-10_135523_IMG_5428.jpeg",
-            "FuelLevel/Examples/2026-07-10_225057_image-1.jpeg",
-        ].map { root.appendingPathComponent($0) }
+    private func assertFillUp(
+        _ result: FillUpPrefill,
+        matches scenario: PrivateImageScenario,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let expected = scenario.expected else { return }
+        let diagnostic = fillUpDiagnostic(result, scenarioID: scenario.id)
+
+        assertOptional(
+            result.odometerMiles,
+            equals: expected.odometerMiles,
+            accuracy: scenario.tolerance.odometerMiles,
+            message: diagnostic,
+            file: file,
+            line: line
+        )
+        assertOptional(
+            result.tripMiles,
+            equals: expected.tripMiles,
+            accuracy: scenario.tolerance.tripMiles,
+            message: diagnostic,
+            file: file,
+            line: line
+        )
+        assertOptional(
+            result.gallons,
+            equals: expected.gallons,
+            accuracy: scenario.tolerance.gallons,
+            message: diagnostic,
+            file: file,
+            line: line
+        )
+        assertOptional(
+            result.pricePerGallon,
+            equals: expected.pricePerGallon,
+            accuracy: scenario.tolerance.pricePerGallon,
+            message: diagnostic,
+            file: file,
+            line: line
+        )
+        assertOptional(
+            result.totalCost,
+            equals: expected.totalCost,
+            accuracy: scenario.tolerance.totalCost,
+            message: diagnostic,
+            file: file,
+            line: line
+        )
+
+        if expected.expectsFuelLevelOCR {
+            if let expectedFuelLevel = expected.fuelLevelOCR {
+                assertOptional(
+                    result.fuelLevelRemaining,
+                    equals: expectedFuelLevel,
+                    accuracy: scenario.tolerance.fuelLevelOCR,
+                    message: diagnostic,
+                    file: file,
+                    line: line
+                )
+            } else {
+                XCTAssertNil(
+                    result.fuelLevelRemaining,
+                    "scenario=\(scenario.id) expected=MANUAL_REQUIRED\n\(diagnostic)",
+                    file: file,
+                    line: line
+                )
+            }
+        }
+
+        if let expectedText = expected.invoiceTextContains {
+            XCTAssertTrue(
+                result.invoiceText.localizedCaseInsensitiveContains(expectedText),
+                "scenario=\(scenario.id) expected invoice text containing \(expectedText)\n\(diagnostic)",
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    private func assertOptional(
+        _ actual: Double?,
+        equals expected: Double?,
+        accuracy: Double,
+        message: String,
+        file: StaticString,
+        line: UInt
+    ) {
+        guard let expected else { return }
+        guard let actual else {
+            XCTFail(
+                "expected=\(expected) observed=nil tolerance=\(accuracy)\n\(message)",
+                file: file,
+                line: line
+            )
+            return
+        }
+        XCTAssertEqual(
+            actual,
+            expected,
+            accuracy: accuracy,
+            "expected=\(expected) observed=\(actual) tolerance=\(accuracy)\n\(message)",
+            file: file,
+            line: line
+        )
+    }
+
+    private func optionalValuesMatch(
+        _ actual: Double?,
+        _ expected: Double?,
+        accuracy: Double
+    ) -> Bool {
+        switch (actual, expected) {
+        case (.none, .none):
+            return true
+        case let (.some(actual), .some(expected)):
+            return abs(actual - expected) <= accuracy
+        default:
+            return false
+        }
+    }
+
+    private func previousReading(
+        before scenario: PrivateImageScenario,
+        in manifest: PrivateImageScenarioManifest
+    ) -> InstrumentClusterReading? {
+        guard let index = manifest.scenarios.firstIndex(where: { $0.id == scenario.id }) else {
+            return nil
+        }
+
+        for previousScenario in manifest.scenarios[..<index].reversed() {
+            guard let odometer = previousScenario.expected?.odometerMiles,
+                  let trip = previousScenario.expected?.tripMiles,
+                  let currentOdometer = scenario.expected?.odometerMiles,
+                  let currentTrip = scenario.expected?.tripMiles,
+                  odometer <= currentOdometer,
+                  trip <= currentTrip
+            else {
+                continue
+            }
+            return InstrumentClusterReading(
+                odometerMiles: odometer,
+                tripMiles: trip
+            )
+        }
+        return nil
+    }
+
+    private func loadManifest() throws -> PrivateImageScenarioManifest {
+        let url = manifestURL()
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            if requiresPrivateFixtures {
+                XCTFail("Falta el manifiesto privado requerido: \(url.path)")
+                throw LocalFixtureError.missingManifest
+            }
+            throw XCTSkip(
+                "Paquete privado ausente. Usa CARTRACK_REQUIRE_PRIVATE_FIXTURES=1 para exigirlo."
+            )
+        }
+        return try PrivateImageScenarioManifest.load(from: url)
+    }
+
+    private func loadOptionalImage(
+        relativePath: String?,
+        scenarioID: String
+    ) throws -> UIImage? {
+        guard let relativePath else { return nil }
+        let url = repoRoot().appendingPathComponent(relativePath)
+        guard let image = UIImage(contentsOfFile: url.path) else {
+            XCTFail("scenario=\(scenarioID) no se pudo cargar \(url.path)")
+            throw LocalFixtureError.unreadableImage
+        }
+        return image
+    }
+
+    private func normalizedJPEGVariant(of image: UIImage) -> UIImage? {
+        let maxDimension: CGFloat = 1_600
+        let largestDimension = max(image.size.width, image.size.height)
+        let scale = min(1, maxDimension / largestDimension)
+        let size = CGSize(
+            width: max(1, (image.size.width * scale).rounded()),
+            height: max(1, (image.size.height * scale).rounded())
+        )
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let normalized = renderer.image { _ in
+            UIColor.black.setFill()
+            UIRectFill(CGRect(origin: .zero, size: size))
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        guard let data = normalized.jpegData(compressionQuality: 0.78) else {
+            return nil
+        }
+        return UIImage(data: data)
+    }
+
+    private func availablePrivateImagePaths() throws -> Set<String> {
+        let supportedExtensions = Set(["heic", "heif", "jpg", "jpeg", "png", "tif", "tiff"])
+        var paths = Set<String>()
+
+        for folder in ["Invoices/Examples", "Odometer/Examples", "FuelLevel/Examples"] {
+            let folderURL = repoRoot().appendingPathComponent(folder)
+            guard let enumerator = FileManager.default.enumerator(
+                at: folderURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                continue
+            }
+
+            for case let url as URL in enumerator
+            where supportedExtensions.contains(url.pathExtension.lowercased()) {
+                paths.insert(relativePath(for: url))
+            }
+        }
+
+        return paths
+    }
+
+    private func relativePath(for url: URL) -> String {
+        let rootPath = repoRoot().standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        guard path.hasPrefix(rootPath + "/") else { return path }
+        return String(path.dropFirst(rootPath.count + 1))
+    }
+
+    private func snapshotDiagnostic(
+        _ result: SnapshotPrefill,
+        scenarioID: String
+    ) -> String {
+        """
+        scenario=\(scenarioID)
+        odometer=\(result.odometerMiles?.description ?? "nil")
+        trip=\(result.tripMiles?.description ?? "nil")
+        fuel=\(result.fuelLevelRemaining?.description ?? "nil")
+        odometerText:
+        \(result.odometerText)
+        fuelText:
+        \(result.fuelLevelText)
+        """
+    }
+
+    private func fillUpDiagnostic(
+        _ result: FillUpPrefill,
+        scenarioID: String
+    ) -> String {
+        """
+        scenario=\(scenarioID)
+        gallons=\(result.gallons?.description ?? "nil")
+        pricePerGallon=\(result.pricePerGallon?.description ?? "nil")
+        totalCost=\(result.totalCost?.description ?? "nil")
+        odometer=\(result.odometerMiles?.description ?? "nil")
+        trip=\(result.tripMiles?.description ?? "nil")
+        fuel=\(result.fuelLevelRemaining?.description ?? "nil")
+        invoiceText:
+        \(result.invoiceText)
+        odometerText:
+        \(result.odometerText)
+        fuelText:
+        \(result.fuelLevelText)
+        """
+    }
+
+    private var requiresPrivateFixtures: Bool {
+        let value = ProcessInfo.processInfo.environment["CARTRACK_REQUIRE_PRIVATE_FIXTURES"]?
+            .lowercased()
+        return value == "1" || value == "true" || value == "yes"
+    }
+
+    private func manifestURL() -> URL {
+        repoRoot().appendingPathComponent(
+            "CartrackTests/Fixtures/private-image-scenarios.json"
+        )
     }
 
     private func repoRoot() -> URL {
@@ -93,16 +461,9 @@ final class LocalExampleImageOCRTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
     }
-
-    private func loadImage(at url: URL) throws -> UIImage {
-        guard let image = UIImage(contentsOfFile: url.path) else {
-            XCTFail("No se pudo cargar la imagen en \(url.path)")
-            throw LocalFixtureError.unreadableImage
-        }
-        return image
-    }
 }
 
 private enum LocalFixtureError: Error {
+    case missingManifest
     case unreadableImage
 }

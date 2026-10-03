@@ -15,3 +15,8 @@ xcodebuild \
   -destination "${destination}" \
   -enableCodeCoverage YES \
   test
+
+if [[ "${CARTRACK_REQUIRE_PRIVATE_FIXTURES:-0}" == "1" ]]; then
+  CARTRACK_PRIVATE_DESTINATION="${destination}" \
+    ./Scripts/verify_private_image_scenarios.sh
+fi
