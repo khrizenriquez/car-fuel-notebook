@@ -2,19 +2,17 @@ import Foundation
 import SwiftData
 import UIKit
 
-protocol FuelCaptureRecognizing: Sendable {
-    func analyzeFillUp(invoiceImage: UIImage?, odometerImage: UIImage?, fuelLevelImage: UIImage?,
-                       fuelScaleMax: Double,
-                       previousClusterReading: InstrumentClusterReading?) async -> FillUpPrefill
+protocol SnapshotCaptureRecognizing: Sendable {
+    func analyzeSnapshot(odometerImage: UIImage?, fuelLevelImage: UIImage?,
+                         fuelScaleMax: Double,
+                         previousClusterReading: InstrumentClusterReading?) async -> SnapshotPrefill
 }
 
-extension OCRService: FuelCaptureRecognizing {}
+extension OCRService: SnapshotCaptureRecognizing {}
 
-struct FuelCaptureInput {
+struct SnapshotCaptureInput {
     let vehicleID: UUID
     let occurredAt: Date
-    let odometerUnit: OdometerUnit
-    let tankCapacityGallons: Decimal
     let fuelScaleMax: Decimal
     let fuelScaleStep: Decimal
     let previousOdometerKilometers: Decimal?
@@ -23,28 +21,28 @@ struct FuelCaptureInput {
     let images: [CaptureImageKind: UIImage]
 }
 
-struct FuelCaptureOutcome {
+struct SnapshotCaptureOutcome {
     let session: CaptureSession
     let fields: [FieldResult]
     let imageIssues: [CaptureImageKind: [CaptureImageIssue]]
-    let recognizedText: FillUpPrefill
+    let recognizedText: SnapshotPrefill
 }
 
 @MainActor
-final class FuelCaptureWorkflow {
+final class SnapshotCaptureWorkflow {
     private let sessions: CaptureSessionRepository
     private let photos: PhotoAssetRepository
     private let evidence: OCRFieldEvidenceRepository
     private let photoStore: CapturePhotoStore
     private let imagePipeline: CaptureImagePipeline
-    private let recognizer: FuelCaptureRecognizing
+    private let recognizer: SnapshotCaptureRecognizing
     private let scorer = FieldCandidateScorer()
 
     init(sessions: CaptureSessionRepository, photos: PhotoAssetRepository,
          evidence: OCRFieldEvidenceRepository,
          photoStore: CapturePhotoStore = CapturePhotoStore(),
          imagePipeline: CaptureImagePipeline = CaptureImagePipeline(),
-         recognizer: FuelCaptureRecognizing = OCRService()) {
+         recognizer: SnapshotCaptureRecognizing = OCRService()) {
         self.sessions = sessions
         self.photos = photos
         self.evidence = evidence
@@ -59,23 +57,22 @@ final class FuelCaptureWorkflow {
                   evidence: SwiftDataOCRFieldEvidenceRepository(context: ModelContext(container)))
     }
 
-    func analyze(input: FuelCaptureInput, sessionID: UUID? = nil) async throws -> FuelCaptureOutcome {
+    func analyze(input: SnapshotCaptureInput, sessionID: UUID? = nil) async throws -> SnapshotCaptureOutcome {
         var session: CaptureSession
         if let sessionID {
             guard let existing = try await sessions.find(id: sessionID),
-                  existing.kind == .fillUp, existing.vehicleID == input.vehicleID else {
+                  existing.kind == .snapshot, existing.vehicleID == input.vehicleID else {
                 throw CaptureSessionError.notFound
             }
             session = existing
         } else {
             var draft = CaptureDraft()
             draft.occurredAt = input.occurredAt
-            session = try await sessions.create(kind: .fillUp, vehicleID: input.vehicleID, draft: draft)
+            session = try await sessions.create(kind: .snapshot, vehicleID: input.vehicleID, draft: draft)
         }
-
         let prepared = try await CaptureWorkflowSupport.prepare(
             sessionID: session.id, selectedImages: input.images,
-            supportedKinds: [.invoice, .odometer, .fuelLevel], photos: photos,
+            supportedKinds: [.odometer, .fuelLevel], photos: photos,
             store: photoStore, pipeline: imagePipeline
         )
         let photoIDs = prepared.assets.map(\.id)
@@ -90,8 +87,7 @@ final class FuelCaptureWorkflow {
                                                 to: .analyzing, errorCode: nil,
                                                 confirmedEventID: nil)
         do {
-            let recognized = await recognizer.analyzeFillUp(
-                invoiceImage: prepared.images[.invoice],
+            let recognized = await recognizer.analyzeSnapshot(
                 odometerImage: prepared.images[.odometer],
                 fuelLevelImage: prepared.images[.fuelLevel],
                 fuelScaleMax: NSDecimalNumber(decimal: input.fuelScaleMax).doubleValue,
@@ -102,13 +98,11 @@ final class FuelCaptureWorkflow {
             let context = CandidateValidationContext(
                 previousOdometerKilometers: input.previousOdometerKilometers,
                 lastFillOdometerKilometers: input.lastFillOdometerKilometers,
-                tankCapacityGallons: input.tankCapacityGallons,
                 fuelScaleMax: input.fuelScaleMax,
                 fuelScaleStep: input.fuelScaleStep
             )
-            let assessment = scorer.assess(candidates,
-                                           expectedFields: [.odometerKilometers, .volumeGallons,
-                                                            .unitPrice, .totalCost], context: context)
+            let assessment = scorer.assess(candidates, expectedFields: [.odometerKilometers],
+                                           context: context)
             var draft = session.draft
             apply(assessment, to: &draft)
             session = try await sessions.updateDraft(id: session.id,
@@ -118,8 +112,8 @@ final class FuelCaptureWorkflow {
             session = try await sessions.transition(id: session.id, expectedRevision: session.revision,
                                                     to: .review, errorCode: nil,
                                                     confirmedEventID: nil)
-            return FuelCaptureOutcome(session: session, fields: assessment.fields,
-                                      imageIssues: prepared.issues, recognizedText: recognized)
+            return SnapshotCaptureOutcome(session: session, fields: assessment.fields,
+                                          imageIssues: prepared.issues, recognizedText: recognized)
         } catch {
             _ = try? await sessions.transition(id: session.id, expectedRevision: session.revision,
                                                to: .failedRecoverable,
@@ -129,13 +123,13 @@ final class FuelCaptureWorkflow {
         }
     }
 
-    private func makeCandidates(_ result: FillUpPrefill,
+    private func makeCandidates(_ result: SnapshotPrefill,
                                 photos: [CaptureImageKind: LocalPhotoRecord],
                                 qualities: [CaptureImageKind: Decimal],
                                 issues: [CaptureImageKind: [CaptureImageIssue]]) -> [FieldCandidate] {
         var output: [FieldCandidate] = []
         func append(_ field: CaptureField, _ value: Double?, kind: CaptureImageKind,
-                    method: CandidateMethod = .visionText) {
+                    method: CandidateMethod) {
             guard let value, value.isFinite, let photo = photos[kind],
                   issues[kind]?.contains(.wrongKind) != true,
                   let decimal = Decimal(string: String(value)) else { return }
@@ -144,13 +138,10 @@ final class FuelCaptureWorkflow {
                                          method: method, recognitionConfidence: 0.80,
                                          imageQuality: qualities[kind] ?? 0.50))
         }
-        let odometerKilometers = result.odometerMiles.map(UnitConversion.milesToKilometers)
-        let tripKilometers = result.tripMiles.map(UnitConversion.milesToKilometers)
-        append(.odometerKilometers, odometerKilometers, kind: .odometer, method: .digitalDisplay)
-        append(.tripKilometers, tripKilometers, kind: .odometer, method: .digitalDisplay)
-        append(.volumeGallons, result.gallons, kind: .invoice)
-        append(.unitPrice, result.pricePerGallon, kind: .invoice)
-        append(.totalCost, result.totalCost, kind: .invoice)
+        append(.odometerKilometers, result.odometerMiles.map(UnitConversion.milesToKilometers),
+               kind: .odometer, method: .digitalDisplay)
+        append(.tripKilometers, result.tripMiles.map(UnitConversion.milesToKilometers),
+               kind: .odometer, method: .digitalDisplay)
         append(.fuelLevelRemaining, result.fuelLevelRemaining,
                kind: .fuelLevel, method: .analogGauge)
         return output
@@ -163,10 +154,6 @@ final class FuelCaptureWorkflow {
         }
         draft.odometerKilometers = draft.odometerKilometers ?? value(.odometerKilometers)
         draft.tripKilometers = draft.tripKilometers ?? value(.tripKilometers)
-        draft.volumeGallons = draft.volumeGallons ?? value(.volumeGallons)
-        draft.unitPrice = draft.unitPrice ?? value(.unitPrice)
-        draft.totalCost = draft.totalCost ?? value(.totalCost)
         draft.fuelLevelRemaining = draft.fuelLevelRemaining ?? value(.fuelLevelRemaining)
     }
-
 }

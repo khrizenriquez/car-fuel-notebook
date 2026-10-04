@@ -5,6 +5,61 @@ import XCTest
 
 final class LocalExampleImageOCRTests: XCTestCase {
     @MainActor
+    func testPrivateSnapshotWorkflowPrefillsFromRealPhotos() async throws {
+        let manifest = try loadManifest()
+        let scenario = try XCTUnwrap(manifest.scenarios.first { $0.id == "z4-2026-07-24-2255" })
+        let expected = try XCTUnwrap(scenario.expected)
+        let container = try CartrackModelContainer.make(isStoredInMemoryOnly: true)
+        let context = ModelContext(container)
+        let vehicle = Vehicle(name: "Private fixture Z4", make: "BMW", modelName: "Z4", year: 2003)
+        context.insert(vehicle)
+        try context.save()
+        let photoRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CartrackPrivateSnapshot-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: photoRoot) }
+        let workflow = SnapshotCaptureWorkflow(
+            sessions: SwiftDataCaptureSessionRepository(container: container),
+            photos: SwiftDataPhotoAssetRepository(context: ModelContext(container)),
+            evidence: SwiftDataOCRFieldEvidenceRepository(context: ModelContext(container)),
+            photoStore: CapturePhotoStore(rootURL: photoRoot)
+        )
+        let images: [CaptureImageKind: UIImage] = [
+            .odometer: try XCTUnwrap(loadOptionalImage(relativePath: scenario.odometerImage,
+                                                       scenarioID: scenario.id)),
+            .fuelLevel: try XCTUnwrap(loadOptionalImage(relativePath: scenario.fuelImage,
+                                                       scenarioID: scenario.id)),
+        ]
+        func input(_ images: [CaptureImageKind: UIImage]) -> SnapshotCaptureInput {
+            SnapshotCaptureInput(vehicleID: vehicle.id, occurredAt: .now,
+                                 fuelScaleMax: 8, fuelScaleStep: 0.25,
+                                 previousOdometerKilometers: nil,
+                                 lastFillOdometerKilometers: nil,
+                                 previousClusterReading: previousReading(before: scenario, in: manifest),
+                                 images: images)
+        }
+        let outcome = try await workflow.analyze(input: input(images))
+        XCTAssertEqual(outcome.session.state, .review)
+        XCTAssertEqual(outcome.session.draft.photoIDs.count, 2)
+        let odometer = try XCTUnwrap(outcome.session.draft.odometerKilometers,
+                                    "recognized=\(outcome.recognizedText.odometerText); fields=\(outcome.fields)")
+        XCTAssertEqual(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: odometer).doubleValue),
+                       try XCTUnwrap(expected.odometerMiles), accuracy: scenario.tolerance.odometerMiles)
+        let trip = try XCTUnwrap(outcome.session.draft.tripKilometers)
+        XCTAssertEqual(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: trip).doubleValue),
+                       try XCTUnwrap(expected.tripMiles), accuracy: scenario.tolerance.tripMiles)
+        XCTAssertNil(outcome.session.draft.fuelLevelRemaining)
+        XCTAssertNil(outcome.session.draft.totalCost)
+
+        let resumed = try await workflow.analyze(input: input([:]), sessionID: outcome.session.id)
+        XCTAssertEqual(resumed.session.state, .review)
+        XCTAssertEqual(resumed.session.draft.photoIDs, outcome.session.draft.photoIDs)
+        XCTAssertEqual(try XCTUnwrap(resumed.recognizedText.odometerMiles),
+                       try XCTUnwrap(expected.odometerMiles), accuracy: scenario.tolerance.odometerMiles)
+        XCTAssertEqual(try XCTUnwrap(resumed.recognizedText.tripMiles),
+                       try XCTUnwrap(expected.tripMiles), accuracy: scenario.tolerance.tripMiles)
+    }
+
+    @MainActor
     func testPrivateFillUpWorkflowPrefillsFromRealPhotos() async throws {
         let manifest = try loadManifest()
         let scenario = try XCTUnwrap(manifest.scenarios.first { $0.kind == .fillUp && !$0.excluded })

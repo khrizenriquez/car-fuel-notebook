@@ -78,10 +78,11 @@
   - Gate: integración completa sin UI + UI happy path.
   - Evidencia: 6 pruebas de integración del workflow cubren tres fotos, borrador `review` tras relanzar, OCR/evidencia local, reanálisis sin fotos originales, deduplicación, desacuerdo financiero, captura manual sin fotos y protección de ruta/hash. El llenado real privado de tres fotos pasó y volvió a leer galones desde los JPEG locales recuperados. UI happy path de guardar llenado y snapshot pasó; integración pública iOS 52 aprobadas, 5 privadas omitidas, 0 fallos. Core 118/118 y cobertura 90.77%. T12 cerrará confirmación atómica, reanudación visible y conflictos UI; T14 optimizará/limpiará fotos.
 
-- [ ] **T11 — Orquestar captura de registro de uso**
+- [x] **T11 — Orquestar captura de registro de uso**
   - Commit: `Build the v2 usage snapshot capture workflow`
   - Alcance: odómetro/trip/combustible, cámara/biblioteca y sesión.
   - Gate: integración completa sin UI + UI happy path.
+  - Evidencia: 5 pruebas nuevas del workflow cubren dos fotos, odómetro/trip, ausencia de campo financiero y lectura analógica automática, trip opcional, captura manual, deduplicación, relanzamiento/reanálisis local y aislamiento por vehículo; 6 pruebas de llenado siguen pasando tras compartir el almacenamiento. Un escenario privado real leyó 108,768 mi/606.5 mi y volvió a leerlo desde JPEG locales. La UI guardó llenado+snapshot y la prueba privada de `PhotosPicker` precargó/guardó el snapshot real. Integración pública iOS: 57 aprobadas, 6 privadas omitidas, 0 fallos. Core: 118/118 y cobertura 90.77%. T12 cerrará confirmación atómica, reanudación visible y conflictos; T14 optimizará/limpiará fotos locales.
 
 - [ ] **T12 — Implementar confirmación, conflictos y repetición selectiva**
   - Commit: `Add confidence aware capture confirmation`
@@ -161,6 +162,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T10 completado; sigue T11 (captura de registro de uso).
+- Implementación v2: T11 completado; sigue T12 (confirmación, conflictos y repetición selectiva).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

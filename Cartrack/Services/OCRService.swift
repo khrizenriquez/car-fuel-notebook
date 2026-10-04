@@ -191,7 +191,7 @@ struct FillUpPrefill: Sendable {
     var fuelLevelRemaining: Double?
 }
 
-struct SnapshotPrefill {
+struct SnapshotPrefill: Sendable {
     var odometerText: String = ""
     var fuelLevelText: String = ""
     var odometerMiles: Double?

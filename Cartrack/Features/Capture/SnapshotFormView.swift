@@ -60,6 +60,8 @@ struct SnapshotFormView: View {
     @State private var isAnalyzing = false
     @State private var errorMessage: String?
     @State private var wizardStep: SnapshotWizardStep = .evidence
+    @State private var captureSessionID: UUID?
+    @State private var captureFieldResults: [FieldResult] = []
     @FocusState private var focusedField: SnapshotFocusedField?
 
     init(event: SnapshotEvent? = nil) {
@@ -287,9 +289,27 @@ struct SnapshotFormView: View {
     }
 
     @MainActor
-    private func analyzeImages() async {
-        guard let vehicle = selectedVehicle else { return }
+    private func analyzeImages() async -> Bool {
+        guard let vehicle = selectedVehicle else { return false }
         isAnalyzing = true
+        defer { isAnalyzing = false }
+        if event == nil {
+            do {
+                let workflow = SnapshotCaptureWorkflow(container: modelContext.container)
+                let outcome = try await workflow.analyze(
+                    input: snapshotCaptureInput(for: vehicle), sessionID: captureSessionID
+                )
+                captureSessionID = outcome.session.id
+                captureFieldResults = outcome.fields
+                odometerOCRText = outcome.recognizedText.odometerText
+                fuelLevelOCRText = outcome.recognizedText.fuelLevelText
+                applyCaptureDraft(outcome.session.draft)
+                return true
+            } catch {
+                errorMessage = error.localizedDescription
+                return false
+            }
+        }
         let result = await ocrService.analyzeSnapshot(
             odometerImage: odometerImage,
             fuelLevelImage: fuelLevelImage,
@@ -303,7 +323,45 @@ struct SnapshotFormView: View {
         if let value = result.fuelLevelRemaining {
             fuelLevelRemaining = value
         }
-        isAnalyzing = false
+        return true
+    }
+
+    private func snapshotCaptureInput(for vehicle: Vehicle) -> SnapshotCaptureInput {
+        var images: [CaptureImageKind: UIImage] = [:]
+        if let odometerImage { images[.odometer] = odometerImage }
+        if let fuelLevelImage { images[.fuelLevel] = fuelLevelImage }
+        let previousSnapshot = snapshotEvents
+            .filter { $0.id != event?.id && $0.vehicle?.id == vehicle.id && $0.date < date }
+            .max(by: { $0.date < $1.date })
+        let previousFill = fillEvents
+            .filter { $0.vehicle?.id == vehicle.id && $0.date < date }
+            .max(by: { $0.date < $1.date })
+        let previousOdometer = [previousSnapshot.map { ($0.date, $0.odometerKilometers) },
+                                previousFill.map { ($0.date, $0.odometerKilometers) }]
+            .compactMap { $0 }
+            .max(by: { $0.0 < $1.0 })?.1
+        return SnapshotCaptureInput(
+            vehicleID: vehicle.id, occurredAt: date,
+            fuelScaleMax: Decimal(string: String(vehicle.fuelScaleMax)) ?? 8,
+            fuelScaleStep: Decimal(string: String(vehicle.fuelScaleStep)) ?? 0.25,
+            previousOdometerKilometers: previousOdometer.flatMap { Decimal(string: String($0)) },
+            lastFillOdometerKilometers: previousFill.flatMap { Decimal(string: String($0.odometerKilometers)) },
+            previousClusterReading: previousClusterReading(for: vehicle), images: images
+        )
+    }
+
+    private func applyCaptureDraft(_ draft: CaptureDraft) {
+        if odometerMiles.isEmpty, let km = draft.odometerKilometers {
+            odometerMiles = formatOCRDistanceInput(UnitConversion.kilometersToMiles(
+                NSDecimalNumber(decimal: km).doubleValue))
+        }
+        if tripMiles.isEmpty, let km = draft.tripKilometers {
+            tripMiles = formatOCRDistanceInput(UnitConversion.kilometersToMiles(
+                NSDecimalNumber(decimal: km).doubleValue))
+        }
+        if let level = draft.fuelLevelRemaining {
+            fuelLevelRemaining = NSDecimalNumber(decimal: level).doubleValue
+        }
     }
 
     private func previousClusterReading(for vehicle: Vehicle) -> InstrumentClusterReading? {
@@ -339,8 +397,7 @@ struct SnapshotFormView: View {
 
     @MainActor
     private func continueFromEvidence() async {
-        await analyzeImages()
-        wizardStep = .review
+        if await analyzeImages() { wizardStep = .review }
     }
 
     private func save() {
