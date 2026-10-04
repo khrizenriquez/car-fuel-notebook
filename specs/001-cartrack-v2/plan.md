@@ -1,6 +1,6 @@
 # Plan técnico — Cartrack v2
 
-**Estado:** Diseño aprobado; fase 0 y T05–T09 implementadas
+**Estado:** Diseño aprobado; fase 0 y T05–T10 implementadas
 **Rama única:** `codex/cartrack-v2`
 
 ## 1. Línea base
@@ -17,7 +17,9 @@ T05 agregó la migración v1→v2 con respaldo validado y activación atómica: 
 
 T08 incorporó preparación de imágenes totalmente local, con seis pruebas sintéticas por problema y una prueba privada sobre 15 escenarios/30 imágenes; la integración pública iOS pasó 46 pruebas con cuatro privadas omitidas. T09 añadió candidatos auditables y confianza versionada por campo, con 10 pruebas nuevas; el core pasó 118/118 con 90.79% de cobertura y la app compiló. La orquestación con Vision y la UI queda para T10–T12.
 
-Los cambios previos quedaron separados en T01–T09. El siguiente paso secuencial es T10.
+T10 incorporó almacenamiento protegido por sesión y el flujo de llenado con análisis de factura/tablero/combustible. Se verificó con seis pruebas de integración, un llenado real privado original y reanalizado desde archivos locales, una prueba UI de guardado y 52 pruebas públicas iOS aprobadas (5 privadas omitidas). La confirmación transaccional y la reanudación visible quedan para T12.
+
+Los cambios previos quedaron separados en T01–T10. El siguiente paso secuencial es T11.
 
 ## 2. Arquitectura objetivo
 

@@ -91,7 +91,7 @@ final class SwiftDataCaptureSessionRepository: CaptureSessionRepository {
         guard let row = try Self.find(id: id, in: context) else { throw CaptureSessionError.notFound }
         guard row.revision == expectedRevision else { throw CaptureSessionError.conflict }
         guard let state = CaptureSessionState(rawValue: row.stateRawValue),
-              state == .draft || state == .review || state == .failedRecoverable,
+              state == .draft || state == .analyzing || state == .review || state == .failedRecoverable,
               let kind = CaptureSessionKind(rawValue: row.kindRawValue) else {
             throw CaptureSessionError.invalidTransition
         }

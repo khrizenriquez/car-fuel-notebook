@@ -67,6 +67,8 @@ struct FillUpFormView: View {
     @State private var isAnalyzing = false
     @State private var errorMessage: String?
     @State private var wizardStep: FillUpWizardStep = .evidence
+    @State private var captureSessionID: UUID?
+    @State private var captureFieldResults: [FieldResult] = []
 
     init(event: FuelFillEvent? = nil) {
         self.event = event
@@ -118,7 +120,7 @@ struct FillUpFormView: View {
                 }
             }
         }
-        .alert("No se pudo guardar", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
+        .alert("No se pudo completar", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")
@@ -332,9 +334,28 @@ struct FillUpFormView: View {
     }
 
     @MainActor
-    private func analyzeImages() async {
-        guard let vehicle = selectedVehicle else { return }
+    private func analyzeImages() async -> Bool {
+        guard let vehicle = selectedVehicle else { return false }
         isAnalyzing = true
+        defer { isAnalyzing = false }
+        if event == nil {
+            do {
+                let workflow = FuelCaptureWorkflow(container: modelContext.container)
+                let outcome = try await workflow.analyze(
+                    input: fuelCaptureInput(for: vehicle), sessionID: captureSessionID
+                )
+                captureSessionID = outcome.session.id
+                captureFieldResults = outcome.fields
+                invoiceOCRText = outcome.recognizedText.invoiceText
+                odometerOCRText = outcome.recognizedText.odometerText
+                fuelLevelOCRText = outcome.recognizedText.fuelLevelText
+                applyCaptureDraft(outcome.session.draft)
+                return true
+            } catch {
+                errorMessage = error.localizedDescription
+                return false
+            }
+        }
         let result = await ocrService.analyzeFillUp(
             invoiceImage: invoiceImage,
             odometerImage: odometerImage,
@@ -353,7 +374,51 @@ struct FillUpFormView: View {
         if let value = result.fuelLevelRemaining {
             fuelLevelRemaining = value
         }
-        isAnalyzing = false
+        return true
+    }
+
+    private func fuelCaptureInput(for vehicle: Vehicle) -> FuelCaptureInput {
+        var images: [CaptureImageKind: UIImage] = [:]
+        if let invoiceImage { images[.invoice] = invoiceImage }
+        if let odometerImage { images[.odometer] = odometerImage }
+        if let fuelLevelImage { images[.fuelLevel] = fuelLevelImage }
+        let previousSnapshot = snapshotEvents
+            .filter { $0.vehicle?.id == vehicle.id && $0.date < date }
+            .max(by: { $0.date < $1.date })
+        let previousFill = fillEvents
+            .filter { $0.vehicle?.id == vehicle.id && $0.date < date }
+            .max(by: { $0.date < $1.date })
+        let previousOdometer = [previousSnapshot.map { ($0.date, $0.odometerKilometers) },
+                                previousFill.map { ($0.date, $0.odometerKilometers) }]
+            .compactMap { $0 }
+            .max(by: { $0.0 < $1.0 })?.1
+        return FuelCaptureInput(
+            vehicleID: vehicle.id, occurredAt: date, odometerUnit: vehicle.odometerUnit,
+            tankCapacityGallons: Decimal(string: String(vehicle.tankCapacityGallons)) ?? 14,
+            fuelScaleMax: Decimal(string: String(vehicle.fuelScaleMax)) ?? 8,
+            fuelScaleStep: Decimal(string: String(vehicle.fuelScaleStep)) ?? 0.25,
+            previousOdometerKilometers: previousOdometer.flatMap { Decimal(string: String($0)) },
+            lastFillOdometerKilometers: previousFill.flatMap { Decimal(string: String($0.odometerKilometers)) },
+            previousClusterReading: previousClusterReading(for: vehicle), images: images
+        )
+    }
+
+    private func applyCaptureDraft(_ draft: CaptureDraft) {
+        func text(_ value: Decimal?) -> String? { value.map { NSDecimalNumber(decimal: $0).stringValue } }
+        if odometerMiles.isEmpty, let km = draft.odometerKilometers {
+            odometerMiles = formatOCRDistanceInput(UnitConversion.kilometersToMiles(
+                NSDecimalNumber(decimal: km).doubleValue))
+        }
+        if tripMiles.isEmpty, let km = draft.tripKilometers {
+            tripMiles = formatOCRDistanceInput(UnitConversion.kilometersToMiles(
+                NSDecimalNumber(decimal: km).doubleValue))
+        }
+        if gallons.isEmpty { gallons = text(draft.volumeGallons) ?? gallons }
+        if pricePerGallon.isEmpty { pricePerGallon = text(draft.unitPrice) ?? pricePerGallon }
+        if totalCost.isEmpty { totalCost = text(draft.totalCost) ?? totalCost }
+        if let level = draft.fuelLevelRemaining {
+            fuelLevelRemaining = NSDecimalNumber(decimal: level).doubleValue
+        }
     }
 
     private func previousClusterReading(for vehicle: Vehicle) -> InstrumentClusterReading? {
@@ -389,8 +454,7 @@ struct FillUpFormView: View {
 
     @MainActor
     private func continueFromEvidence() async {
-        await analyzeImages()
-        wizardStep = .review
+        if await analyzeImages() { wizardStep = .review }
     }
 
     private func save() {

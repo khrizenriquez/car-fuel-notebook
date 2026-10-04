@@ -72,10 +72,11 @@
   - Gate: matriz unitaria de alta/media/baja/crítica + multiimagen.
   - Evidencia: 10 pruebas nuevas de candidatos cubren las cuatro bandas, corroboración entre fotos sin contar variantes de la misma, conflictos, alternativas débiles, medidor analógico manual, tipos/rangos, ecuación financiera, trip/odómetro, tolerancias y codificación sin imagen. Core 118/118, cobertura de fuentes 90.79%; app iOS compila. T10–T11 conectarán las observaciones Vision a estos candidatos.
 
-- [ ] **T10 — Orquestar captura de carga de combustible**
+- [x] **T10 — Orquestar captura de carga de combustible**
   - Commit: `Build the v2 fuel entry capture workflow`
   - Alcance: factura/tablero/combustible, precarga financiera, permisos y sesión.
   - Gate: integración completa sin UI + UI happy path.
+  - Evidencia: 6 pruebas de integración del workflow cubren tres fotos, borrador `review` tras relanzar, OCR/evidencia local, reanálisis sin fotos originales, deduplicación, desacuerdo financiero, captura manual sin fotos y protección de ruta/hash. El llenado real privado de tres fotos pasó y volvió a leer galones desde los JPEG locales recuperados. UI happy path de guardar llenado y snapshot pasó; integración pública iOS 52 aprobadas, 5 privadas omitidas, 0 fallos. Core 118/118 y cobertura 90.77%. T12 cerrará confirmación atómica, reanudación visible y conflictos UI; T14 optimizará/limpiará fotos.
 
 - [ ] **T11 — Orquestar captura de registro de uso**
   - Commit: `Build the v2 usage snapshot capture workflow`
@@ -160,6 +161,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T09 completado; sigue T10 (captura de carga de combustible).
+- Implementación v2: T10 completado; sigue T11 (captura de registro de uso).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

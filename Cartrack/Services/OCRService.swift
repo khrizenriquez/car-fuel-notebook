@@ -179,7 +179,7 @@ struct VisionOCRTextRecognizer: OCRTextRecognizing {
     }
 }
 
-struct FillUpPrefill {
+struct FillUpPrefill: Sendable {
     var invoiceText: String = ""
     var odometerText: String = ""
     var fuelLevelText: String = ""

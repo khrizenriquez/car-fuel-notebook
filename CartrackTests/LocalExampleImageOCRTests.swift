@@ -1,8 +1,79 @@
+import SwiftData
 import UIKit
 import XCTest
 @testable import Cartrack
 
 final class LocalExampleImageOCRTests: XCTestCase {
+    @MainActor
+    func testPrivateFillUpWorkflowPrefillsFromRealPhotos() async throws {
+        let manifest = try loadManifest()
+        let scenario = try XCTUnwrap(manifest.scenarios.first { $0.kind == .fillUp && !$0.excluded })
+        let expected = try XCTUnwrap(scenario.expected)
+        let container = try CartrackModelContainer.make(isStoredInMemoryOnly: true)
+        let context = ModelContext(container)
+        let vehicle = Vehicle(name: "Private fixture Z4", make: "BMW", modelName: "Z4", year: 2003)
+        context.insert(vehicle)
+        try context.save()
+        let photoRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CartrackPrivateWorkflow-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: photoRoot) }
+        var images: [CaptureImageKind: UIImage] = [:]
+        images[.invoice] = try loadOptionalImage(relativePath: scenario.invoiceImage, scenarioID: scenario.id)
+        images[.odometer] = try loadOptionalImage(relativePath: scenario.odometerImage, scenarioID: scenario.id)
+        images[.fuelLevel] = try loadOptionalImage(relativePath: scenario.fuelImage, scenarioID: scenario.id)
+        let workflow = FuelCaptureWorkflow(
+            sessions: SwiftDataCaptureSessionRepository(container: container),
+            photos: SwiftDataPhotoAssetRepository(context: ModelContext(container)),
+            evidence: SwiftDataOCRFieldEvidenceRepository(context: ModelContext(container)),
+            photoStore: CapturePhotoStore(rootURL: photoRoot)
+        )
+        let input = FuelCaptureInput(vehicleID: vehicle.id, occurredAt: .now,
+                                     odometerUnit: .miles, tankCapacityGallons: 14,
+                                     fuelScaleMax: 8, fuelScaleStep: 0.25,
+                                     previousOdometerKilometers: nil,
+                                     lastFillOdometerKilometers: nil,
+                                     previousClusterReading: nil, images: images)
+        let outcome = try await workflow.analyze(input: input)
+        XCTAssertEqual(outcome.session.state, .review)
+        XCTAssertEqual(outcome.session.draft.photoIDs.count, 3)
+        let financeDiagnostics = "recognized=(\(String(describing: outcome.recognizedText.gallons)),\(String(describing: outcome.recognizedText.pricePerGallon)),\(String(describing: outcome.recognizedText.totalCost))); fields=\(outcome.fields.filter { [.volumeGallons, .unitPrice, .totalCost].contains($0.field) }.map { "\($0.field.rawValue):\($0.band.rawValue):\($0.validationCodes)" }); issues=\(outcome.imageIssues)"
+        if let gallons = expected.gallons {
+            let actual = try XCTUnwrap(outcome.session.draft.volumeGallons, financeDiagnostics)
+            XCTAssertEqual(NSDecimalNumber(decimal: actual).doubleValue, gallons,
+                           accuracy: scenario.tolerance.gallons)
+        }
+        if let price = expected.pricePerGallon {
+            let actual = try XCTUnwrap(outcome.session.draft.unitPrice)
+            XCTAssertEqual(NSDecimalNumber(decimal: actual).doubleValue, price,
+                           accuracy: scenario.tolerance.pricePerGallon)
+        }
+        if let total = expected.totalCost {
+            let actual = try XCTUnwrap(outcome.session.draft.totalCost)
+            XCTAssertEqual(NSDecimalNumber(decimal: actual).doubleValue, total,
+                           accuracy: scenario.tolerance.totalCost)
+        }
+        if let odometerMiles = expected.odometerMiles {
+            let actual = try XCTUnwrap(outcome.session.draft.odometerKilometers)
+            XCTAssertEqual(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: actual).doubleValue),
+                           odometerMiles, accuracy: scenario.tolerance.odometerMiles)
+        }
+        let resumed = try await workflow.analyze(
+            input: FuelCaptureInput(vehicleID: vehicle.id, occurredAt: .now,
+                                    odometerUnit: .miles, tankCapacityGallons: 14,
+                                    fuelScaleMax: 8, fuelScaleStep: 0.25,
+                                    previousOdometerKilometers: nil,
+                                    lastFillOdometerKilometers: nil,
+                                    previousClusterReading: nil, images: [:]),
+            sessionID: outcome.session.id
+        )
+        XCTAssertEqual(resumed.session.state, .review)
+        XCTAssertEqual(resumed.session.draft.photoIDs, outcome.session.draft.photoIDs)
+        if let gallons = expected.gallons {
+            XCTAssertEqual(try XCTUnwrap(resumed.recognizedText.gallons), gallons,
+                           accuracy: scenario.tolerance.gallons)
+        }
+    }
+
     func testPrivateImagePreparationKeepsDeclaredEvidenceAndVariantsLocal() throws {
         let manifest = try loadManifest()
         let pipeline = CaptureImagePipeline()
