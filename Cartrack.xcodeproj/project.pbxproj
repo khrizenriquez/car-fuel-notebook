@@ -21,6 +21,7 @@
 		A70700000000000000000012 /* CaptureSessionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70700000000000000000002 /* CaptureSessionPersistence.swift */; };
 		A80800000000000000000011 /* CaptureImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80800000000000000000001 /* CaptureImagePipeline.swift */; };
 		A80800000000000000000012 /* CaptureImagePipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80800000000000000000002 /* CaptureImagePipelineTests.swift */; };
+		A90900000000000000000011 /* FieldCandidates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90900000000000000000001 /* FieldCandidates.swift */; };
 		1180B3C13BD3D7747670B211 /* FillUpFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EDE99D9FCD8D62647ACD1E /* FillUpFormView.swift */; };
 		16CF094640D71334435A0589 /* OCRTextParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D64CAF23F97871DFD566F7B /* OCRTextParser.swift */; };
 		1DCE7E5963093E5A535656B2 /* MonthlyManualAdjustment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CA66271BDC6F4A36EDC893 /* MonthlyManualAdjustment.swift */; };
@@ -122,6 +123,7 @@
 		A70700000000000000000002 /* CaptureSessionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSessionPersistence.swift; sourceTree = "<group>"; };
 		A80800000000000000000001 /* CaptureImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureImagePipeline.swift; sourceTree = "<group>"; };
 		A80800000000000000000002 /* CaptureImagePipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureImagePipelineTests.swift; sourceTree = "<group>"; };
+		A90900000000000000000001 /* FieldCandidates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldCandidates.swift; sourceTree = "<group>"; };
 		8F7EF8AE75D61DB2EB589E2E /* CartrackTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CartrackTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		98A3E24FC1A3ACA6E2E344B2 /* ImageCaptureField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCaptureField.swift; sourceTree = "<group>"; };
 		A74F5A2754B031D8D7C135F4 /* String+Parsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Parsing.swift"; sourceTree = "<group>"; };
@@ -219,6 +221,7 @@
 				A60600000000000000000003 /* SwiftDataRepositories.swift */,
 				A70700000000000000000001 /* CaptureSession.swift */,
 				A70700000000000000000002 /* CaptureSessionPersistence.swift */,
+				A90900000000000000000001 /* FieldCandidates.swift */,
 			);
 			name = CartrackCore;
 			path = CartrackCore/Sources/CartrackCore;
@@ -454,6 +457,7 @@
 				A60600000000000000000013 /* SwiftDataRepositories.swift in Sources */,
 				A70700000000000000000011 /* CaptureSession.swift in Sources */,
 				A70700000000000000000012 /* CaptureSessionPersistence.swift in Sources */,
+				A90900000000000000000011 /* FieldCandidates.swift in Sources */,
 				3234421CBC530A369C96B1CD /* DashboardView.swift in Sources */,
 				27B440B6BA026228BD3BBB0B /* Date+Cartrack.swift in Sources */,
 				976DB9C63E2B81AD9E1D41F9 /* EmptyStateView.swift in Sources */,

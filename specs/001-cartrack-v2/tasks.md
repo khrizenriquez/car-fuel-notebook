@@ -66,10 +66,11 @@
   - Gate: fixtures por problema y cero persistencia de variantes.
   - Evidencia: 6 pruebas sintéticas cubren factura/tablero, tipo erróneo, desenfoque, sobre/subexposición, orientación, reflejo, recorte y tamaño máximo; 1 prueba privada pasó sobre 15 escenarios/30 posiciones de imagen sin falsas alertas de clase. Integración pública iOS: 46 aprobadas, 4 privadas omitidas, 0 fallidas. Las variantes son solo `CGImage` en memoria; T10 conectará el servicio al flujo de captura.
 
-- [ ] **T09 — Modelar candidatos, validación cruzada y confianza por campo**
+- [x] **T09 — Modelar candidatos, validación cruzada y confianza por campo**
   - Commit: `Add field candidates and confidence scoring`
   - Alcance: candidatos, bandas, conflictos, algoritmo versionado y reglas por campo.
   - Gate: matriz unitaria de alta/media/baja/crítica + multiimagen.
+  - Evidencia: 10 pruebas nuevas de candidatos cubren las cuatro bandas, corroboración entre fotos sin contar variantes de la misma, conflictos, alternativas débiles, medidor analógico manual, tipos/rangos, ecuación financiera, trip/odómetro, tolerancias y codificación sin imagen. Core 118/118, cobertura de fuentes 90.79%; app iOS compila. T10–T11 conectarán las observaciones Vision a estos candidatos.
 
 - [ ] **T10 — Orquestar captura de carga de combustible**
   - Commit: `Build the v2 fuel entry capture workflow`
@@ -159,6 +160,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T08 completado; sigue T09 (candidatos, validación cruzada y confianza por campo).
+- Implementación v2: T09 completado; sigue T10 (captura de carga de combustible).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

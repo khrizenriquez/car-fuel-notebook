@@ -24,7 +24,9 @@ Cada imagen incluye ID, tipo declarado opcional, orientación y ubicación local
 7. `confidence`: puntúa por campo y produce banda.
 8. `draftAssembly`: crea un borrador precargado.
 
-T08 implementa la preparación local previa a OCR: normaliza orientación, muestrea una imagen de 96 px para métricas de nitidez/exposición/color/borde, clasifica de forma conservadora con el tipo declarado como pista y genera variantes temporales de máximo 2200 px (`normalized`, `highContrast`, `monochrome`, `redDisplay` para tablero). La salida son objetos `CGImage` en memoria, sin rutas ni escritura a disco. El tablero no se divide automáticamente en odómetro frente a nivel de tanque si falta una pista confiable; se devuelve `other`. T10 conectará esta preparación al flujo de captura y T09 añadirá confianza por campo, por lo que sus umbrales iniciales no equivalen a confirmación automática.
+T08 implementa la preparación local previa a OCR: normaliza orientación, muestrea una imagen de 96 px para métricas de nitidez/exposición/color/borde, clasifica de forma conservadora con el tipo declarado como pista y genera variantes temporales de máximo 2200 px (`normalized`, `highContrast`, `monochrome`, `redDisplay` para tablero). La salida son objetos `CGImage` en memoria, sin rutas ni escritura a disco. El tablero no se divide automáticamente en odómetro frente a nivel de tanque si falta una pista confiable; se devuelve `other`. T10 conectará esta preparación al flujo de captura. Las métricas de calidad no equivalen por sí solas a confirmación automática.
+
+T09 implementa `FieldCandidateScorer` en el dominio (`field-confidence-v1`). Cada candidato conserva ID, campo canónico, valor tipado, texto bruto, unidad, ID de foto, método, confianza OCR y calidad de imagen. La puntuación inicial es `0.75 × confianza OCR + 0.25 × calidad`; acuerdo de al menos dos fotos independientes suma 0.05 (máximo 1). Variantes de una misma foto no se cuentan como corroboración. Alta es ≥0.85; media ≥0.65; baja <0.65 y no se selecciona; crítica representa candidato ausente requerido, rango/tipo inválido, contradicción confiable o ecuación incoherente. Un medidor analógico sin calibración queda topado en 0.60. Se preservan todos los candidatos, incluso alternativas rechazadas, para revisión y auditoría. T10–T11 traducirán observaciones reales de Vision a estos candidatos; T12 aplicará las bandas a la UI y confirmación.
 
 ## Salida
 
@@ -60,7 +62,7 @@ La sesión y su borrador son locales; cada escritura verifica la revisión esper
 - Baja: ningún candidato se selecciona automáticamente.
 - Crítica: bloquea confirmación hasta resolver.
 
-El puntaje numérico y la banda se versionan. Cambiar umbrales exige pruebas de regresión.
+El puntaje numérico y la banda se versionan. Cambiar umbrales exige pruebas de regresión. La validación cruzada T09 usa tolerancia de acuerdo de ±1.61 km en odómetro, ±0.32 km en trip, ±0.25 secciones de tanque y ±0.01 en campos financieros. La ecuación `galones × precio ≈ total` tolera Q0.05; si discrepa, bloquea los tres campos. Si existe odómetro del último llenado, el trip se contrasta con esa distancia con tolerancia máxima entre 2 km y 3%. Estas reglas son de confianza OCR: T13 validará de nuevo los invariantes antes de guardar.
 
 ## Errores
 
