@@ -50,6 +50,7 @@ struct SnapshotFormView: View {
     @State private var odometerMiles = ""
     @State private var tripMiles = ""
     @State private var notes = ""
+    @State private var odometerOverrideReason = ""
     @State private var fuelLevelRemaining = FuelLevelScale.defaultMax
     @State private var odometerOCRText = ""
     @State private var fuelLevelOCRText = ""
@@ -247,6 +248,8 @@ struct SnapshotFormView: View {
             TextField("Trip en \(odometerUnit.inputLabel) (opcional)", text: $tripMiles)
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("snapshot.trip")
+            TextField("Motivo de corrección del odómetro (solo si retrocede)", text: $odometerOverrideReason, axis: .vertical)
+                .accessibilityIdentifier("snapshot.odometerOverrideReason")
             TextField("Notas", text: $notes, axis: .vertical)
                 .accessibilityIdentifier("snapshot.notes")
         }
@@ -384,6 +387,7 @@ struct SnapshotFormView: View {
     }
 
     private func applyCaptureDraft(_ draft: CaptureDraft) {
+        odometerOverrideReason = draft.odometerOverrideReason ?? ""
         if odometerMiles.isEmpty || !draft.isManuallyEdited(.odometerKilometers) {
             odometerMiles = draft.odometerKilometers.map {
                 formatOCRDistanceInput(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: $0).doubleValue))
@@ -486,6 +490,18 @@ struct SnapshotFormView: View {
         let odometerMilesOriginalValue = normalizedMiles(forInputDistance: odometerMilesValue, unit: vehicle.odometerUnit)
         let tripMilesOriginalValue = tripMiles.asDouble.map { normalizedMiles(forInputDistance: $0, unit: vehicle.odometerUnit) }
         let tripKilometersValue = tripMiles.asDouble.map { normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit) }
+        let integrityID = event?.id ?? UUID()
+        let integrityInput = EventIntegrityInput(
+            reading: EventIntegrityReading(
+                id: integrityID, occurredAt: date,
+                odometerKilometers: Decimal(string: String(odometerKilometersValue)) ?? 0,
+                tripKilometers: tripKilometersValue.flatMap { Decimal(string: String($0)) }
+            ),
+            fuelLevelRemaining: Decimal(string: String(fuelLevelRemaining)) ?? -1,
+            fuelScaleMax: Decimal(string: String(vehicle.fuelScaleMax)) ?? 0,
+            fuelScaleStep: Decimal(string: String(vehicle.fuelScaleStep)) ?? 0,
+            financial: nil, overrideReason: odometerOverrideReason
+        )
 
         let normalizedFuelLevel = FuelLevelScale.normalize(
             fuelLevelRemaining,
@@ -526,13 +542,15 @@ struct SnapshotFormView: View {
                 finalDraft.tripKilometers = tripKilometersValue.flatMap { Decimal(string: String($0)) }
                 finalDraft.fuelLevelRemaining = Decimal(string: String(normalizedFuelLevel))
                 finalDraft.notes = notes.trimmed
+                finalDraft.odometerOverrideReason = odometerOverrideReason.trimmed
                 _ = try CaptureConfirmationService.confirm(
                     container: modelContext.container, sessionID: captureSessionID,
                     expectedRevision: captureSessionRevision, vehicleID: vehicle.id,
                     kind: .snapshot, finalDraft: finalDraft,
-                    images: [.odometer: odometerImage, .fuelLevel: fuelLevelImage]
+                    images: [.odometer: odometerImage, .fuelLevel: fuelLevelImage],
+                    integrityInput: integrityInput
                 ) { storedVehicle, context in
-                    let snapshot = SnapshotEvent(vehicle: storedVehicle)
+                    let snapshot = SnapshotEvent(id: integrityID, vehicle: storedVehicle)
                     populate(snapshot, vehicle: storedVehicle)
                     context.insert(snapshot)
                     try SyncMetadataMaintainer.recordChange(
@@ -548,7 +566,13 @@ struct SnapshotFormView: View {
                 return
             }
             guard let snapshot = event else { return }
+            let integrityResult = try EventIntegrityService.validate(integrityInput,
+                                                                      vehicleID: vehicle.id,
+                                                                      in: modelContext)
             populate(snapshot, vehicle: vehicle)
+            EventIntegrityService.recordOverride(integrityResult, input: integrityInput,
+                                                 eventID: snapshot.id, sessionID: nil,
+                                                 in: modelContext)
             try EventImageSynchronizer.replaceAssets(
                 for: snapshot,
                 images: [
@@ -574,7 +598,7 @@ struct SnapshotFormView: View {
 
     private var draftSignature: String {
         [selectedVehicleID?.uuidString ?? "", String(date.timeIntervalSince1970),
-         odometerMiles, tripMiles, notes, String(fuelLevelRemaining),
+         odometerMiles, tripMiles, notes, odometerOverrideReason, String(fuelLevelRemaining),
          String(fuelLevelReviewed)].joined(separator: "|")
     }
 
@@ -610,6 +634,7 @@ struct SnapshotFormView: View {
                 draft.setManualNumber(Decimal(string: String(fuelLevelRemaining)), for: .fuelLevelRemaining)
             }
             draft.notes = notes.trimmed
+            draft.odometerOverrideReason = odometerOverrideReason.trimmed
             let saved = try await repository.updateDraft(id: sessionID,
                                                          expectedRevision: current.revision,
                                                          draft: draft)

@@ -13,6 +13,7 @@ enum CaptureConfirmationService {
                         expectedRevision: Int64, vehicleID: UUID,
                         kind: CaptureSessionKind, finalDraft: CaptureDraft,
                         images: [CaptureImageKind: UIImage?],
+                        integrityInput: EventIntegrityInput,
                         buildEvent: (Vehicle, ModelContext) throws -> UUID,
                         beforeSave: (() throws -> Void)? = nil) throws -> UUID {
         let context = ModelContext(container)
@@ -23,7 +24,13 @@ enum CaptureConfirmationService {
         }
         var createdPaths: [String] = []
         do {
+            let integrityResult = try EventIntegrityService.validate(
+                integrityInput, vehicleID: vehicleID, in: context
+            )
             let eventID = try buildEvent(vehicle, context)
+            guard eventID == integrityInput.reading.id else { throw CaptureSessionError.invalidDraft }
+            EventIntegrityService.recordOverride(integrityResult, input: integrityInput,
+                                                 eventID: eventID, sessionID: sessionID, in: context)
             let ownerType: ImageOwnerKind = kind == .fillUp ? .fillUp : .snapshot
             createdPaths = try EventImageSynchronizer.insertNewAssets(
                 eventID: eventID, ownerType: ownerType, images: images, context: context

@@ -90,10 +90,11 @@
   - Gate: UI alta/media/baja/conflicto y recuperación tras relanzar.
   - Evidencia: las cuatro bandas tienen textos/acciones/tintes probados; UI pública verificó conflicto sin odómetro, acción de repetir solo tablero, borrador manual que se reabre y confirma una vez, y flujo llenado+snapshot. La UI privada con foto real mostró confianza media y guardó 108,768 mi/606.5 mi. Integración verificó reemplazar solo foto de factura u odómetro conservando correcciones manuales, fotos locales recuperadas y confirmación de evento+sesión+evidencia OCR en un único `save()` con rollback y rechazo del segundo guardado. Core 120/120 y cobertura 90.75%; iOS público 62 aprobadas/6 privadas omitidas; UI pública 14 aprobadas/1 privada omitida; Photos privado 1/1, todos sin fallos. T13 aplicará invariantes definitivos también a ediciones; T14 optimizará/limpiará originales locales.
 
-- [ ] **T13 — Aplicar invariantes antes del guardado**
+- [x] **T13 — Aplicar invariantes antes del guardado**
   - Commit: `Enforce vehicle event integrity rules`
   - Alcance: odómetro, reset trip, carga parcial, ecuación financiera, nivel/paso y auditoría de override.
   - Gate: unitarias de límites + integración que prueba rollback.
+  - Evidencia: 124/124 pruebas core y cobertura 90.58%; integración iOS pública 64 aprobadas/6 privadas omitidas, 0 fallos; 4/4 pruebas enfocadas de confirmación verifican rollback, rechazo de doble guardado y override auditado. La suite UI pública final pasó 14/14 (1 privada omitida). La prueba de edición se corrigió de 13 gal × Q35 = Q450 a su total coherente Q455 y pasó nuevamente. La validación es obligatoria en el servicio de confirmación y corre antes de mutar nuevos eventos y ediciones. Preflight y `git diff --check` verdes. T14 seguirá con atomicidad/limpieza de archivos de imagen.
 
 - [ ] **T14 — Optimizar evidencia local de forma atómica**
   - Commit: `Optimize confirmed evidence for local storage`
@@ -163,6 +164,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T12 completado; sigue T13 (invariantes antes de guardar).
+- Implementación v2: T13 completado; sigue T14 (optimización de evidencia local).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

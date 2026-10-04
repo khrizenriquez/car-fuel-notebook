@@ -119,14 +119,14 @@ final class CartrackSmokeUITests: XCTestCase {
 	        XCTAssertTrue(fillRow.waitForExistence(timeout: 5))
 	        fillRow.tap()
 
-	        clearAndType("450", into: app.textFields["fill.total"])
+	        clearAndType("455", into: app.textFields["fill.total"])
 	        clearAndType("13", into: app.textFields["fill.gallons"])
 	        app.buttons["fill.next"].tap()
 	        app.buttons["fill.save"].tap()
 
 	        let editedFillRow = app.buttons.matching(identifier: "history.fillup.row").firstMatch
 	        XCTAssertTrue(editedFillRow.waitForExistence(timeout: 5))
-	        XCTAssertTrue(editedFillRow.label.contains("450.00"))
+	        XCTAssertTrue(editedFillRow.label.contains("455.00"))
 
 	        app.tabBars.buttons["Ajustes"].tap()
 	        let resetButton = app.buttons["settings.reset"]

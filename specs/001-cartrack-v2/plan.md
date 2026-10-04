@@ -23,7 +23,7 @@ T11 añadió el flujo de registro de uso con sesión recuperable, odómetro/trip
 
 T12 añadió bandas y explicación por campo/foto, repetición selectiva, borradores manuales recuperables en Capturar, y confirmación transaccional única de capturas nuevas con vínculos locales y auditoría OCR. Verificó rollback, segundo guardado rechazado y reemplazo de factura/odómetro sin perder una corrección manual. Pasó 120/120 core con cobertura 90.75%, integración iOS pública 62 aprobadas (6 privadas omitidas), UI pública 14 aprobadas (1 privada omitida) y Photos privado 1/1. Las reglas de integridad definitivas para nuevos registros y ediciones quedan para T13; T14 resolverá optimización/limpieza de imágenes.
 
-Los cambios previos quedaron separados en T01–T12. El siguiente paso secuencial es T13.
+T13 conecta una política de integridad de dominio a capturas nuevas y ediciones antes de mutar datos: odómetro por vehículo/fecha con override auditado, reinicio de trip, nivel/paso y ecuación financiera. Una carga parcial queda pendiente hasta el próximo tanque completo, y entonces se suma al volumen/costo real del ciclo. Las pruebas de límites, rollback y UI pasaron; la prueba UI de edición ahora usa un total coherente con sus galones y precio. T14 sigue con optimización/limpieza de imágenes locales. T13 se registra como un solo commit, separado de T01–T12.
 
 ## 2. Arquitectura objetivo
 

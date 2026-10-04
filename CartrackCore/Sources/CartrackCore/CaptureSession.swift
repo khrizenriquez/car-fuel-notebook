@@ -35,6 +35,7 @@ struct CaptureDraft: Codable, Equatable, Sendable {
     var isFullTank: Bool?
     var stationName: String?
     var notes: String?
+    var odometerOverrideReason: String?
     var photoIDs: [UUID] = []
     /// Explicit user corrections survive OCR retries for an individual photo.
     var manuallyEditedFields: [CaptureField]? = nil

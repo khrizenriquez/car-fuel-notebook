@@ -35,7 +35,7 @@ final class AnalyticsEngineCoreTests: XCTestCase {
         XCTAssertEqual(AnalyticsEngine.tankCycles(fills: fills, vehicleID: other.id).count, 1)
     }
 
-    func testTankCyclesIgnorePartialFillStops() {
+    func testTankCyclesAccumulatePartialFillWithoutClosingCycle() {
         let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
         let fills = [
             fill(vehicle: vehicle, day: 1, odometer: 1_000, gallons: 10, total: 300, isFullTank: true),
@@ -47,7 +47,9 @@ final class AnalyticsEngineCoreTests: XCTestCase {
 
         XCTAssertEqual(cycles.count, 1)
         XCTAssertEqual(cycles[0].distanceKilometers, 240, accuracy: 0.001)
-        XCTAssertEqual(cycles[0].gallons, 12, accuracy: 0.001)
+        XCTAssertEqual(cycles[0].gallons, 16, accuracy: 0.001)
+        XCTAssertEqual(cycles[0].totalCost, 560, accuracy: 0.001)
+        XCTAssertEqual(cycles[0].kmPerGallon, 15, accuracy: 0.001)
     }
 
     func testMonthlySummariesKeepVehicleDataSeparated() {

@@ -72,6 +72,10 @@ Los errores usan códigos estables y contexto redactado:
 
 La UI traduce códigos; no analiza strings técnicos.
 
+T13 aplica `EventIntegrityPolicy` antes de crear una captura nueva y antes de mutar un evento editado. Exige odómetro positivo y coherente con los registros estrictamente anteriores/posteriores del mismo vehículo según fecha; un retroceso solo se autoriza con motivo explícito de al menos ocho caracteres. El motivo, valor corregido y código `odometer.regression` se anotan en la evidencia local del evento (`integrity-override-v1`) en el mismo guardado. El trip opcional admite reinicio: si es menor que el trip anterior se devuelve `tripResetDetected`, sin convertir la diferencia de trip en distancia negativa; un trip negativo o mayor que el odómetro se rechaza. Dos lecturas con idéntica fecha no se ordenan artificialmente.
+
+El nivel debe estar en `[0, fuelScaleMax]` y en un múltiplo de `fuelScaleStep`; no se normaliza silenciosamente un valor inválido para aprobarlo. En llenados, galones, precio y monto deben ser positivos y `|galones × precio − monto| ≤ Q0.05` (tolerancia inyectable en el dominio). Una carga parcial no cierra el tanque ni produce consumo definitivo por sí sola: su volumen y costo se acumulan hasta el siguiente llenado completo, que cierra el ciclo iniciado por el llenado completo anterior. Las imágenes y el motivo permanecen locales; el contrato remoto v2.1 sigue limitado a metadatos estructurados mínimos.
+
 ## Idempotencia
 
 - Confirmar dos veces el mismo `sessionID` devuelve el evento existente.

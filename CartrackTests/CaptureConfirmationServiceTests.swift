@@ -10,13 +10,20 @@ final class CaptureConfirmationServiceTests: XCTestCase {
         var finalDraft = review.draft
         finalDraft.odometerKilometers = 175_000
         finalDraft.fuelLevelRemaining = 2
+        let newID = UUID()
+        let integrityInput = EventIntegrityInput(
+            reading: EventIntegrityReading(id: newID, occurredAt: .now,
+                                           odometerKilometers: 175_000, tripKilometers: nil),
+            fuelLevelRemaining: 2, fuelScaleMax: 8, fuelScaleStep: 0.25,
+            financial: nil, overrideReason: ""
+        )
         let eventID = try CaptureConfirmationService.confirm(
             container: container, sessionID: review.id,
             expectedRevision: review.revision, vehicleID: vehicle.id,
             kind: .snapshot, finalDraft: finalDraft,
-            images: [.odometer: image()]
+            images: [.odometer: image()], integrityInput: integrityInput
         ) { storedVehicle, context in
-            let event = SnapshotEvent(vehicle: storedVehicle, odometerKilometers: 175_000,
+            let event = SnapshotEvent(id: newID, vehicle: storedVehicle, odometerKilometers: 175_000,
                                       fuelLevelRemaining: 2)
             context.insert(event)
             return event.id
@@ -35,7 +42,8 @@ final class CaptureConfirmationServiceTests: XCTestCase {
         XCTAssertThrowsError(try CaptureConfirmationService.confirm(
             container: container, sessionID: review.id,
             expectedRevision: review.revision, vehicleID: vehicle.id,
-            kind: .snapshot, finalDraft: finalDraft, images: [:]
+            kind: .snapshot, finalDraft: finalDraft, images: [:],
+            integrityInput: integrityInput
         ) { storedVehicle, context in
             let duplicate = SnapshotEvent(vehicle: storedVehicle)
             context.insert(duplicate)
@@ -47,13 +55,22 @@ final class CaptureConfirmationServiceTests: XCTestCase {
 
     func testInjectedFailureRollsBackEventAndLeavesSessionReview() async throws {
         let (container, vehicle, review) = try await fixture(kind: .fillUp)
+        let newID = UUID()
+        let integrityInput = EventIntegrityInput(
+            reading: EventIntegrityReading(id: newID, occurredAt: .now,
+                                           odometerKilometers: 175_000, tripKilometers: nil),
+            fuelLevelRemaining: 8, fuelScaleMax: 8, fuelScaleStep: 0.25,
+            financial: .init(gallons: 10, unitPrice: 42, totalCost: 420),
+            overrideReason: ""
+        )
         do {
             _ = try CaptureConfirmationService.confirm(
                 container: container, sessionID: review.id,
                 expectedRevision: review.revision, vehicleID: vehicle.id,
                 kind: .fillUp, finalDraft: review.draft, images: [:],
+                integrityInput: integrityInput,
                 buildEvent: { storedVehicle, context in
-                    let fill = FuelFillEvent(vehicle: storedVehicle)
+                    let fill = FuelFillEvent(id: newID, vehicle: storedVehicle)
                     context.insert(fill)
                     return fill.id
                 }, beforeSave: { throw CaptureSessionError.conflict }
@@ -64,6 +81,71 @@ final class CaptureConfirmationServiceTests: XCTestCase {
         let sessionResult = try await SwiftDataCaptureSessionRepository(container: container)
             .find(id: review.id)
         XCTAssertEqual(try XCTUnwrap(sessionResult).state, .review)
+    }
+
+    func testIntegrityRejectionLeavesEventSessionAndEvidenceUnchanged() async throws {
+        let (container, vehicle, review) = try await fixture(kind: .snapshot)
+        let priorContext = ModelContext(container)
+        priorContext.insert(SnapshotEvent(date: Date(timeIntervalSince1970: 1_700_000_000),
+                                          vehicle: try XCTUnwrap(priorContext.fetch(FetchDescriptor<Vehicle>()).first),
+                                          odometerKilometers: 2_000))
+        try priorContext.save()
+        let eventID = UUID()
+        let input = EventIntegrityInput(
+            reading: EventIntegrityReading(id: eventID,
+                                           occurredAt: Date(timeIntervalSince1970: 1_700_086_400),
+                                           odometerKilometers: 1_900, tripKilometers: 5),
+            fuelLevelRemaining: 2, fuelScaleMax: 8, fuelScaleStep: 0.25,
+            financial: nil, overrideReason: ""
+        )
+        XCTAssertThrowsError(try CaptureConfirmationService.confirm(
+            container: container, sessionID: review.id, expectedRevision: review.revision,
+            vehicleID: vehicle.id, kind: .snapshot, finalDraft: review.draft,
+            images: [:], integrityInput: input
+        ) { storedVehicle, context in
+            let event = SnapshotEvent(id: eventID, vehicle: storedVehicle)
+            context.insert(event)
+            return event.id
+        }) {
+            XCTAssertEqual($0 as? EventIntegrityError, .odometerRegression)
+        }
+        let after = ModelContext(container)
+        XCTAssertEqual(try after.fetch(FetchDescriptor<SnapshotEvent>()).count, 1)
+        XCTAssertTrue(try after.fetch(FetchDescriptor<OCRFieldEvidence>()).isEmpty)
+        let session = try await SwiftDataCaptureSessionRepository(container: container).find(id: review.id)
+        XCTAssertEqual(session?.state, .review)
+    }
+
+    func testAuditedOdometerOverrideCommitsWithEvent() async throws {
+        let (container, vehicle, review) = try await fixture(kind: .snapshot)
+        let priorContext = ModelContext(container)
+        priorContext.insert(SnapshotEvent(date: Date(timeIntervalSince1970: 1_700_000_000),
+                                          vehicle: try XCTUnwrap(priorContext.fetch(FetchDescriptor<Vehicle>()).first),
+                                          odometerKilometers: 2_000))
+        try priorContext.save()
+        let eventID = UUID()
+        let input = EventIntegrityInput(
+            reading: EventIntegrityReading(id: eventID,
+                                           occurredAt: Date(timeIntervalSince1970: 1_700_086_400),
+                                           odometerKilometers: 1_900, tripKilometers: 5),
+            fuelLevelRemaining: 2, fuelScaleMax: 8, fuelScaleStep: 0.25,
+            financial: nil, overrideReason: "Odómetro reparado"
+        )
+        _ = try CaptureConfirmationService.confirm(
+            container: container, sessionID: review.id, expectedRevision: review.revision,
+            vehicleID: vehicle.id, kind: .snapshot, finalDraft: review.draft,
+            images: [:], integrityInput: input
+        ) { storedVehicle, context in
+            let event = SnapshotEvent(id: eventID, vehicle: storedVehicle,
+                                      odometerKilometers: 1_900)
+            context.insert(event)
+            return event.id
+        }
+        let evidence = try ModelContext(container).fetch(FetchDescriptor<OCRFieldEvidence>())
+        XCTAssertEqual(evidence.count, 1)
+        XCTAssertEqual(evidence[0].ownerEventID, eventID)
+        XCTAssertEqual(evidence[0].rawText, "Odómetro reparado")
+        XCTAssertEqual(evidence[0].algorithmVersion, "integrity-override-v1")
     }
 
     private func fixture(kind: CaptureSessionKind) async throws -> (ModelContainer, Vehicle, CaptureSession) {

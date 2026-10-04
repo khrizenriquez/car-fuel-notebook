@@ -409,8 +409,15 @@ enum AnalyticsEngine {
 
         var cycles: [TankCycle] = []
         var openingFill: FuelFillEvent?
+        var pendingGallons = 0.0
+        var pendingCost = 0.0
 
-        for fill in scoped where fill.isFullTank {
+        for fill in scoped {
+            if openingFill != nil {
+                pendingGallons += fill.gallons
+                pendingCost += fill.totalCost
+            }
+            guard fill.isFullTank else { continue }
             guard let vehicle = fill.vehicle else { continue }
 
             if let openingFill {
@@ -427,15 +434,17 @@ enum AnalyticsEngine {
                         openingOdometerKilometers: openingFill.odometerKilometers,
                         closingOdometerKilometers: fill.odometerKilometers,
                         distanceKilometers: distance,
-                        gallons: fill.gallons,
-                        totalCost: fill.totalCost,
-                        pricePerGallon: fill.pricePerGallon,
+                        gallons: pendingGallons,
+                        totalCost: pendingCost,
+                        pricePerGallon: pendingGallons > 0 ? pendingCost / pendingGallons : 0,
                         endFuelLevelRemaining: fill.fuelLevelRemaining
                     )
                 )
             }
 
             openingFill = fill
+            pendingGallons = 0
+            pendingCost = 0
         }
 
         return cycles
