@@ -1,19 +1,21 @@
 # Plan técnico — Cartrack v2
 
-**Estado:** Diseño aprobado; implementación pendiente
+**Estado:** Diseño aprobado; fase 0 y migración T05 implementadas
 **Rama única:** `codex/cartrack-v2`
 
 ## 1. Línea base
 
-La línea base contiene SwiftUI, SwiftData, Vision, CoreLocation, UserNotifications, almacenamiento local de imágenes, respaldo, reportes y analítica. Existen pruebas de núcleo, integración y UI. El último resultado documentado antes de este plan fue:
+La línea base contiene SwiftUI, SwiftData, Vision, CoreLocation, UserNotifications, almacenamiento local de imágenes, respaldo, reportes y analítica. El gate T04 quedó verificado con:
 
 - CartrackCore: 87/87, cobertura 93.75%.
-- Suite pública iOS: 49 aprobadas, 0 fallidas, 1 omitida.
-- Gate privado: 6/8 aprobadas; falla el escenario `z4-2026-07-26-1305` porque odómetro y trip resultan `nil`.
+- Suite pública iOS de integración: 42 ejecutadas, 0 fallidas; 3 privadas omitidas sin fixture.
+- Suite pública UI: 14 ejecutadas, 0 fallidas; 1 privada omitida sin fixture.
+- Gate privado OCR: 8/8 aprobadas, incluido `z4-2026-07-26-1305`.
+- Gate privado Photos E2E: 1/1 aprobado.
 
-Estos números son evidencia histórica, no verificación del futuro commit candidato.
+T05 agregó la migración v1→v2 con respaldo validado y activación atómica: 5 pruebas de migración, 92/92 del core y 7/7 de persistencia iOS. Estos números son evidencia de esos commits, no verificación del futuro commit candidato.
 
-El worktree contiene cambios previos sin confirmar. Deben separarse en los primeros commits funcionales definidos en `tasks.md`; no se descartan ni se incorporan accidentalmente al commit documental.
+Los cambios previos quedaron separados en T01–T04. El siguiente paso secuencial es T06.
 
 ## 2. Arquitectura objetivo
 

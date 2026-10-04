@@ -2,7 +2,7 @@
 
 ## 1. Objetivo
 
-Actualizar datos y evidencia local sin pérdida, introducir metadatos cloud-ready y permitir rollback verificable.
+Actualizar datos y evidencia local sin pérdida, introducir metadatos cloud-ready y permitir rollback verificable. T05 establece el contenedor v2, la copia protegida y el versionado; T06 agrega los metadatos y repositorios de dominio sin mutar las cinco entidades físicas v1.
 
 ## 2. Precondiciones
 
@@ -27,22 +27,19 @@ Los valores canónicos actuales no se recalculan destructivamente durante migrac
 
 ## 4. Secuencia
 
-1. Adquirir bloqueo de migración.
-2. Exportar respaldo v1 validado.
-3. Crear staging v2.
-4. Copiar vehículos y completar UUID/metadatos.
-5. Copiar eventos y relaciones.
-6. Hash/inventario de imágenes sin recomprimir todavía.
-7. Crear evidencia OCR legado con confianza `unknown` y algoritmo `legacy-v1`.
-8. Validar invariantes, conteos y checksums.
-9. Activar staging como store principal.
-10. Recalcular caches/analítica.
-11. Optimizar imágenes de forma diferida, una por una y con reemplazo atómico.
-12. Conservar respaldo v1 hasta confirmación del usuario o periodo seguro.
+1. Adquirir bloqueo local exclusivo y verificar espacio libre para respaldo + staging.
+2. Abrir el store v1 con las cinco entidades físicas originales e inventariar campos, relaciones e imágenes con huella SHA-256; una foto ausente queda como referencia ausente, no se inventa evidencia.
+3. Crear respaldo SQLite online consistente y comprobar `integrity_check`; guardar manifiesto con huellas del respaldo y del inventario.
+4. Crear un store v2 candidato con nombre UUID, sin tocar el store v1.
+5. Copiar vehículos, eventos, ajustes e índices de fotos preservando UUID, relaciones, timestamps, valores y texto OCR legado.
+6. Recalcular el inventario del candidato y exigir igualdad exacta de conteos y huella de campos/relaciones/imágenes.
+7. Guardar marcador de versión 2 y activar el candidato con un archivo puntero escrito atómicamente.
+8. En T06 crear los metadatos `SyncMetadata`, `LocalPhotoAsset` y `OCRFieldEvidence` como entidades adicionales; en T14 optimizar las fotos locales de manera diferida. La analítica derivada se recalcula, no se migra como fuente de verdad.
+9. Conservar el store y respaldo v1 mientras sea necesaria la recuperación; no existe acceso a red ni a Supabase en esta secuencia.
 
 ## 5. Rollback
 
-Si falla cualquier paso antes de activar staging, se descarta staging y se conserva v1. Si falla después, se restaura el respaldo v1 y se mantiene un diagnóstico redactado.
+Si falla cualquier paso antes de activar el candidato, el puntero no cambia y v1 sigue utilizable; un candidato incompleto queda inactivo y puede eliminarse de forma segura en una limpieza posterior. La activación atómica es la última operación de la migración. Si un arranque posterior detecta un puntero o marcador corrupto, la app muestra error de persistencia y conserva v1 y su respaldo para recuperación explícita; nunca crea silenciosamente una base vacía.
 
 Nunca se elimina el único original de una imagen durante la misma transacción que migra el store.
 
@@ -62,3 +59,4 @@ Nunca se elimina el único original de una imagen durante la misma transacción 
 - Repetir migración no duplica registros.
 - Fallo inyectado en cada etapa deja v1 utilizable.
 - Suite de analítica pasa sobre datos migrados.
+- La transición T06 no modifica en sitio las cinco entidades físicas v1; las nuevas entidades v2 se agregan al esquema v2.

@@ -40,10 +40,11 @@
 
 ## Fase 1 — Datos, migración y límites
 
-- [ ] **T05 — Introducir esquema versionado y migración v1 a v2**
+- [x] **T05 — Introducir esquema versionado y migración v1 a v2**
   - Commit: `Add versioned v1 to v2 data migration`
   - Alcance: esquema, staging, respaldo previo, fixtures de migración y rollback.
   - Gate: migración vacía/multivehículo/con imágenes + fallos inyectados.
+  - Evidencia: 5 pruebas de migración (instalación limpia, v1 vacío, multivehículo/foto, foto ausente y 3 checkpoints de fallo); 92/92 core y 7/7 pruebas iOS de persistencia. V1 y fotos permanecen locales e intactos.
 
 - [ ] **T06 — Separar dominio, repositorios y metadatos cloud-ready**
   - Commit: `Separate domain repositories from local persistence`
@@ -155,6 +156,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: inicia en T05 (migración versionada).
+- Implementación v2: T05 completado; sigue T06 (dominio y repositorios).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.
