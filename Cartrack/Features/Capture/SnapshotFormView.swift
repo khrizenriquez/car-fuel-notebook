@@ -43,6 +43,7 @@ struct SnapshotFormView: View {
     @StateObject private var locationService = LocationService()
 
     let event: SnapshotEvent?
+    let resumeSessionID: UUID?
 
     @State private var selectedVehicleID: UUID?
     @State private var date = Date()
@@ -61,11 +62,18 @@ struct SnapshotFormView: View {
     @State private var errorMessage: String?
     @State private var wizardStep: SnapshotWizardStep = .evidence
     @State private var captureSessionID: UUID?
+    @State private var captureSessionRevision: Int64?
+    @State private var captureDraft: CaptureDraft?
     @State private var captureFieldResults: [FieldResult] = []
+    @State private var captureImageIssues: [CaptureImageKind: [CaptureImageIssue]] = [:]
+    @State private var fuelLevelReviewed = false
+    @State private var draftAutosaveTask: Task<Void, Never>?
+    @State private var isSaving = false
     @FocusState private var focusedField: SnapshotFocusedField?
 
-    init(event: SnapshotEvent? = nil) {
+    init(event: SnapshotEvent? = nil, resumeSessionID: UUID? = nil) {
         self.event = event
+        self.resumeSessionID = resumeSessionID
     }
 
     private var selectedVehicle: Vehicle? {
@@ -105,6 +113,7 @@ struct SnapshotFormView: View {
             } else if wizardStep == .confirm {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Guardar", action: save)
+                        .disabled(isSaving)
                         .accessibilityIdentifier("snapshot.save")
                 }
             }
@@ -116,12 +125,17 @@ struct SnapshotFormView: View {
         }
         .task {
             loadExistingData()
+            if let resumeSessionID, event == nil {
+                await resumeCaptureSession(resumeSessionID)
+            }
             if !isUITesting {
                 await ReminderService.shared.requestAuthorization()
                 locationService.requestAccessIfNeeded()
                 locationService.refreshLocation()
             }
         }
+        .onChange(of: draftSignature) { _, _ in scheduleDraftAutosave() }
+        .onDisappear { scheduleDraftAutosave(immediate: true) }
     }
 
     private var wizardProgressSection: some View {
@@ -152,6 +166,10 @@ struct SnapshotFormView: View {
             }
         case .review:
             readingSection
+            CaptureConfidenceSection(fields: captureFieldResults,
+                                     imageIssues: captureImageIssues,
+                                     isManuallyResolved: manuallyResolved,
+                                     retake: { _ in wizardStep = .evidence })
             fuelLevelReviewSection
             ocrSection
             Section {
@@ -182,6 +200,7 @@ struct SnapshotFormView: View {
                     Spacer()
 
                     Button("Guardar", action: save)
+                        .disabled(isSaving)
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("snapshot.save.inline")
                 }
@@ -245,6 +264,10 @@ struct SnapshotFormView: View {
                 accessibilityPrefix: "snapshot",
                 value: $fuelLevelRemaining
             )
+            if needsFuelLevelConfirmation {
+                Toggle("Confirmé visualmente el nivel del medidor", isOn: $fuelLevelReviewed)
+                    .accessibilityIdentifier("snapshot.fuelLevel.confirmed")
+            }
         }
     }
 
@@ -289,18 +312,28 @@ struct SnapshotFormView: View {
     }
 
     @MainActor
-    private func analyzeImages() async -> Bool {
+    private func analyzeImages(persistCurrentValues: Bool = true) async -> Bool {
         guard let vehicle = selectedVehicle else { return false }
         isAnalyzing = true
         defer { isAnalyzing = false }
         if event == nil {
             do {
+                if persistCurrentValues, captureSessionID != nil {
+                    draftAutosaveTask?.cancel()
+                    guard await persistCurrentDraft() else { return false }
+                }
                 let workflow = SnapshotCaptureWorkflow(container: modelContext.container)
                 let outcome = try await workflow.analyze(
                     input: snapshotCaptureInput(for: vehicle), sessionID: captureSessionID
                 )
                 captureSessionID = outcome.session.id
+                captureSessionRevision = outcome.session.revision
+                captureDraft = outcome.session.draft
+                odometerImage = outcome.images[.odometer]
+                fuelLevelImage = outcome.images[.fuelLevel]
+                if needsFuelLevelConfirmation { fuelLevelReviewed = false }
                 captureFieldResults = outcome.fields
+                captureImageIssues = outcome.imageIssues
                 odometerOCRText = outcome.recognizedText.odometerText
                 fuelLevelOCRText = outcome.recognizedText.fuelLevelText
                 applyCaptureDraft(outcome.session.draft)
@@ -351,16 +384,38 @@ struct SnapshotFormView: View {
     }
 
     private func applyCaptureDraft(_ draft: CaptureDraft) {
-        if odometerMiles.isEmpty, let km = draft.odometerKilometers {
-            odometerMiles = formatOCRDistanceInput(UnitConversion.kilometersToMiles(
-                NSDecimalNumber(decimal: km).doubleValue))
+        if odometerMiles.isEmpty || !draft.isManuallyEdited(.odometerKilometers) {
+            odometerMiles = draft.odometerKilometers.map {
+                formatOCRDistanceInput(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: $0).doubleValue))
+            } ?? ""
         }
-        if tripMiles.isEmpty, let km = draft.tripKilometers {
-            tripMiles = formatOCRDistanceInput(UnitConversion.kilometersToMiles(
-                NSDecimalNumber(decimal: km).doubleValue))
+        if tripMiles.isEmpty || !draft.isManuallyEdited(.tripKilometers) {
+            tripMiles = draft.tripKilometers.map {
+                formatOCRDistanceInput(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: $0).doubleValue))
+            } ?? ""
         }
         if let level = draft.fuelLevelRemaining {
             fuelLevelRemaining = NSDecimalNumber(decimal: level).doubleValue
+        }
+    }
+
+    @MainActor
+    private func resumeCaptureSession(_ sessionID: UUID) async {
+        do {
+            let repository = SwiftDataCaptureSessionRepository(container: modelContext.container)
+            guard let session = try await repository.find(id: sessionID),
+                  session.kind == .snapshot,
+                  let vehicleID = session.vehicleID,
+                  vehicles.contains(where: { $0.id == vehicleID }) else {
+                throw CaptureSessionError.notFound
+            }
+            selectedVehicleID = vehicleID
+            date = session.draft.occurredAt ?? session.createdAt
+            captureSessionID = sessionID
+            captureDraft = session.draft
+            if await analyzeImages(persistCurrentValues: false) { wizardStep = .review }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -401,6 +456,22 @@ struct SnapshotFormView: View {
     }
 
     private func save() {
+        guard !isSaving else { return }
+        isSaving = true
+        Task {
+            defer { isSaving = false }
+            draftAutosaveTask?.cancel()
+            if event == nil, !(await persistCurrentDraft()) { return }
+            performSave()
+        }
+    }
+
+    private func performSave() {
+        if event == nil, hasUnresolvedCriticalField || needsFuelLevelConfirmation && !fuelLevelReviewed {
+            wizardStep = .review
+            errorMessage = "Revisa los campos en conflicto y confirma manualmente el nivel del medidor."
+            return
+        }
         guard let vehicle = selectedVehicle else {
             errorMessage = "Selecciona un vehiculo."
             return
@@ -416,36 +487,68 @@ struct SnapshotFormView: View {
         let tripMilesOriginalValue = tripMiles.asDouble.map { normalizedMiles(forInputDistance: $0, unit: vehicle.odometerUnit) }
         let tripKilometersValue = tripMiles.asDouble.map { normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit) }
 
-        let snapshot = event ?? SnapshotEvent(vehicle: vehicle)
-        snapshot.vehicle = vehicle
-        snapshot.date = date
-        snapshot.odometerMilesOriginal = odometerMilesOriginalValue
-        snapshot.odometerKilometers = odometerKilometersValue
-        snapshot.tripMilesOriginal = tripMilesOriginalValue
-        snapshot.tripKilometers = tripKilometersValue
-        snapshot.fuelLevelRemaining = FuelLevelScale.normalize(
+        let normalizedFuelLevel = FuelLevelScale.normalize(
             fuelLevelRemaining,
             maxValue: vehicle.fuelScaleMax,
             step: vehicle.fuelScaleStep
         )
-        snapshot.notes = notes.trimmed
-        snapshot.odometerOCRText = odometerOCRText
-        snapshot.fuelLevelOCRText = fuelLevelOCRText
         let coordinate = EventLocationPolicy.resolvedCoordinate(
             currentLatitude: locationService.currentCoordinate?.latitude,
             currentLongitude: locationService.currentCoordinate?.longitude,
             existingLatitude: event?.latitude,
             existingLongitude: event?.longitude
         )
-        snapshot.latitude = coordinate?.latitude
-        snapshot.longitude = coordinate?.longitude
-        snapshot.updatedAt = .now
-
-        if event == nil {
-            modelContext.insert(snapshot)
+        func populate(_ snapshot: SnapshotEvent, vehicle: Vehicle) {
+            snapshot.vehicle = vehicle
+            snapshot.date = date
+            snapshot.odometerMilesOriginal = odometerMilesOriginalValue
+            snapshot.odometerKilometers = odometerKilometersValue
+            snapshot.tripMilesOriginal = tripMilesOriginalValue
+            snapshot.tripKilometers = tripKilometersValue
+            snapshot.fuelLevelRemaining = normalizedFuelLevel
+            snapshot.notes = notes.trimmed
+            snapshot.odometerOCRText = odometerOCRText
+            snapshot.fuelLevelOCRText = fuelLevelOCRText
+            snapshot.latitude = coordinate?.latitude
+            snapshot.longitude = coordinate?.longitude
+            snapshot.updatedAt = .now
         }
 
         do {
+            if event == nil {
+                guard let captureSessionID, let captureSessionRevision else {
+                    errorMessage = "Analiza o crea la sesión antes de guardar el registro."
+                    return
+                }
+                var finalDraft = captureDraft ?? CaptureDraft()
+                finalDraft.occurredAt = date
+                finalDraft.odometerKilometers = Decimal(string: String(odometerKilometersValue))
+                finalDraft.tripKilometers = tripKilometersValue.flatMap { Decimal(string: String($0)) }
+                finalDraft.fuelLevelRemaining = Decimal(string: String(normalizedFuelLevel))
+                finalDraft.notes = notes.trimmed
+                _ = try CaptureConfirmationService.confirm(
+                    container: modelContext.container, sessionID: captureSessionID,
+                    expectedRevision: captureSessionRevision, vehicleID: vehicle.id,
+                    kind: .snapshot, finalDraft: finalDraft,
+                    images: [.odometer: odometerImage, .fuelLevel: fuelLevelImage]
+                ) { storedVehicle, context in
+                    let snapshot = SnapshotEvent(vehicle: storedVehicle)
+                    populate(snapshot, vehicle: storedVehicle)
+                    context.insert(snapshot)
+                    try SyncMetadataMaintainer.recordChange(
+                        ownerID: snapshot.id, kind: "usageSnapshot",
+                        createdAt: snapshot.createdAt, updatedAt: snapshot.updatedAt,
+                        in: context
+                    )
+                    return snapshot.id
+                }
+                Task { await ReminderService.shared.captureLogged() }
+                self.captureSessionID = nil
+                dismiss()
+                return
+            }
+            guard let snapshot = event else { return }
+            populate(snapshot, vehicle: vehicle)
             try EventImageSynchronizer.replaceAssets(
                 for: snapshot,
                 images: [
@@ -466,6 +569,79 @@ struct SnapshotFormView: View {
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private var draftSignature: String {
+        [selectedVehicleID?.uuidString ?? "", String(date.timeIntervalSince1970),
+         odometerMiles, tripMiles, notes, String(fuelLevelRemaining),
+         String(fuelLevelReviewed)].joined(separator: "|")
+    }
+
+    private func scheduleDraftAutosave(immediate: Bool = false) {
+        draftAutosaveTask?.cancel()
+        guard event == nil, captureSessionID != nil,
+              wizardStep == .review || wizardStep == .confirm else { return }
+        draftAutosaveTask = Task {
+            if !immediate { try? await Task.sleep(for: .milliseconds(250)) }
+            guard !Task.isCancelled else { return }
+            _ = await persistCurrentDraft()
+        }
+    }
+
+    @MainActor
+    private func persistCurrentDraft() async -> Bool {
+        guard let sessionID = captureSessionID, let vehicle = selectedVehicle else { return false }
+        do {
+            let repository = SwiftDataCaptureSessionRepository(container: modelContext.container)
+            guard let current = try await repository.find(id: sessionID),
+                  current.state == .review, current.vehicleID == vehicle.id else {
+                throw CaptureSessionError.invalidTransition
+            }
+            var draft = current.draft
+            draft.occurredAt = date
+            draft.setManualNumber(odometerMiles.asDouble.flatMap {
+                Decimal(string: String(normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit)))
+            }, for: .odometerKilometers)
+            draft.setManualNumber(tripMiles.asDouble.flatMap {
+                Decimal(string: String(normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit)))
+            }, for: .tripKilometers)
+            if !needsFuelLevelConfirmation || fuelLevelReviewed {
+                draft.setManualNumber(Decimal(string: String(fuelLevelRemaining)), for: .fuelLevelRemaining)
+            }
+            draft.notes = notes.trimmed
+            let saved = try await repository.updateDraft(id: sessionID,
+                                                         expectedRevision: current.revision,
+                                                         draft: draft)
+            captureSessionRevision = saved.revision
+            captureDraft = saved.draft
+            return true
+        } catch {
+            errorMessage = "No se pudo conservar el borrador: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    private var needsFuelLevelConfirmation: Bool {
+        guard fuelLevelImage != nil,
+              let status = captureFieldResults.first(where: { $0.field == .fuelLevelRemaining }) else {
+            return false
+        }
+        return status.band == .low || status.band == .critical
+    }
+
+    private var hasUnresolvedCriticalField: Bool {
+        captureFieldResults.contains { result in
+            result.band == .critical && !manuallyResolved(result.field)
+        }
+    }
+
+    private func manuallyResolved(_ field: CaptureField) -> Bool {
+        switch field {
+        case .odometerKilometers: odometerMiles.asDouble != nil
+        case .tripKilometers: true // Trip is optional for a usage snapshot.
+        case .fuelLevelRemaining: fuelLevelReviewed
+        case .volumeGallons, .unitPrice, .totalCost, .stationName, .occurredAt: false
         }
     }
 

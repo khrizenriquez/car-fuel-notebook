@@ -40,6 +40,7 @@ struct FillUpFormView: View {
     @StateObject private var locationService = LocationService()
 
     let event: FuelFillEvent?
+    let resumeSessionID: UUID?
 
     @State private var selectedVehicleID: UUID?
     @State private var date = Date()
@@ -68,10 +69,17 @@ struct FillUpFormView: View {
     @State private var errorMessage: String?
     @State private var wizardStep: FillUpWizardStep = .evidence
     @State private var captureSessionID: UUID?
+    @State private var captureSessionRevision: Int64?
+    @State private var captureDraft: CaptureDraft?
     @State private var captureFieldResults: [FieldResult] = []
+    @State private var captureImageIssues: [CaptureImageKind: [CaptureImageIssue]] = [:]
+    @State private var fuelLevelReviewed = false
+    @State private var draftAutosaveTask: Task<Void, Never>?
+    @State private var isSaving = false
 
-    init(event: FuelFillEvent? = nil) {
+    init(event: FuelFillEvent? = nil, resumeSessionID: UUID? = nil) {
         self.event = event
+        self.resumeSessionID = resumeSessionID
     }
 
     private var selectedVehicle: Vehicle? {
@@ -116,6 +124,7 @@ struct FillUpFormView: View {
             } else if wizardStep == .confirm {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Guardar", action: save)
+                        .disabled(isSaving)
                         .accessibilityIdentifier("fill.save")
                 }
             }
@@ -127,12 +136,17 @@ struct FillUpFormView: View {
         }
         .task {
             loadExistingData()
+            if let resumeSessionID, event == nil {
+                await resumeCaptureSession(resumeSessionID)
+            }
             if !isUITesting {
                 await ReminderService.shared.requestAuthorization()
                 locationService.requestAccessIfNeeded()
                 locationService.refreshLocation()
             }
         }
+        .onChange(of: draftSignature) { _, _ in scheduleDraftAutosave() }
+        .onDisappear { scheduleDraftAutosave(immediate: true) }
     }
 
     private var wizardProgressSection: some View {
@@ -163,6 +177,10 @@ struct FillUpFormView: View {
             }
         case .review:
             dataSection
+            CaptureConfidenceSection(fields: captureFieldResults,
+                                     imageIssues: captureImageIssues,
+                                     isManuallyResolved: manuallyResolved,
+                                     retake: { _ in wizardStep = .evidence })
             fuelLevelReviewSection
             tripWarningSection
             ocrSection
@@ -195,6 +213,7 @@ struct FillUpFormView: View {
                     Spacer()
 
                     Button("Guardar", action: save)
+                        .disabled(isSaving)
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("fill.save.inline")
                 }
@@ -277,6 +296,10 @@ struct FillUpFormView: View {
                 accessibilityPrefix: "fill",
                 value: $fuelLevelRemaining
             )
+            if needsFuelLevelConfirmation {
+                Toggle("Confirmé visualmente el nivel del medidor", isOn: $fuelLevelReviewed)
+                    .accessibilityIdentifier("fill.fuelLevel.confirmed")
+            }
         }
     }
 
@@ -334,18 +357,29 @@ struct FillUpFormView: View {
     }
 
     @MainActor
-    private func analyzeImages() async -> Bool {
+    private func analyzeImages(persistCurrentValues: Bool = true) async -> Bool {
         guard let vehicle = selectedVehicle else { return false }
         isAnalyzing = true
         defer { isAnalyzing = false }
         if event == nil {
             do {
+                if persistCurrentValues, captureSessionID != nil {
+                    draftAutosaveTask?.cancel()
+                    guard await persistCurrentDraft() else { return false }
+                }
                 let workflow = FuelCaptureWorkflow(container: modelContext.container)
                 let outcome = try await workflow.analyze(
                     input: fuelCaptureInput(for: vehicle), sessionID: captureSessionID
                 )
                 captureSessionID = outcome.session.id
+                captureSessionRevision = outcome.session.revision
+                captureDraft = outcome.session.draft
+                invoiceImage = outcome.images[.invoice]
+                odometerImage = outcome.images[.odometer]
+                fuelLevelImage = outcome.images[.fuelLevel]
+                if needsFuelLevelConfirmation { fuelLevelReviewed = false }
                 captureFieldResults = outcome.fields
+                captureImageIssues = outcome.imageIssues
                 invoiceOCRText = outcome.recognizedText.invoiceText
                 odometerOCRText = outcome.recognizedText.odometerText
                 fuelLevelOCRText = outcome.recognizedText.fuelLevelText
@@ -405,19 +439,43 @@ struct FillUpFormView: View {
 
     private func applyCaptureDraft(_ draft: CaptureDraft) {
         func text(_ value: Decimal?) -> String? { value.map { NSDecimalNumber(decimal: $0).stringValue } }
-        if odometerMiles.isEmpty, let km = draft.odometerKilometers {
-            odometerMiles = formatOCRDistanceInput(UnitConversion.kilometersToMiles(
-                NSDecimalNumber(decimal: km).doubleValue))
+        if odometerMiles.isEmpty || !draft.isManuallyEdited(.odometerKilometers) {
+            odometerMiles = draft.odometerKilometers.map {
+                formatOCRDistanceInput(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: $0).doubleValue))
+            } ?? ""
         }
-        if tripMiles.isEmpty, let km = draft.tripKilometers {
-            tripMiles = formatOCRDistanceInput(UnitConversion.kilometersToMiles(
-                NSDecimalNumber(decimal: km).doubleValue))
+        if tripMiles.isEmpty || !draft.isManuallyEdited(.tripKilometers) {
+            tripMiles = draft.tripKilometers.map {
+                formatOCRDistanceInput(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: $0).doubleValue))
+            } ?? ""
         }
-        if gallons.isEmpty { gallons = text(draft.volumeGallons) ?? gallons }
-        if pricePerGallon.isEmpty { pricePerGallon = text(draft.unitPrice) ?? pricePerGallon }
-        if totalCost.isEmpty { totalCost = text(draft.totalCost) ?? totalCost }
+        if gallons.isEmpty || !draft.isManuallyEdited(.volumeGallons) { gallons = text(draft.volumeGallons) ?? "" }
+        if pricePerGallon.isEmpty || !draft.isManuallyEdited(.unitPrice) {
+            pricePerGallon = text(draft.unitPrice) ?? ""
+        }
+        if totalCost.isEmpty || !draft.isManuallyEdited(.totalCost) { totalCost = text(draft.totalCost) ?? "" }
         if let level = draft.fuelLevelRemaining {
             fuelLevelRemaining = NSDecimalNumber(decimal: level).doubleValue
+        }
+    }
+
+    @MainActor
+    private func resumeCaptureSession(_ sessionID: UUID) async {
+        do {
+            let repository = SwiftDataCaptureSessionRepository(container: modelContext.container)
+            guard let session = try await repository.find(id: sessionID),
+                  session.kind == .fillUp,
+                  let vehicleID = session.vehicleID,
+                  vehicles.contains(where: { $0.id == vehicleID }) else {
+                throw CaptureSessionError.notFound
+            }
+            selectedVehicleID = vehicleID
+            date = session.draft.occurredAt ?? session.createdAt
+            captureSessionID = sessionID
+            captureDraft = session.draft
+            if await analyzeImages(persistCurrentValues: false) { wizardStep = .review }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -458,6 +516,22 @@ struct FillUpFormView: View {
     }
 
     private func save() {
+        guard !isSaving else { return }
+        isSaving = true
+        Task {
+            defer { isSaving = false }
+            draftAutosaveTask?.cancel()
+            if event == nil, !(await persistCurrentDraft()) { return }
+            performSave()
+        }
+    }
+
+    private func performSave() {
+        if event == nil, hasUnresolvedCriticalField || needsFuelLevelConfirmation && !fuelLevelReviewed {
+            wizardStep = .review
+            errorMessage = "Revisa los campos en conflicto y confirma manualmente el nivel del medidor."
+            return
+        }
         guard let vehicle = selectedVehicle else {
             errorMessage = "Selecciona un vehiculo."
             return
@@ -475,42 +549,80 @@ struct FillUpFormView: View {
         let tripMilesOriginalValue = tripMiles.asDouble.map { normalizedMiles(forInputDistance: $0, unit: vehicle.odometerUnit) }
         let tripKilometersValue = tripMiles.asDouble.map { normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit) }
 
-        let fillEvent = event ?? FuelFillEvent(vehicle: vehicle)
-        fillEvent.vehicle = vehicle
-        fillEvent.date = date
-        fillEvent.odometerMilesOriginal = odometerMilesOriginalValue
-        fillEvent.odometerKilometers = odometerKilometersValue
-        fillEvent.tripMilesOriginal = tripMilesOriginalValue
-        fillEvent.tripKilometers = tripKilometersValue
-        fillEvent.gallons = gallonsValue
-        fillEvent.pricePerGallon = pricePerGallonValue
-        fillEvent.totalCost = totalCostValue
-        fillEvent.isFullTank = isFullTank
-        fillEvent.stationName = stationName.trimmed
-        fillEvent.fuelLevelRemaining = FuelLevelScale.normalize(
+        let normalizedFuelLevel = FuelLevelScale.normalize(
             fuelLevelRemaining,
             maxValue: vehicle.fuelScaleMax,
             step: vehicle.fuelScaleStep
         )
-        fillEvent.notes = notes.trimmed
-        fillEvent.invoiceOCRText = invoiceOCRText
-        fillEvent.odometerOCRText = odometerOCRText
-        fillEvent.fuelLevelOCRText = fuelLevelOCRText
         let coordinate = EventLocationPolicy.resolvedCoordinate(
             currentLatitude: locationService.currentCoordinate?.latitude,
             currentLongitude: locationService.currentCoordinate?.longitude,
             existingLatitude: event?.latitude,
             existingLongitude: event?.longitude
         )
-        fillEvent.latitude = coordinate?.latitude
-        fillEvent.longitude = coordinate?.longitude
-        fillEvent.updatedAt = .now
-
-        if event == nil {
-            modelContext.insert(fillEvent)
+        func populate(_ fillEvent: FuelFillEvent, vehicle: Vehicle) {
+            fillEvent.vehicle = vehicle
+            fillEvent.date = date
+            fillEvent.odometerMilesOriginal = odometerMilesOriginalValue
+            fillEvent.odometerKilometers = odometerKilometersValue
+            fillEvent.tripMilesOriginal = tripMilesOriginalValue
+            fillEvent.tripKilometers = tripKilometersValue
+            fillEvent.gallons = gallonsValue
+            fillEvent.pricePerGallon = pricePerGallonValue
+            fillEvent.totalCost = totalCostValue
+            fillEvent.isFullTank = isFullTank
+            fillEvent.stationName = stationName.trimmed
+            fillEvent.fuelLevelRemaining = normalizedFuelLevel
+            fillEvent.notes = notes.trimmed
+            fillEvent.invoiceOCRText = invoiceOCRText
+            fillEvent.odometerOCRText = odometerOCRText
+            fillEvent.fuelLevelOCRText = fuelLevelOCRText
+            fillEvent.latitude = coordinate?.latitude
+            fillEvent.longitude = coordinate?.longitude
+            fillEvent.updatedAt = .now
         }
 
         do {
+            if event == nil {
+                guard let captureSessionID, let captureSessionRevision else {
+                    errorMessage = "Analiza o crea la sesión antes de guardar el llenado."
+                    return
+                }
+                var finalDraft = captureDraft ?? CaptureDraft()
+                finalDraft.occurredAt = date
+                finalDraft.odometerKilometers = Decimal(string: String(odometerKilometersValue))
+                finalDraft.tripKilometers = tripKilometersValue.flatMap { Decimal(string: String($0)) }
+                finalDraft.fuelLevelRemaining = Decimal(string: String(normalizedFuelLevel))
+                finalDraft.volumeGallons = Decimal(string: String(gallonsValue))
+                finalDraft.unitPrice = Decimal(string: String(pricePerGallonValue))
+                finalDraft.totalCost = Decimal(string: String(totalCostValue))
+                finalDraft.isFullTank = isFullTank
+                finalDraft.stationName = stationName.trimmed
+                finalDraft.notes = notes.trimmed
+                _ = try CaptureConfirmationService.confirm(
+                    container: modelContext.container, sessionID: captureSessionID,
+                    expectedRevision: captureSessionRevision, vehicleID: vehicle.id,
+                    kind: .fillUp, finalDraft: finalDraft,
+                    images: [.invoice: invoiceImage, .odometer: odometerImage,
+                             .fuelLevel: fuelLevelImage]
+                ) { storedVehicle, context in
+                    let fillEvent = FuelFillEvent(vehicle: storedVehicle)
+                    populate(fillEvent, vehicle: storedVehicle)
+                    context.insert(fillEvent)
+                    try SyncMetadataMaintainer.recordChange(
+                        ownerID: fillEvent.id, kind: "fuelEntry",
+                        createdAt: fillEvent.createdAt, updatedAt: fillEvent.updatedAt,
+                        in: context
+                    )
+                    return fillEvent.id
+                }
+                Task { await ReminderService.shared.captureLogged() }
+                self.captureSessionID = nil
+                dismiss()
+                return
+            }
+            guard let fillEvent = event else { return }
+            populate(fillEvent, vehicle: vehicle)
             try EventImageSynchronizer.replaceAssets(
                 for: fillEvent,
                 images: [
@@ -532,6 +644,92 @@ struct FillUpFormView: View {
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private var draftSignature: String {
+        [selectedVehicleID?.uuidString ?? "", String(date.timeIntervalSince1970),
+         odometerMiles, tripMiles, gallons, pricePerGallon, totalCost,
+         String(isFullTank), stationName, notes, String(fuelLevelRemaining),
+         String(fuelLevelReviewed)].joined(separator: "|")
+    }
+
+    private func scheduleDraftAutosave(immediate: Bool = false) {
+        draftAutosaveTask?.cancel()
+        guard event == nil, captureSessionID != nil,
+              wizardStep == .review || wizardStep == .confirm else { return }
+        draftAutosaveTask = Task {
+            if !immediate { try? await Task.sleep(for: .milliseconds(250)) }
+            guard !Task.isCancelled else { return }
+            _ = await persistCurrentDraft()
+        }
+    }
+
+    @MainActor
+    private func persistCurrentDraft() async -> Bool {
+        guard let sessionID = captureSessionID, let vehicle = selectedVehicle else { return false }
+        do {
+            let repository = SwiftDataCaptureSessionRepository(container: modelContext.container)
+            guard let current = try await repository.find(id: sessionID),
+                  current.state == .review, current.vehicleID == vehicle.id else {
+                throw CaptureSessionError.invalidTransition
+            }
+            var draft = current.draft
+            draft.occurredAt = date
+            draft.setManualNumber(odometerMiles.asDouble.flatMap {
+                Decimal(string: String(normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit)))
+            }, for: .odometerKilometers)
+            draft.setManualNumber(tripMiles.asDouble.flatMap {
+                Decimal(string: String(normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit)))
+            }, for: .tripKilometers)
+            if !needsFuelLevelConfirmation || fuelLevelReviewed {
+                draft.setManualNumber(Decimal(string: String(fuelLevelRemaining)), for: .fuelLevelRemaining)
+            }
+            draft.setManualNumber(gallons.asDecimalDouble.flatMap { Decimal(string: String($0)) },
+                                  for: .volumeGallons)
+            draft.setManualNumber(pricePerGallon.asDecimalDouble.flatMap { Decimal(string: String($0)) },
+                                  for: .unitPrice)
+            draft.setManualNumber(totalCost.asDecimalDouble.flatMap { Decimal(string: String($0)) },
+                                  for: .totalCost)
+            draft.isFullTank = isFullTank
+            draft.stationName = stationName.trimmed
+            draft.notes = notes.trimmed
+            let saved = try await repository.updateDraft(id: sessionID,
+                                                         expectedRevision: current.revision,
+                                                         draft: draft)
+            captureSessionRevision = saved.revision
+            captureDraft = saved.draft
+            return true
+        } catch {
+            errorMessage = "No se pudo conservar el borrador: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    private var needsFuelLevelConfirmation: Bool {
+        guard fuelLevelImage != nil,
+              let status = captureFieldResults.first(where: { $0.field == .fuelLevelRemaining }) else {
+            return false
+        }
+        return status.band == .low || status.band == .critical
+    }
+
+    private var hasUnresolvedCriticalField: Bool {
+        captureFieldResults.contains { result in
+            result.band == .critical && !manuallyResolved(result.field)
+        }
+    }
+
+    private func manuallyResolved(_ field: CaptureField) -> Bool {
+        switch field {
+        case .odometerKilometers: odometerMiles.asDouble != nil
+        case .tripKilometers: true // Trip is optional for a fill-up.
+        case .fuelLevelRemaining: fuelLevelReviewed
+        case .volumeGallons: gallons.asDecimalDouble != nil
+        case .unitPrice: pricePerGallon.asDecimalDouble != nil
+        case .totalCost: totalCost.asDecimalDouble != nil
+        case .stationName: !stationName.trimmed.isEmpty
+        case .occurredAt: true
         }
     }
 

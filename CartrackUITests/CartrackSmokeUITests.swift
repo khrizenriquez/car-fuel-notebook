@@ -62,6 +62,11 @@ final class CartrackSmokeUITests: XCTestCase {
         app.tabBars.buttons["Capturar"].tap()
         app.buttons["capture.snapshot"].tap()
         app.buttons["snapshot.next"].tap()
+        let retake = app.buttons["capture.retake.odometerKilometers"]
+        XCTAssertTrue(retake.waitForExistence(timeout: 10))
+        retake.tap()
+        XCTAssertTrue(app.buttons["snapshot.odometerImage.photos"].exists)
+        app.buttons["snapshot.next"].tap()
         type("3.4", into: app.textFields["snapshot.trip"])
         app.buttons["snapshot.next"].tap()
         app.buttons["snapshot.save"].tap()
@@ -74,6 +79,33 @@ final class CartrackSmokeUITests: XCTestCase {
         app.buttons["snapshot.next"].tap()
         app.buttons["snapshot.save"].tap()
         XCTAssertTrue(app.buttons["capture.snapshot"].waitForExistence(timeout: 5))
+    }
+
+    func testManualSnapshotDraftCanBeResumedAndConfirmedOnce() throws {
+        let app = launchApp()
+        createVehicle(in: app)
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.snapshot"].tap()
+        app.buttons["snapshot.next"].tap()
+        type("123456", into: app.textFields["snapshot.odometer"])
+        type("12.3", into: app.textFields["snapshot.trip"])
+        app.navigationBars.buttons["Capturar"].tap()
+
+        let resume = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@", "capture.resume."
+        )).firstMatch
+        XCTAssertTrue(resume.waitForExistence(timeout: 10))
+        resume.tap()
+        let odometer = app.textFields["snapshot.odometer"]
+        XCTAssertTrue(odometer.waitForExistence(timeout: 20))
+        XCTAssertEqual(stringValue(of: odometer), "123,456")
+        XCTAssertEqual(stringValue(of: app.textFields["snapshot.trip"]), "12.3")
+        app.buttons["snapshot.next"].tap()
+        app.buttons["snapshot.save"].tap()
+        XCTAssertTrue(app.buttons["capture.snapshot"].waitForExistence(timeout: 10))
+        XCTAssertFalse(resume.exists)
+        app.tabBars.buttons["Historial"].tap()
+        XCTAssertTrue(app.staticTexts["Snapshot"].waitForExistence(timeout: 10))
     }
 
 	    func testEditFillUpThenResetSelectedVehicleData() throws {
@@ -371,6 +403,7 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(trip.exists)
         XCTAssertEqual(stringValue(of: odometer), "108,768")
         XCTAssertEqual(stringValue(of: trip), "606.5")
+        XCTAssertTrue(app.staticTexts["Media · revisar"].exists)
 
         app.buttons["snapshot.next"].tap()
         app.buttons["snapshot.save"].tap()

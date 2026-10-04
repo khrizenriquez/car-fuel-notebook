@@ -26,6 +26,7 @@ struct SnapshotCaptureOutcome {
     let fields: [FieldResult]
     let imageIssues: [CaptureImageKind: [CaptureImageIssue]]
     let recognizedText: SnapshotPrefill
+    let images: [CaptureImageKind: UIImage]
 }
 
 @MainActor
@@ -113,7 +114,8 @@ final class SnapshotCaptureWorkflow {
                                                     to: .review, errorCode: nil,
                                                     confirmedEventID: nil)
             return SnapshotCaptureOutcome(session: session, fields: assessment.fields,
-                                          imageIssues: prepared.issues, recognizedText: recognized)
+                                          imageIssues: prepared.issues, recognizedText: recognized,
+                                          images: prepared.images)
         } catch {
             _ = try? await sessions.transition(id: session.id, expectedRevision: session.revision,
                                                to: .failedRecoverable,
@@ -152,8 +154,8 @@ final class SnapshotCaptureWorkflow {
             guard case .number(let number) = assessment.result(for: field)?.selectedValue else { return nil }
             return number
         }
-        draft.odometerKilometers = draft.odometerKilometers ?? value(.odometerKilometers)
-        draft.tripKilometers = draft.tripKilometers ?? value(.tripKilometers)
-        draft.fuelLevelRemaining = draft.fuelLevelRemaining ?? value(.fuelLevelRemaining)
+        if !draft.isManuallyEdited(.odometerKilometers) { draft.odometerKilometers = value(.odometerKilometers) }
+        if !draft.isManuallyEdited(.tripKilometers) { draft.tripKilometers = value(.tripKilometers) }
+        if !draft.isManuallyEdited(.fuelLevelRemaining) { draft.fuelLevelRemaining = value(.fuelLevelRemaining) }
     }
 }

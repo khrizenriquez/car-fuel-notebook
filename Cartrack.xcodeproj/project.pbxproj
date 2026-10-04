@@ -28,6 +28,9 @@
 		A11B00000000000000000011 /* CaptureWorkflowSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000000000000001 /* CaptureWorkflowSupport.swift */; };
 		A11B00000000000000000012 /* SnapshotCaptureWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000000000000002 /* SnapshotCaptureWorkflow.swift */; };
 		A11B00000000000000000013 /* SnapshotCaptureWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000000000000003 /* SnapshotCaptureWorkflowTests.swift */; };
+		A12C00000000000000000011 /* CaptureConfirmationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12C00000000000000000001 /* CaptureConfirmationService.swift */; };
+		A12C00000000000000000012 /* CaptureConfirmationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12C00000000000000000002 /* CaptureConfirmationServiceTests.swift */; };
+		A12C00000000000000000013 /* CaptureConfidenceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12C00000000000000000003 /* CaptureConfidenceSection.swift */; };
 		1180B3C13BD3D7747670B211 /* FillUpFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EDE99D9FCD8D62647ACD1E /* FillUpFormView.swift */; };
 		16CF094640D71334435A0589 /* OCRTextParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D64CAF23F97871DFD566F7B /* OCRTextParser.swift */; };
 		1DCE7E5963093E5A535656B2 /* MonthlyManualAdjustment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CA66271BDC6F4A36EDC893 /* MonthlyManualAdjustment.swift */; };
@@ -136,6 +139,9 @@
 		A11B00000000000000000001 /* CaptureWorkflowSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureWorkflowSupport.swift; sourceTree = "<group>"; };
 		A11B00000000000000000002 /* SnapshotCaptureWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotCaptureWorkflow.swift; sourceTree = "<group>"; };
 		A11B00000000000000000003 /* SnapshotCaptureWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotCaptureWorkflowTests.swift; sourceTree = "<group>"; };
+		A12C00000000000000000001 /* CaptureConfirmationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureConfirmationService.swift; sourceTree = "<group>"; };
+		A12C00000000000000000002 /* CaptureConfirmationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureConfirmationServiceTests.swift; sourceTree = "<group>"; };
+		A12C00000000000000000003 /* CaptureConfidenceSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureConfidenceSection.swift; sourceTree = "<group>"; };
 		8F7EF8AE75D61DB2EB589E2E /* CartrackTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CartrackTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		98A3E24FC1A3ACA6E2E344B2 /* ImageCaptureField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCaptureField.swift; sourceTree = "<group>"; };
 		A74F5A2754B031D8D7C135F4 /* String+Parsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Parsing.swift"; sourceTree = "<group>"; };
@@ -244,6 +250,7 @@
 			children = (
 				75787B7BB4C4CDF4B92398FA /* CaptureHomeView.swift */,
 				19EDE99D9FCD8D62647ACD1E /* FillUpFormView.swift */,
+				A12C00000000000000000003 /* CaptureConfidenceSection.swift */,
 				45E20D64B31BC9CB97675E16 /* SnapshotFormView.swift */,
 			);
 			path = Capture;
@@ -284,6 +291,7 @@
 				A10A00000000000000000002 /* FuelCaptureWorkflow.swift */,
 				A11B00000000000000000001 /* CaptureWorkflowSupport.swift */,
 				A11B00000000000000000002 /* SnapshotCaptureWorkflow.swift */,
+				A12C00000000000000000001 /* CaptureConfirmationService.swift */,
 				AE416CC2D1D3E8AB96CCF2A1 /* ReminderService.swift */,
 				F2FCC53AFCBA3EF9B54845F2 /* ResetService.swift */,
 			);
@@ -346,6 +354,7 @@
 				A80800000000000000000002 /* CaptureImagePipelineTests.swift */,
 				A10A00000000000000000003 /* FuelCaptureWorkflowTests.swift */,
 				A11B00000000000000000003 /* SnapshotCaptureWorkflowTests.swift */,
+				A12C00000000000000000002 /* CaptureConfirmationServiceTests.swift */,
 				27D40BB18EE139CB1D48E486 /* PersistenceIntegrationTests.swift */,
 				CB2C03887D9EA92BC4D1C2F6 /* ReminderServiceTests.swift */,
 			);
@@ -483,6 +492,7 @@
 				EA7E2A6DFA517498F2589AA7 /* EventDeletionService.swift in Sources */,
 				FC511F0BFE43C247F4EBC3C7 /* EventImageSynchronizer.swift in Sources */,
 				1180B3C13BD3D7747670B211 /* FillUpFormView.swift in Sources */,
+				A12C00000000000000000013 /* CaptureConfidenceSection.swift in Sources */,
 				AFB36334199BADEDA4DA4A93 /* Formatters.swift in Sources */,
 				69DBAF56A0168985DD5FDA2B /* FuelFillEvent.swift in Sources */,
 				48824FA8195726E55A271191 /* FuelLevelInputView.swift in Sources */,
@@ -502,6 +512,7 @@
 				A10A00000000000000000012 /* FuelCaptureWorkflow.swift in Sources */,
 				A11B00000000000000000011 /* CaptureWorkflowSupport.swift in Sources */,
 				A11B00000000000000000012 /* SnapshotCaptureWorkflow.swift in Sources */,
+				A12C00000000000000000011 /* CaptureConfirmationService.swift in Sources */,
 				E1CB4EFD12B0CF47FE8B17E7 /* RefuelLocationsView.swift in Sources */,
 				16CF094640D71334435A0589 /* OCRTextParser.swift in Sources */,
 				684343DF568168AA1F7DB88A /* ReminderService.swift in Sources */,
@@ -535,6 +546,7 @@
 				A80800000000000000000012 /* CaptureImagePipelineTests.swift in Sources */,
 				A10A00000000000000000013 /* FuelCaptureWorkflowTests.swift in Sources */,
 				A11B00000000000000000013 /* SnapshotCaptureWorkflowTests.swift in Sources */,
+				A12C00000000000000000012 /* CaptureConfirmationServiceTests.swift in Sources */,
 				5CF142A2E92BA0E0E3D7DB97 /* PersistenceIntegrationTests.swift in Sources */,
 				0496858D584DD653F4FA5184 /* ReminderServiceTests.swift in Sources */,
 			);

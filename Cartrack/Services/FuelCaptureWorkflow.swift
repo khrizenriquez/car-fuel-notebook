@@ -28,6 +28,7 @@ struct FuelCaptureOutcome {
     let fields: [FieldResult]
     let imageIssues: [CaptureImageKind: [CaptureImageIssue]]
     let recognizedText: FillUpPrefill
+    let images: [CaptureImageKind: UIImage]
 }
 
 @MainActor
@@ -119,7 +120,8 @@ final class FuelCaptureWorkflow {
                                                     to: .review, errorCode: nil,
                                                     confirmedEventID: nil)
             return FuelCaptureOutcome(session: session, fields: assessment.fields,
-                                      imageIssues: prepared.issues, recognizedText: recognized)
+                                      imageIssues: prepared.issues, recognizedText: recognized,
+                                      images: prepared.images)
         } catch {
             _ = try? await sessions.transition(id: session.id, expectedRevision: session.revision,
                                                to: .failedRecoverable,
@@ -161,12 +163,12 @@ final class FuelCaptureWorkflow {
             guard case .number(let number) = assessment.result(for: field)?.selectedValue else { return nil }
             return number
         }
-        draft.odometerKilometers = draft.odometerKilometers ?? value(.odometerKilometers)
-        draft.tripKilometers = draft.tripKilometers ?? value(.tripKilometers)
-        draft.volumeGallons = draft.volumeGallons ?? value(.volumeGallons)
-        draft.unitPrice = draft.unitPrice ?? value(.unitPrice)
-        draft.totalCost = draft.totalCost ?? value(.totalCost)
-        draft.fuelLevelRemaining = draft.fuelLevelRemaining ?? value(.fuelLevelRemaining)
+        if !draft.isManuallyEdited(.odometerKilometers) { draft.odometerKilometers = value(.odometerKilometers) }
+        if !draft.isManuallyEdited(.tripKilometers) { draft.tripKilometers = value(.tripKilometers) }
+        if !draft.isManuallyEdited(.volumeGallons) { draft.volumeGallons = value(.volumeGallons) }
+        if !draft.isManuallyEdited(.unitPrice) { draft.unitPrice = value(.unitPrice) }
+        if !draft.isManuallyEdited(.totalCost) { draft.totalCost = value(.totalCost) }
+        if !draft.isManuallyEdited(.fuelLevelRemaining) { draft.fuelLevelRemaining = value(.fuelLevelRemaining) }
     }
 
 }

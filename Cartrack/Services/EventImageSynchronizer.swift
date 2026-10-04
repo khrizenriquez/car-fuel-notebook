@@ -3,6 +3,28 @@ import SwiftData
 import UIKit
 
 enum EventImageSynchronizer {
+    /// Adds evidence for a new event. The caller removes returned files if its DB transaction fails.
+    static func insertNewAssets(eventID: UUID, ownerType: ImageOwnerKind,
+                                images: [CaptureImageKind: UIImage?],
+                                context: ModelContext) throws -> [String] {
+        var createdPaths: [String] = []
+        do {
+            for kind in images.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+                guard let image = images[kind] ?? nil else { continue }
+                let path = try ImageStorageService.shared.saveImage(
+                    image, preferredName: "\(kind.rawValue)-\(UUID().uuidString)"
+                )
+                createdPaths.append(path)
+                context.insert(ImageAsset(eventID: eventID, ownerType: ownerType,
+                                          kind: kind, localPath: path))
+            }
+            return createdPaths
+        } catch {
+            for path in createdPaths { try? ImageStorageService.shared.deleteImage(at: path) }
+            throw error
+        }
+    }
+
     static func replaceAssets(
         for fillEvent: FuelFillEvent,
         images: [CaptureImageKind: UIImage?],

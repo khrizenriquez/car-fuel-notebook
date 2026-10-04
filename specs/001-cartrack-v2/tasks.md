@@ -84,10 +84,11 @@
   - Gate: integración completa sin UI + UI happy path.
   - Evidencia: 5 pruebas nuevas del workflow cubren dos fotos, odómetro/trip, ausencia de campo financiero y lectura analógica automática, trip opcional, captura manual, deduplicación, relanzamiento/reanálisis local y aislamiento por vehículo; 6 pruebas de llenado siguen pasando tras compartir el almacenamiento. Un escenario privado real leyó 108,768 mi/606.5 mi y volvió a leerlo desde JPEG locales. La UI guardó llenado+snapshot y la prueba privada de `PhotosPicker` precargó/guardó el snapshot real. Integración pública iOS: 57 aprobadas, 6 privadas omitidas, 0 fallos. Core: 118/118 y cobertura 90.77%. T12 cerrará confirmación atómica, reanudación visible y conflictos; T14 optimizará/limpiará fotos locales.
 
-- [ ] **T12 — Implementar confirmación, conflictos y repetición selectiva**
+- [x] **T12 — Implementar confirmación, conflictos y repetición selectiva**
   - Commit: `Add confidence aware capture confirmation`
   - Alcance: formulario precargado, resaltado, explicación, reemplazo de una foto y confirmación única.
   - Gate: UI alta/media/baja/conflicto y recuperación tras relanzar.
+  - Evidencia: las cuatro bandas tienen textos/acciones/tintes probados; UI pública verificó conflicto sin odómetro, acción de repetir solo tablero, borrador manual que se reabre y confirma una vez, y flujo llenado+snapshot. La UI privada con foto real mostró confianza media y guardó 108,768 mi/606.5 mi. Integración verificó reemplazar solo foto de factura u odómetro conservando correcciones manuales, fotos locales recuperadas y confirmación de evento+sesión+evidencia OCR en un único `save()` con rollback y rechazo del segundo guardado. Core 120/120 y cobertura 90.75%; iOS público 62 aprobadas/6 privadas omitidas; UI pública 14 aprobadas/1 privada omitida; Photos privado 1/1, todos sin fallos. T13 aplicará invariantes definitivos también a ediciones; T14 optimizará/limpiará originales locales.
 
 - [ ] **T13 — Aplicar invariantes antes del guardado**
   - Commit: `Enforce vehicle event integrity rules`
@@ -162,6 +163,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T11 completado; sigue T12 (confirmación, conflictos y repetición selectiva).
+- Implementación v2: T12 completado; sigue T13 (invariantes antes de guardar).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

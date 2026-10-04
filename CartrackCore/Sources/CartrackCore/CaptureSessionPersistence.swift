@@ -134,6 +134,49 @@ final class SwiftDataCaptureSessionRepository: CaptureSessionRepository {
         return try Self.project(row)
     }
 
+    /// Stages the event link and final draft in the caller's SwiftData transaction.
+    /// The caller must insert its event and save this context exactly once.
+    static func prepareConfirmation(id: UUID, expectedRevision: Int64,
+                                    vehicleID: UUID, kind: CaptureSessionKind,
+                                    eventID: UUID, finalDraft: CaptureDraft,
+                                    in context: ModelContext) throws {
+        guard let row = try find(id: id, in: context) else { throw CaptureSessionError.notFound }
+        guard row.revision == expectedRevision else { throw CaptureSessionError.conflict }
+        guard row.stateRawValue == CaptureSessionState.review.rawValue,
+              row.kindRawValue == kind.rawValue,
+              row.vehicleID == vehicleID else { throw CaptureSessionError.invalidTransition }
+        _ = try project(row)
+        try finalDraft.validate(for: kind)
+        let eventMatchesVehicle: Bool
+        switch kind {
+        case .fillUp:
+            eventMatchesVehicle = try context.fetch(FetchDescriptor<FuelFillEvent>())
+                .contains { $0.id == eventID && $0.vehicle?.id == vehicleID }
+        case .snapshot:
+            eventMatchesVehicle = try context.fetch(FetchDescriptor<SnapshotEvent>())
+                .contains { $0.id == eventID && $0.vehicle?.id == vehicleID }
+        }
+        guard eventMatchesVehicle else { throw CaptureSessionError.notFound }
+        let encoded = try encode(finalDraft)
+        row.draftData = encoded
+        row.draftSHA256 = digest(encoded)
+        row.stateRawValue = CaptureSessionState.confirmed.rawValue
+        row.confirmedEventID = eventID
+        row.lastErrorCode = nil
+        row.revision += 1
+        row.updatedAt = .now
+        let manuallyEdited = Set(finalDraft.manuallyEditedFields ?? [])
+        for photo in try context.fetch(FetchDescriptor<LocalPhotoAsset>()) where photo.sessionID == id {
+            photo.eventID = eventID
+        }
+        for evidence in try context.fetch(FetchDescriptor<OCRFieldEvidence>()) where evidence.sessionID == id {
+            evidence.ownerEventID = eventID
+            if let field = CaptureField(rawValue: evidence.fieldRawValue), manuallyEdited.contains(field) {
+                evidence.wasManuallyCorrected = true
+            }
+        }
+    }
+
     func discard(id: UUID, expectedRevision: Int64) async throws {
         let context = newContext()
         guard let row = try Self.find(id: id, in: context) else { throw CaptureSessionError.notFound }

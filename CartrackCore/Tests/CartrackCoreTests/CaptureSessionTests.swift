@@ -28,6 +28,23 @@ final class CaptureSessionStateTests: XCTestCase {
         draft.photoIDs = [photoID]
         XCTAssertNoThrow(try draft.validate(for: .snapshot))
     }
+
+    func testManualFieldMarkersRoundTripAndLeaveLegacyDraftsReadable() throws {
+        let legacy = try JSONDecoder().decode(CaptureDraft.self, from: Data("{\"version\":1,\"currencyCode\":\"GTQ\",\"photoIDs\":[]}".utf8))
+        XCTAssertNil(legacy.manuallyEditedFields)
+        var draft = legacy
+        draft.odometerKilometers = 100
+        draft.setManualNumber(120, for: .odometerKilometers)
+        XCTAssertTrue(draft.isManuallyEdited(.odometerKilometers))
+        draft.setManualNumber(120, for: .odometerKilometers)
+        XCTAssertEqual(draft.manuallyEditedFields, [.odometerKilometers])
+        let decoded = try JSONDecoder().decode(CaptureDraft.self, from: JSONEncoder().encode(draft))
+        XCTAssertEqual(decoded, draft)
+        var formatted = CaptureDraft()
+        formatted.odometerKilometers = Decimal(string: "175044.599")
+        formatted.setManualNumber(Decimal(string: "175044.601"), for: .odometerKilometers)
+        XCTAssertFalse(formatted.isManuallyEdited(.odometerKilometers))
+    }
 }
 
 @MainActor
@@ -258,6 +275,88 @@ final class CaptureSessionPersistenceTests: XCTestCase {
         let persisted = try XCTUnwrap(persistedResult)
         XCTAssertEqual(persisted.state, .review)
         XCTAssertEqual(persisted.revision, review.revision)
+    }
+
+    func testEventAndSessionConfirmationShareOneCommitAndRejectDuplicate() async throws {
+        try await withPersistentStore { container, support, legacyURL in
+            let setup = ModelContext(container)
+            let vehicle = Vehicle(name: "Z4", make: "BMW", modelName: "Z4", year: 2003)
+            setup.insert(vehicle)
+            try setup.save()
+            let repository = SwiftDataCaptureSessionRepository(container: container)
+            let created = try await repository.create(kind: .snapshot, vehicleID: vehicle.id,
+                                                      draft: CaptureDraft())
+            let analyzing = try await repository.transition(id: created.id,
+                                                             expectedRevision: created.revision,
+                                                             to: .analyzing, errorCode: nil,
+                                                             confirmedEventID: nil)
+            let review = try await repository.transition(id: analyzing.id,
+                                                          expectedRevision: analyzing.revision,
+                                                          to: .review, errorCode: nil,
+                                                          confirmedEventID: nil)
+            setup.insert(LocalPhotoAsset(sessionID: review.id, kindRawValue: "odometer",
+                                         localRelativePath: "CaptureSessions/example.jpg",
+                                         sha256: "test", pixelWidth: 100, pixelHeight: 100,
+                                         byteCount: 100, mimeType: "image/jpeg"))
+            setup.insert(OCRFieldEvidence(sessionID: review.id,
+                                          fieldRawValue: CaptureField.odometerKilometers.rawValue,
+                                          rawText: "108768", normalizedValue: "175050",
+                                          confidenceDecimal: "0.80", confidenceBandRawValue: "medium",
+                                          algorithmVersion: "test"))
+            try setup.save()
+            let transaction = ModelContext(container)
+            transaction.autosaveEnabled = false
+            let storedVehicle = try XCTUnwrap(transaction.fetch(FetchDescriptor<Vehicle>())
+                .first { $0.id == vehicle.id })
+            let event = SnapshotEvent(vehicle: storedVehicle)
+            event.odometerKilometers = 175_000
+            transaction.insert(event)
+            var finalDraft = review.draft
+            finalDraft.setManualNumber(175_000, for: .odometerKilometers)
+            try SwiftDataCaptureSessionRepository.prepareConfirmation(
+                id: review.id, expectedRevision: review.revision,
+                vehicleID: vehicle.id, kind: .snapshot, eventID: event.id,
+                finalDraft: finalDraft, in: transaction
+            )
+            transaction.rollback()
+            let beforeCommitResult = try await repository.find(id: review.id)
+            let beforeCommit = try XCTUnwrap(beforeCommitResult)
+            XCTAssertEqual(beforeCommit.state, .review)
+            XCTAssertTrue(try ModelContext(container).fetch(FetchDescriptor<SnapshotEvent>()).isEmpty)
+
+            let saved = ModelContext(container)
+            saved.autosaveEnabled = false
+            let savedVehicle = try XCTUnwrap(saved.fetch(FetchDescriptor<Vehicle>())
+                .first { $0.id == vehicle.id })
+            let confirmedEvent = SnapshotEvent(vehicle: savedVehicle)
+            confirmedEvent.odometerKilometers = 175_000
+            saved.insert(confirmedEvent)
+            try SwiftDataCaptureSessionRepository.prepareConfirmation(
+                id: review.id, expectedRevision: review.revision,
+                vehicleID: vehicle.id, kind: .snapshot, eventID: confirmedEvent.id,
+                finalDraft: finalDraft, in: saved
+            )
+            try saved.save()
+            let reopened = try CartrackModelContainer.make(applicationSupportURL: support,
+                                                            legacyStoreURL: legacyURL)
+            let persistedResult = try await SwiftDataCaptureSessionRepository(container: reopened)
+                .find(id: review.id)
+            let persisted = try XCTUnwrap(persistedResult)
+            XCTAssertEqual(persisted.state, .confirmed)
+            XCTAssertEqual(persisted.confirmedEventID, confirmedEvent.id)
+            XCTAssertEqual(persisted.draft, finalDraft)
+            XCTAssertEqual(try ModelContext(reopened).fetch(FetchDescriptor<SnapshotEvent>()).count, 1)
+            XCTAssertEqual(try ModelContext(reopened).fetch(FetchDescriptor<LocalPhotoAsset>()).first?.eventID,
+                           confirmedEvent.id)
+            let evidence = try XCTUnwrap(ModelContext(reopened).fetch(FetchDescriptor<OCRFieldEvidence>()).first)
+            XCTAssertEqual(evidence.ownerEventID, confirmedEvent.id)
+            XCTAssertTrue(evidence.wasManuallyCorrected)
+            XCTAssertThrowsError(try SwiftDataCaptureSessionRepository.prepareConfirmation(
+                id: review.id, expectedRevision: review.revision,
+                vehicleID: vehicle.id, kind: .snapshot, eventID: confirmedEvent.id,
+                finalDraft: finalDraft, in: ModelContext(reopened)
+            ))
+        }
     }
 
     private func withPersistentStore(

@@ -36,10 +36,48 @@ struct CaptureDraft: Codable, Equatable, Sendable {
     var stationName: String?
     var notes: String?
     var photoIDs: [UUID] = []
+    /// Explicit user corrections survive OCR retries for an individual photo.
+    var manuallyEditedFields: [CaptureField]? = nil
+
+    func isManuallyEdited(_ field: CaptureField) -> Bool {
+        manuallyEditedFields?.contains(field) == true
+    }
+
+    mutating func setManualNumber(_ value: Decimal?, for field: CaptureField) {
+        let keyPath: WritableKeyPath<CaptureDraft, Decimal?>
+        switch field {
+        case .odometerKilometers: keyPath = \.odometerKilometers
+        case .tripKilometers: keyPath = \.tripKilometers
+        case .fuelLevelRemaining: keyPath = \.fuelLevelRemaining
+        case .volumeGallons: keyPath = \.volumeGallons
+        case .unitPrice: keyPath = \.unitPrice
+        case .totalCost: keyPath = \.totalCost
+        case .stationName, .occurredAt: return
+        }
+        let previous = self[keyPath: keyPath]
+        let isFormattingEquivalent: Bool
+        if let previous, let value,
+           field == .odometerKilometers || field == .tripKilometers {
+            let difference = previous < value ? value - previous : previous - value
+            isFormattingEquivalent = difference <= Decimal(string: "0.02")!
+        } else {
+            isFormattingEquivalent = previous == value
+        }
+        if !isFormattingEquivalent {
+            var edited = Set(manuallyEditedFields ?? [])
+            edited.insert(field)
+            manuallyEditedFields = edited.sorted { $0.rawValue < $1.rawValue }
+        }
+        self[keyPath: keyPath] = value
+    }
 
     func validate(for kind: CaptureSessionKind) throws {
         guard version == 1 else { throw CaptureSessionError.unsupportedDraftVersion }
         guard photoIDs.count == Set(photoIDs).count else { throw CaptureSessionError.invalidDraft }
+        if let manuallyEditedFields,
+           manuallyEditedFields.count != Set(manuallyEditedFields).count {
+            throw CaptureSessionError.invalidDraft
+        }
         if kind == .snapshot,
            volumeGallons != nil || unitPrice != nil || totalCost != nil || isFullTank != nil {
             throw CaptureSessionError.invalidDraft

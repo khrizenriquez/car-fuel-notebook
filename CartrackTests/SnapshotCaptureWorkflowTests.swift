@@ -18,6 +18,7 @@ final class SnapshotCaptureWorkflowTests: XCTestCase {
             XCTAssertNil(outcome.session.draft.fuelLevelRemaining)
             XCTAssertNil(outcome.session.draft.totalCost)
             XCTAssertEqual(outcome.fields.first { $0.field == .odometerKilometers }?.band, .medium)
+            XCTAssertEqual(outcome.fields.first { $0.field == .fuelLevelRemaining }?.band, .low)
             let evidence = try await SwiftDataOCRFieldEvidenceRepository(context: ModelContext(container))
                 .all(sessionID: outcome.session.id)
             XCTAssertEqual(evidence.count, 3)
@@ -38,6 +39,7 @@ final class SnapshotCaptureWorkflowTests: XCTestCase {
                                                    sessionID: created.session.id)
             XCTAssertEqual(resumed.session.state, .review)
             XCTAssertEqual(resumed.session.draft.photoIDs, created.session.draft.photoIDs)
+            XCTAssertEqual(resumed.images.count, 2)
             let saved = try await SwiftDataPhotoAssetRepository(context: ModelContext(reopened))
                 .all(sessionID: created.session.id)
             XCTAssertEqual(saved.count, 2)
@@ -90,6 +92,39 @@ final class SnapshotCaptureWorkflowTests: XCTestCase {
                                                sessionID: first.session.id)
                 XCTFail("A capture session cannot switch vehicles")
             } catch CaptureSessionError.notFound {}
+        }
+    }
+
+    func testReplacingOdometerPhotoUpdatesOCRButKeepsManualTrip() async throws {
+        try await withStore { container, _, photoRoot, vehicle in
+            let firstWorkflow = makeWorkflow(container: container, photoRoot: photoRoot,
+                                             recognized: reading())
+            let first = try await firstWorkflow.analyze(input: input(vehicle: vehicle, images: images()))
+            var corrected = first.session.draft
+            let manualTrip = Decimal(string: String(UnitConversion.milesToKilometers(600)))!
+            corrected.setManualNumber(manualTrip, for: .tripKilometers)
+            let repository = SwiftDataCaptureSessionRepository(container: container)
+            _ = try await repository.updateDraft(id: first.session.id,
+                                                 expectedRevision: first.session.revision,
+                                                 draft: corrected)
+            var replacement = SnapshotPrefill()
+            replacement.odometerMiles = 108_800
+            replacement.tripMiles = 650
+            let secondWorkflow = makeWorkflow(container: container, photoRoot: photoRoot,
+                                              recognized: replacement)
+            let newPhoto = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400)).image {
+                UIColor.green.setFill()
+                $0.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
+            }
+            let second = try await secondWorkflow.analyze(
+                input: input(vehicle: vehicle, images: [.odometer: newPhoto]),
+                sessionID: first.session.id
+            )
+            XCTAssertEqual(second.session.draft.tripKilometers, manualTrip)
+            let odometer = try XCTUnwrap(second.session.draft.odometerKilometers)
+            XCTAssertEqual(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: odometer).doubleValue),
+                           108_800, accuracy: 1)
+            XCTAssertEqual(second.session.draft.photoIDs.count, 3)
         }
     }
 

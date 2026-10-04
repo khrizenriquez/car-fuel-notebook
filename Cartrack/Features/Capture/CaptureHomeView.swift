@@ -3,6 +3,16 @@ import SwiftUI
 
 struct CaptureHomeView: View {
     @Query(sort: \Vehicle.createdAt) private var vehicles: [Vehicle]
+    @Query(sort: \CaptureSessionRecord.updatedAt, order: .reverse)
+    private var captureSessions: [CaptureSessionRecord]
+
+    private var resumableSessions: [CaptureSessionRecord] {
+        captureSessions.filter { row in
+            guard let state = CaptureSessionState(rawValue: row.stateRawValue),
+                  CaptureSessionKind(rawValue: row.kindRawValue) != nil else { return false }
+            return state.isResumable
+        }
+    }
 
     var body: some View {
         Group {
@@ -14,6 +24,30 @@ struct CaptureHomeView: View {
                 )
             } else {
                 List {
+                    if !resumableSessions.isEmpty {
+                        Section("Continuar captura") {
+                            ForEach(resumableSessions, id: \.id) { row in
+                                NavigationLink {
+                                    if row.kindRawValue == CaptureSessionKind.fillUp.rawValue {
+                                        FillUpFormView(resumeSessionID: row.id)
+                                    } else {
+                                        SnapshotFormView(resumeSessionID: row.id)
+                                    }
+                                } label: {
+                                    VStack(alignment: .leading) {
+                                        Text(row.kindRawValue == CaptureSessionKind.fillUp.rawValue
+                                             ? "Continuar llenado" : "Continuar registro de uso")
+                                        if let vehicle = vehicles.first(where: { $0.id == row.vehicleID }) {
+                                            Text(vehicle.displayName)
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                                .accessibilityIdentifier("capture.resume.\(row.id.uuidString)")
+                            }
+                        }
+                    }
                     Section("Nuevo registro") {
                         NavigationLink {
                             FillUpFormView()

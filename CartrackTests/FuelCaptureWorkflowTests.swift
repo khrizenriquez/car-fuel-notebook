@@ -63,6 +63,7 @@ final class FuelCaptureWorkflowTests: XCTestCase {
                                                     sessionID: created.session.id)
             XCTAssertEqual(reviewed.session.state, .review)
             XCTAssertEqual(reviewed.session.draft.photoIDs, created.session.draft.photoIDs)
+            XCTAssertEqual(reviewed.images.count, 3)
             let photos = try await SwiftDataPhotoAssetRepository(context: ModelContext(reopened))
                 .all(sessionID: created.session.id)
             XCTAssertEqual(photos.count, 3)
@@ -83,6 +84,43 @@ final class FuelCaptureWorkflowTests: XCTestCase {
             let stored = try await SwiftDataPhotoAssetRepository(context: ModelContext(container))
                 .all(sessionID: first.session.id)
             XCTAssertEqual(stored.count, 3)
+        }
+    }
+
+    func testReplacingInvoiceUpdatesOCRButPreservesManualPrice() async throws {
+        try await withStore { container, _, photoRoot, vehicle in
+            let originalImages = images()
+            let firstWorkflow = makeWorkflow(container: container, photoRoot: photoRoot,
+                                             recognized: completeReading())
+            let first = try await firstWorkflow.analyze(
+                input: makeInput(vehicle: vehicle, images: originalImages)
+            )
+            var corrected = first.session.draft
+            corrected.setManualNumber(42, for: .unitPrice)
+            let repository = SwiftDataCaptureSessionRepository(container: container)
+            _ = try await repository.updateDraft(id: first.session.id,
+                                                 expectedRevision: first.session.revision,
+                                                 draft: corrected)
+            var replacementReading = completeReading()
+            replacementReading.gallons = 12
+            replacementReading.pricePerGallon = 40
+            replacementReading.totalCost = 480
+            let replacementImage = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400)).image {
+                originalImages[.invoice]?.draw(in: CGRect(x: 0, y: 0, width: 400, height: 400))
+                UIColor.black.setFill()
+                $0.fill(CGRect(x: 60, y: 340, width: 250, height: 5))
+            }
+            let retry = makeWorkflow(container: container, photoRoot: photoRoot,
+                                     recognized: replacementReading)
+            let second = try await retry.analyze(
+                input: makeInput(vehicle: vehicle, images: [.invoice: replacementImage]),
+                sessionID: first.session.id
+            )
+            XCTAssertEqual(second.session.draft.volumeGallons, 12)
+            XCTAssertEqual(second.session.draft.unitPrice, 42)
+            XCTAssertEqual(second.session.draft.totalCost, 480)
+            XCTAssertEqual(second.session.draft.photoIDs.count, 4)
+            XCTAssertTrue(second.session.draft.isManuallyEdited(.unitPrice))
         }
     }
 
