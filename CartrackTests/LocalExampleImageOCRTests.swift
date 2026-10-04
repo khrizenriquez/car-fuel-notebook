@@ -75,8 +75,9 @@ final class LocalExampleImageOCRTests: XCTestCase {
             "z4-2026-07-24-1351",
             "z4-2026-07-24-2255",
         ]
+        let scenarioFilter = ProcessInfo.processInfo.environment["CARTRACK_PRIVATE_SCENARIO_ID"]
 
-        for scenarioID in priorityIDs {
+        for scenarioID in priorityIDs where scenarioFilter == nil || scenarioID == scenarioFilter {
             guard let scenario = manifest.scenarios.first(where: { $0.id == scenarioID }) else {
                 XCTFail("Falta el escenario prioritario \(scenarioID)")
                 continue
@@ -328,6 +329,9 @@ final class LocalExampleImageOCRTests: XCTestCase {
     }
 
     private func loadManifest() throws -> PrivateImageScenarioManifest {
+        guard requiresPrivateFixtures else {
+            throw XCTSkip("La matriz de imágenes privadas se ejecuta con Scripts/verify_private_image_scenarios.sh.")
+        }
         let url = manifestURL()
         guard FileManager.default.fileExists(atPath: url.path) else {
             if requiresPrivateFixtures {

@@ -32,10 +32,11 @@
   - Alcance: `CartrackTests/Fixtures`, plantilla sanitizada, cargador, cobertura del manifiesto y scripts de simulador.
   - Gate: tests de manifiesto, variantes prioritarias y preparación del simulador dedicado; ningún segundo simulador queda abierto.
 
-- [ ] **T04 — Cerrar el baseline público y privado de v1**
+- [x] **T04 — Cerrar el baseline público y privado de v1**
   - Commit: `Verify the Cartrack v2 migration baseline`
   - Alcance: integrar cambios pendientes de UI/analytics/formato que pertenezcan al baseline, actualizar evidencia real y corregir únicamente regresiones necesarias.
   - Gate: core ≥90%, suite pública verde, suite privada verde incluyendo `z4-2026-07-26-1305`.
+  - Evidencia: 87 pruebas core y 93.75% de cobertura; suite pública y UI sin fallos; suite privada OCR 8/8 y recorrido Photos E2E 1/1, incluido `z4-2026-07-26-1305`.
 
 ## Fase 1 — Datos, migración y límites
 
@@ -153,6 +154,7 @@
 ## Estado global
 
 - Especificación: completa.
-- Implementación v2: no iniciada formalmente.
-- Bloqueo actual: ninguno para comenzar T01; T04 no puede cerrarse hasta resolver el fixture privado pendiente.
+- Baseline v1 / fase 0: completado.
+- Implementación v2: inicia en T05 (migración versionada).
+- Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

@@ -37,7 +37,7 @@ struct FuelLevelInputView: View {
                     .accessibilityIdentifier("\(accessibilityPrefix).fuelLevel")
                     .accessibilityValue(CartrackFormatters.decimal(value, suffix: "espacios"))
                     .onChange(of: textValue) { _, newValue in
-                        guard let parsed = newValue.asDouble else { return }
+                        guard let parsed = newValue.asDecimalDouble else { return }
                         updateValue(parsed, shouldSyncText: false)
                     }
 

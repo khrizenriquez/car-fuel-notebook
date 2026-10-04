@@ -1,6 +1,9 @@
+import SwiftData
 import SwiftUI
 
 struct RootTabView: View {
+    @Environment(\.modelContext) private var modelContext
+
     var body: some View {
         TabView {
             NavigationStack {
@@ -44,5 +47,8 @@ struct RootTabView: View {
             .accessibilityIdentifier("tab.settings")
         }
         .tint(Color(red: 0.15, green: 0.45, blue: 0.28))
+        .task {
+            _ = try? LocalDataRepairService.repairReceiptDecimalArtifacts(in: modelContext)
+        }
     }
 }

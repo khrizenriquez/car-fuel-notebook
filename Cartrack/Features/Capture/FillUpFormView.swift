@@ -33,6 +33,8 @@ struct FillUpFormView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Vehicle.createdAt) private var vehicles: [Vehicle]
     @Query(sort: \ImageAsset.createdAt, order: .reverse) private var imageAssets: [ImageAsset]
+    @Query(sort: \SnapshotEvent.date, order: .reverse) private var snapshotEvents: [SnapshotEvent]
+    @Query(sort: \FuelFillEvent.date, order: .reverse) private var fillEvents: [FuelFillEvent]
 
     private let ocrService = OCRService()
     @StateObject private var locationService = LocationService()
@@ -214,18 +216,21 @@ struct FillUpFormView: View {
         ImageCaptureField(
             title: "Factura",
             caption: "Factura del llenado para leer galones, precio y total.",
+            accessibilityPrefix: "fill.invoiceImage",
             existingPath: $existingInvoicePath,
             image: $invoiceImage
         )
         ImageCaptureField(
             title: "Odometro",
             caption: "Foto del odometro o cluster donde se vea el trip.",
+            accessibilityPrefix: "fill.odometerImage",
             existingPath: $existingOdometerPath,
             image: $odometerImage
         )
         ImageCaptureField(
             title: "Nivel de tanque",
             caption: "Foto separada del nivel de combustible. Si es una aguja analogica, confirma los espacios manualmente en el siguiente paso.",
+            accessibilityPrefix: "fill.fuelImage",
             existingPath: $existingFuelLevelPath,
             image: $fuelLevelImage
         )
@@ -311,9 +316,9 @@ struct FillUpFormView: View {
             LabeledContent("Vehiculo", value: selectedVehicle?.displayName ?? "Pendiente")
             LabeledContent("Odometro", value: display(odometerMiles, suffix: odometerUnit.rawValue))
             LabeledContent("Trip", value: display(tripMiles, suffix: odometerUnit.rawValue))
-            LabeledContent("Galones", value: display(gallons, suffix: "gal"))
-            LabeledContent("Precio/galon", value: display(pricePerGallon, prefix: "Q"))
-            LabeledContent("Total", value: display(totalCost, prefix: "Q"))
+            LabeledContent("Galones", value: displayDecimal(gallons, suffix: "gal", formatter: CartrackFormatters.gallons))
+            LabeledContent("Precio/galon", value: displayDecimal(pricePerGallon, prefix: "Q"))
+            LabeledContent("Total", value: displayDecimal(totalCost, prefix: "Q"))
             LabeledContent("Cierre de tanque", value: isFullTank ? "Tanque lleno" : "Carga parcial")
             Button("Editar montos de factura") {
                 wizardStep = .review
@@ -334,7 +339,8 @@ struct FillUpFormView: View {
             invoiceImage: invoiceImage,
             odometerImage: odometerImage,
             fuelLevelImage: fuelLevelImage,
-            fuelScaleMax: vehicle.fuelScaleMax
+            fuelScaleMax: vehicle.fuelScaleMax,
+            previousClusterReading: previousClusterReading(for: vehicle)
         )
         invoiceOCRText = result.invoiceText
         odometerOCRText = result.odometerText
@@ -350,6 +356,37 @@ struct FillUpFormView: View {
         isAnalyzing = false
     }
 
+    private func previousClusterReading(for vehicle: Vehicle) -> InstrumentClusterReading? {
+        let snapshots = snapshotEvents.compactMap { snapshot -> (Date, InstrumentClusterReading)? in
+            guard snapshot.vehicle?.id == vehicle.id,
+                  snapshot.date < date,
+                  let trip = snapshot.tripMilesOriginal
+                    ?? snapshot.tripKilometers.map(UnitConversion.kilometersToMiles)
+            else { return nil }
+            let odometer = snapshot.odometerMilesOriginal
+                ?? UnitConversion.kilometersToMiles(snapshot.odometerKilometers)
+            return (
+                snapshot.date,
+                InstrumentClusterReading(odometerMiles: odometer, tripMiles: trip)
+            )
+        }
+        let fills = fillEvents.compactMap { fill -> (Date, InstrumentClusterReading)? in
+            guard fill.id != event?.id,
+                  fill.vehicle?.id == vehicle.id,
+                  fill.date < date,
+                  let trip = fill.tripMilesOriginal
+                    ?? fill.tripKilometers.map(UnitConversion.kilometersToMiles)
+            else { return nil }
+            let odometer = fill.odometerMilesOriginal
+                ?? UnitConversion.kilometersToMiles(fill.odometerKilometers)
+            return (
+                fill.date,
+                InstrumentClusterReading(odometerMiles: odometer, tripMiles: trip)
+            )
+        }
+        return (snapshots + fills).max(by: { $0.0 < $1.0 })?.1
+    }
+
     @MainActor
     private func continueFromEvidence() async {
         await analyzeImages()
@@ -362,9 +399,9 @@ struct FillUpFormView: View {
             return
         }
         guard let odometerMilesValue = odometerMiles.asDouble,
-              let gallonsValue = gallons.asDouble,
-              let pricePerGallonValue = pricePerGallon.asDouble,
-              let totalCostValue = totalCost.asDouble else {
+              let gallonsValue = gallons.asDecimalDouble,
+              let pricePerGallonValue = pricePerGallon.asDecimalDouble,
+              let totalCostValue = totalCost.asDecimalDouble else {
             errorMessage = "Completa odometro, galones, precio y total con valores numericos."
             return
         }
@@ -474,6 +511,17 @@ struct FillUpFormView: View {
         guard let parsed = value.asDouble else { return "Pendiente" }
         let formatted = CartrackFormatters.decimal(parsed)
         return "\(prefix)\(formatted)\(suffix.isEmpty ? "" : " \(suffix)")"
+    }
+
+    private func displayDecimal(
+        _ value: String,
+        prefix: String = "",
+        suffix: String = "",
+        formatter: (Double, String) -> String = CartrackFormatters.decimal
+    ) -> String {
+        guard let parsed = value.asDecimalDouble else { return "Pendiente" }
+        let formatted = formatter(parsed, suffix)
+        return "\(prefix)\(formatted)"
     }
 
     private func formatOCRDistanceInput(_ miles: Double) -> String {

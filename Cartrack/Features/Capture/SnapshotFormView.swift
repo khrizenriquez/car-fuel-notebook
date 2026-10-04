@@ -36,6 +36,8 @@ struct SnapshotFormView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Vehicle.createdAt) private var vehicles: [Vehicle]
     @Query(sort: \ImageAsset.createdAt, order: .reverse) private var imageAssets: [ImageAsset]
+    @Query(sort: \SnapshotEvent.date, order: .reverse) private var snapshotEvents: [SnapshotEvent]
+    @Query(sort: \FuelFillEvent.date, order: .reverse) private var fillEvents: [FuelFillEvent]
 
     private let ocrService = OCRService()
     @StateObject private var locationService = LocationService()
@@ -201,12 +203,14 @@ struct SnapshotFormView: View {
         ImageCaptureField(
             title: "Odometro",
             caption: "Captura separada del odometro o cluster.",
+            accessibilityPrefix: "snapshot.odometerImage",
             existingPath: $existingOdometerPath,
             image: $odometerImage
         )
         ImageCaptureField(
             title: "Nivel de tanque",
             caption: "Captura separada del nivel de combustible. Si es una aguja analogica, confirma los espacios manualmente en el siguiente paso.",
+            accessibilityPrefix: "snapshot.fuelImage",
             existingPath: $existingFuelLevelPath,
             image: $fuelLevelImage
         )
@@ -289,7 +293,8 @@ struct SnapshotFormView: View {
         let result = await ocrService.analyzeSnapshot(
             odometerImage: odometerImage,
             fuelLevelImage: fuelLevelImage,
-            fuelScaleMax: vehicle.fuelScaleMax
+            fuelScaleMax: vehicle.fuelScaleMax,
+            previousClusterReading: previousClusterReading(for: vehicle)
         )
         odometerOCRText = result.odometerText
         fuelLevelOCRText = result.fuelLevelText
@@ -299,6 +304,37 @@ struct SnapshotFormView: View {
             fuelLevelRemaining = value
         }
         isAnalyzing = false
+    }
+
+    private func previousClusterReading(for vehicle: Vehicle) -> InstrumentClusterReading? {
+        let snapshots = snapshotEvents.compactMap { snapshot -> (Date, InstrumentClusterReading)? in
+            guard snapshot.id != event?.id,
+                  snapshot.vehicle?.id == vehicle.id,
+                  snapshot.date < date,
+                  let trip = snapshot.tripMilesOriginal
+                    ?? snapshot.tripKilometers.map(UnitConversion.kilometersToMiles)
+            else { return nil }
+            let odometer = snapshot.odometerMilesOriginal
+                ?? UnitConversion.kilometersToMiles(snapshot.odometerKilometers)
+            return (
+                snapshot.date,
+                InstrumentClusterReading(odometerMiles: odometer, tripMiles: trip)
+            )
+        }
+        let fills = fillEvents.compactMap { fill -> (Date, InstrumentClusterReading)? in
+            guard fill.vehicle?.id == vehicle.id,
+                  fill.date < date,
+                  let trip = fill.tripMilesOriginal
+                    ?? fill.tripKilometers.map(UnitConversion.kilometersToMiles)
+            else { return nil }
+            let odometer = fill.odometerMilesOriginal
+                ?? UnitConversion.kilometersToMiles(fill.odometerKilometers)
+            return (
+                fill.date,
+                InstrumentClusterReading(odometerMiles: odometer, tripMiles: trip)
+            )
+        }
+        return (snapshots + fills).max(by: { $0.0 < $1.0 })?.1
     }
 
     @MainActor

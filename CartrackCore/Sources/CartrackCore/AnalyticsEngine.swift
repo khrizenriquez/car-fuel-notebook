@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 struct TankCycle: Identifiable {
     let id: UUID
@@ -70,6 +71,8 @@ struct CurrentTankInsight {
     let likelyTankRangeUpperKilometers: Double?
     let remainingRangeLowerKilometers: Double?
     let remainingRangeUpperKilometers: Double?
+    let currentFillSpend: Double?
+    let currentCostPerKilometer: Double?
 }
 
 struct CurrentTankInsightCopy {
@@ -155,7 +158,17 @@ enum CurrentTankInsightFormatter {
 
         if let lower = insight.remainingRangeLowerKilometers,
            let upper = insight.remainingRangeUpperKilometers {
-            lines.append("Combustible restante: \(roundedRange(lower: lower, upper: upper)) km antes de llegar a reserva")
+            if (insight.fuelRemainingRatio ?? 1) <= 0.20 {
+                lines.append("Combustible restante: \(roundedRange(lower: lower, upper: upper)) km de autonomia estimada")
+            } else {
+                lines.append("Combustible restante: \(roundedRange(lower: lower, upper: upper)) km antes de llegar a reserva")
+            }
+        }
+
+        if let spend = insight.currentFillSpend,
+           let costPerKilometer = insight.currentCostPerKilometer,
+           let distance = insight.latestTripKilometers {
+            lines.append("Referencia de gasto: \(CartrackFormatters.currency(spend)) / \(oneDecimal(distance)) km = \(CartrackFormatters.currency(costPerKilometer))/km")
         }
 
         let vehicleText = (vehicleName?.trimmed).nilIfBlank ?? "tu vehiculo"
@@ -1223,13 +1236,20 @@ enum AnalyticsEngine {
             recentCycles: recentCycles,
             estimatedTankRangeKilometers: tankRangeKilometers
         )
+        let fuelScaleMax = max(vehicle?.fuelScaleMax ?? FuelLevelScale.defaultMax, 1)
+        let fuelRemainingRatio = remainingSpaces / fuelScaleMax
         let remainingRange = rangeBounds.map { bounds in
-            (
+            if fuelRemainingRatio <= 0.20 {
+                return (
+                    lower: bounds.lower * fuelRemainingRatio,
+                    upper: bounds.upper * fuelRemainingRatio
+                )
+            }
+            return (
                 lower: max(0, bounds.lower - distanceKilometers),
                 upper: max(0, bounds.upper - distanceKilometers)
             )
         }
-        let fuelScaleMax = max(vehicle?.fuelScaleMax ?? FuelLevelScale.defaultMax, 1)
 
         return CurrentTankInsight(
             latestSnapshotDate: latestSnapshot.date,
@@ -1250,13 +1270,17 @@ enum AnalyticsEngine {
                 maxValue: fuelScaleMax,
                 step: vehicle?.fuelScaleStep ?? FuelLevelScale.defaultStep
             ),
-            fuelRemainingRatio: remainingSpaces / fuelScaleMax,
+            fuelRemainingRatio: fuelRemainingRatio,
             estimatedTankRangeKilometers: tankRangeKilometers,
             likelyTankRangeKilometers: tankRangeKilometers,
             likelyTankRangeLowerKilometers: rangeBounds?.lower,
             likelyTankRangeUpperKilometers: rangeBounds?.upper,
             remainingRangeLowerKilometers: remainingRange?.lower,
-            remainingRangeUpperKilometers: remainingRange?.upper
+            remainingRangeUpperKilometers: remainingRange?.upper,
+            currentFillSpend: latestFullFill.totalCost > 0 ? latestFullFill.totalCost : nil,
+            currentCostPerKilometer: latestFullFill.totalCost > 0 && distanceKilometers > 0
+                ? latestFullFill.totalCost / distanceKilometers
+                : nil
         )
     }
 
@@ -1537,6 +1561,40 @@ enum AnalyticsEngine {
     private static func csvNumber(_ value: Double?) -> String {
         guard let value else { return "" }
         return String(format: "%.4f", value)
+    }
+}
+
+enum LocalDataRepairService {
+    @discardableResult
+    static func repairReceiptDecimalArtifacts(fills: [FuelFillEvent], now: Date = .now) -> Int {
+        var repairedCount = 0
+
+        for fill in fills {
+            guard fill.gallons > 100,
+                  fill.pricePerGallon > 0,
+                  fill.pricePerGallon < 250,
+                  fill.totalCost > 0
+            else { continue }
+
+            let inferredGallons = fill.totalCost / fill.pricePerGallon
+            guard (0.1...30).contains(inferredGallons) else { continue }
+
+            fill.gallons = inferredGallons
+            fill.updatedAt = now
+            repairedCount += 1
+        }
+
+        return repairedCount
+    }
+
+    @discardableResult
+    static func repairReceiptDecimalArtifacts(in context: ModelContext, now: Date = .now) throws -> Int {
+        let fills = try context.fetch(FetchDescriptor<FuelFillEvent>())
+        let repairedCount = repairReceiptDecimalArtifacts(fills: fills, now: now)
+        if repairedCount > 0 {
+            try context.save()
+        }
+        return repairedCount
     }
 }
 

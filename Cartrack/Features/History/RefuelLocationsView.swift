@@ -50,7 +50,7 @@ struct RefuelLocationsView: View {
                             Text(location.date.formatted(date: .abbreviated, time: .shortened))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
-                            Text("\(CartrackFormatters.decimal(location.gallons, suffix: "gal")) • \(CartrackFormatters.currency(location.totalCost)) • \(CartrackFormatters.currency(location.pricePerGallon))/gal")
+                            Text("\(CartrackFormatters.gallons(location.gallons)) • \(CartrackFormatters.currency(location.totalCost)) • \(CartrackFormatters.currency(location.pricePerGallon))/gal")
                                 .font(.footnote)
                             Text("Lat \(CartrackFormatters.decimal(location.latitude)), Lon \(CartrackFormatters.decimal(location.longitude))")
                                 .font(.caption)

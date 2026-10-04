@@ -111,8 +111,8 @@ struct VehicleFormView: View {
     }
 
     private func save() {
-        guard let tankCapacityValue = tankCapacityGallons.asDouble,
-              let referenceKmPerGallonValue = fuelEconomyReferenceKilometersPerGallon.asDouble else {
+        guard let tankCapacityValue = tankCapacityGallons.asDecimalDouble,
+              let referenceKmPerGallonValue = fuelEconomyReferenceKilometersPerGallon.asDecimalDouble else {
             saveError = "Completa la capacidad del tanque y el consumo historico con valores numericos."
             return
         }

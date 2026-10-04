@@ -5,6 +5,7 @@ import UIKit
 struct ImageCaptureField: View {
     let title: String
     let caption: String
+    let accessibilityPrefix: String
     @Binding var existingPath: String?
     @Binding var image: UIImage?
 
@@ -24,17 +25,20 @@ struct ImageCaptureField: View {
                     isShowingPicker = true
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("\(accessibilityPrefix).camera")
 
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                     Text("Fotos")
                 }
                 .buttonStyle(.bordered)
+                .accessibilityIdentifier("\(accessibilityPrefix).photos")
 
                 if image != nil || existingPath != nil {
                     Button("Quitar", role: .destructive) {
                         image = nil
                         existingPath = nil
                     }
+                    .accessibilityIdentifier("\(accessibilityPrefix).remove")
                 }
             }
         }
@@ -70,6 +74,7 @@ struct ImageCaptureField: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
+                .accessibilityIdentifier("\(accessibilityPrefix).preview")
         } else if let existingPath, let uiImage = ImageStorageService.shared.loadImage(at: existingPath) {
             Image(uiImage: uiImage)
                 .resizable()
@@ -77,6 +82,7 @@ struct ImageCaptureField: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
+                .accessibilityIdentifier("\(accessibilityPrefix).preview")
         } else {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color.secondary.opacity(0.12))

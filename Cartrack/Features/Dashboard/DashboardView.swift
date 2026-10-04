@@ -20,6 +20,10 @@ struct DashboardView: View {
         vehicles.first(where: { $0.id == selectedVehicleID })
     }
 
+    private var selectedDistanceUnit: OdometerUnit {
+        (scopedVehicle ?? vehicles.first)?.odometerUnit ?? .kilometers
+    }
+
     private var summaries: [MonthlySummary] {
         AnalyticsEngine.monthlySummaries(
             fills: fillEvents,
@@ -185,11 +189,11 @@ struct DashboardView: View {
             let kmPerGallon = currentMonthSummary?.kmPerGallon ?? 0
             let delta = monthOverMonthDelta()
             let spendSecondary = currentMonthPurchases.fillCount > 0
-                ? "\(currentMonthPurchases.fillCount) llenado\(currentMonthPurchases.fillCount == 1 ? "" : "s") • \(CartrackFormatters.decimal(currentMonthPurchases.gallons, suffix: "gal comprados"))"
+                ? "\(currentMonthPurchases.fillCount) llenado\(currentMonthPurchases.fillCount == 1 ? "" : "s") • \(CartrackFormatters.gallons(currentMonthPurchases.gallons, suffix: "gal comprados"))"
                 : currentMonthCaptures.totalCaptureCount > 0
                     ? "\(currentMonthCaptures.snapshotCount) snapshot\(currentMonthCaptures.snapshotCount == 1 ? "" : "s") este mes"
                     : delta.map { "Cambio vs mes anterior: \($0)" } ?? "Sin comparacion todavia"
-            let distanceSecondary = distanceSecondaryText(snapshotOnlyDistance: snapshotOnlyDistance)
+            let distanceSecondary = distanceSecondaryText(distanceKilometers: km, snapshotOnlyDistance: snapshotOnlyDistance)
 
             MetricCard(
                 title: "Gasto",
@@ -201,7 +205,7 @@ struct DashboardView: View {
             HStack {
                 MetricCard(
                     title: "Semana combustible",
-                    primary: CartrackFormatters.decimal(currentWeekPurchases.gallons, suffix: "gal"),
+                    primary: CartrackFormatters.gallons(currentWeekPurchases.gallons),
                     secondary: fuelPurchaseSecondary(
                         spend: currentWeekPurchases.spend,
                         averagePricePerGallon: currentWeekPurchases.averagePricePerGallon,
@@ -213,7 +217,7 @@ struct DashboardView: View {
 
                 MetricCard(
                     title: "Mes combustible",
-                    primary: CartrackFormatters.decimal(currentMonthPurchases.gallons, suffix: "gal"),
+                    primary: CartrackFormatters.gallons(currentMonthPurchases.gallons),
                     secondary: fuelPurchaseSecondary(
                         spend: currentMonthPurchases.spend,
                         averagePricePerGallon: currentMonthPurchases.averagePricePerGallon,
@@ -227,14 +231,14 @@ struct DashboardView: View {
             HStack {
                 MetricCard(
                     title: "Distancia",
-                    primary: CartrackFormatters.decimal(km, suffix: "km"),
+                    primary: km > 0 ? CartrackFormatters.distancePrimary(km, unit: selectedDistanceUnit) : "Pendiente",
                     secondary: distanceSecondary,
                     tint: .blue
                 )
                 .accessibilityIdentifier("dashboard.distance")
                 MetricCard(
                     title: "Rendimiento",
-                    primary: CartrackFormatters.decimal(kmPerGallon, suffix: "km/gal"),
+                    primary: currentMonthSummary == nil ? "Pendiente" : CartrackFormatters.decimal(kmPerGallon, suffix: "km/gal"),
                     secondary: performanceSecondary(
                         litersPerKilometer: currentMonthPurchases.litersPerKilometer(using: currentMonthSummary?.totalDistanceKilometers ?? 0),
                         costPerKilometer: currentMonthSummary?.costPerKilometer,
@@ -376,17 +380,23 @@ struct DashboardView: View {
         return "\(CartrackFormatters.decimal(percent, suffix: "%"))"
     }
 
-    private func distanceSecondaryText(snapshotOnlyDistance: Double) -> String {
+    private func distanceSecondaryText(distanceKilometers: Double, snapshotOnlyDistance: Double) -> String {
+        let equivalent = distanceKilometers > 0
+            ? "\(CartrackFormatters.distanceSecondary(distanceKilometers, unit: selectedDistanceUnit)) • "
+            : ""
         if inProgressCurrentMonthDistance > 0 {
-            return "Incluye el tanque en curso"
+            return "\(equivalent)Incluye el tanque en curso"
         }
         if snapshotOnlyDistance > 0 {
-            return "Distancia reportada por el ultimo snapshot"
+            return "\(equivalent)Distancia reportada por el ultimo snapshot"
         }
         if currentMonthCaptures.snapshotCount > 0 {
             return "Snapshot registrado sin trip util"
         }
-        return "Incluye ajustes manuales del mes"
+        if distanceKilometers > 0 {
+            return "\(equivalent)Incluye ajustes manuales del mes"
+        }
+        return "Se calculara con trip o diferencia de odometro"
     }
 
     private func captureSummaryText() -> String {
@@ -419,16 +429,19 @@ struct DashboardView: View {
         latestPricePerGallon: Double?
     ) -> String {
         let litersText = litersPerKilometer.map { "L/km: \(CartrackFormatters.decimal($0))" } ?? "L/km: N/A"
-        let costText = "Costo/km: \(CartrackFormatters.currency(costPerKilometer ?? 0))"
+        let costText = costPerKilometer.map { "Costo/km: \(CartrackFormatters.currency($0))" } ?? "Costo/km: N/A"
         let priceText = latestPricePerGallon.map { "Ultimo precio: \(CartrackFormatters.currency($0))/gal" } ?? "Ultimo precio: N/A"
         return "\(litersText) • \(costText) • \(priceText)"
     }
 
     private func currentTankPrimary(_ status: CurrentTankStatus) -> String {
-        if status.latestFill == nil, let kilometers = status.latestReadingKilometers {
-            return CartrackFormatters.decimal(kilometers, suffix: "km")
+        if status.distanceKilometers > 0 {
+            return CartrackFormatters.distancePrimary(status.distanceKilometers, unit: selectedDistanceUnit)
         }
-        return CartrackFormatters.decimal(status.distanceKilometers, suffix: "km")
+        if status.latestFill == nil, status.latestReadingKilometers != nil {
+            return "Pendiente"
+        }
+        return "Pendiente"
     }
 
     private func currentTankSecondary(_ status: CurrentTankStatus) -> String {
@@ -444,7 +457,7 @@ struct DashboardView: View {
         if status.latestFill == nil {
             return "Sin llenado base todavia • \(formattedDate)"
         }
-        return "Ultima lectura: \(formattedDate) • \(CartrackFormatters.decimal(kilometers, suffix: "km"))"
+        return "Ultima lectura: \(formattedDate) • \(CartrackFormatters.distancePair(kilometers, unit: selectedDistanceUnit))"
     }
 
     private func currentTankInsightView(_ insight: CurrentTankInsight) -> some View {
@@ -452,6 +465,11 @@ struct DashboardView: View {
             for: insight,
             vehicleName: (scopedVehicle ?? vehicles.first)?.displayName
         )
+        let comparison = copy.comparison
+        let estimate = copy.estimate
+        let accessibilitySummary = [copy.state, comparison, estimate]
+            .compactMap { $0 }
+            .joined(separator: "\n\n")
 
         return VStack(alignment: .leading, spacing: 12) {
             Label("Interpretacion del tanque", systemImage: "gauge.with.dots.needle.67percent")
@@ -465,7 +483,7 @@ struct DashboardView: View {
                     .accessibilityIdentifier("dashboard.tankInsight.state")
             }
 
-            if let comparison = copy.comparison {
+            if let comparison {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Comparacion con la medicion anterior")
                         .font(.caption.weight(.semibold))
@@ -475,7 +493,7 @@ struct DashboardView: View {
                 }
             }
 
-            if let estimate = copy.estimate {
+            if let estimate {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Estimacion real")
                         .font(.caption.weight(.semibold))
@@ -492,6 +510,8 @@ struct DashboardView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.teal.opacity(0.08))
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilitySummary)
         .accessibilityIdentifier("dashboard.tankInsight")
     }
 

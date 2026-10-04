@@ -130,7 +130,8 @@ final class PersistenceIntegrationTests: XCTestCase {
                 )
             ],
             monthlyReports: [],
-            tankComparisons: []
+            tankComparisons: [],
+            distanceUnit: .miles
         )
 
         let url = try ReportExportService.exportCSV(payload: payload)
@@ -170,7 +171,8 @@ final class PersistenceIntegrationTests: XCTestCase {
                     averageDailyKilometers: 110
                 )
             ],
-            tankComparisons: []
+            tankComparisons: [],
+            distanceUnit: .miles
         )
 
         let url = try ReportExportService.exportPDF(payload: payload)

@@ -19,6 +19,25 @@ final class StringAndDateCoreTests: XCTestCase {
         XCTAssertEqual("123 456".asDouble, 123456)
     }
 
+    func testAsDecimalDoubleKeepsFuelReceiptDecimals() {
+        XCTAssertEqual("3.791".asDecimalDouble, 3.791)
+        XCTAssertEqual("3,791".asDecimalDouble, 3.791)
+        XCTAssertEqual("39.57".asDecimalDouble, 39.57)
+        XCTAssertEqual("1,234.56".asDecimalDouble, 1234.56)
+    }
+
+    func testAsDoubleStillTreatsOdometerThousandsSeparatorsAsThousands() {
+        XCTAssertEqual("108,355".asDouble, 108355)
+        XCTAssertEqual("108.355".asDouble, 108355)
+    }
+
+    func testDistancePairUsesVehiclePrimaryUnit() {
+        let kilometers = UnitConversion.milesToKilometers(251.0)
+
+        XCTAssertEqual(CartrackFormatters.distancePair(kilometers, unit: .miles), "251 mi = 403.9 km")
+        XCTAssertEqual(CartrackFormatters.distancePair(kilometers, unit: .kilometers), "403.9 km = 251 mi")
+    }
+
     func testOptionalNilIfBlank() {
         XCTAssertNil(Optional("   ").nilIfBlank)
         XCTAssertEqual(Optional("Z4").nilIfBlank, "Z4")

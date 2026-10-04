@@ -223,6 +223,75 @@ final class OCRServiceTests: XCTestCase {
         }
     }
 
+    func testAnalyzeSnapshotInfersOdometerFromMonotonicTripWhenVisionOdometerIsMissing() async {
+        let image = makeImage(color: .systemIndigo)
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(image): "tripRecovery 1376 * 6341\n00833\nMPH",
+            ]),
+            clusterReader: StubClusterReader(readings: [:])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: image,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax,
+            previousClusterReading: InstrumentClusterReading(
+                odometerMiles: 108_768,
+                tripMiles: 606.5
+            )
+        )
+
+        XCTAssertEqual(result.odometerMiles ?? 0, 108_796, accuracy: 0.001)
+        XCTAssertEqual(result.tripMiles ?? 0, 634.1, accuracy: 0.001)
+    }
+
+    func testAnalyzeSnapshotDoesNotInferOdometerFromDistantTripOnlyEvidence() async {
+        let image = makeImage(color: .systemPurple)
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(image): "1000\n1263\n126.3\n1263\n00833\nMPH",
+            ]),
+            clusterReader: StubClusterReader(readings: [:])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: image,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax,
+            previousClusterReading: InstrumentClusterReading(
+                odometerMiles: 107_729,
+                tripMiles: 19.4
+            )
+        )
+
+        XCTAssertNil(result.odometerMiles)
+        XCTAssertNil(result.tripMiles)
+    }
+
+    func testAnalyzeSnapshotDoesNotInferFromAmbiguousRecoveryDigits() async {
+        let image = makeImage(color: .systemOrange)
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(image): "08 T49 mles\ntripRecovery SB13\nMPH",
+            ]),
+            clusterReader: StubClusterReader(readings: [:])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: image,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax,
+            previousClusterReading: InstrumentClusterReading(
+                odometerMiles: 108_728,
+                tripMiles: 566.6
+            )
+        )
+
+        XCTAssertNil(result.odometerMiles)
+        XCTAssertNil(result.tripMiles)
+    }
+
     func testAnalyzeSnapshotRejectsContextualPairThatRequiresTooManyCorrections() async {
         let image = makeImage(color: .systemTeal)
         let noisyText = (["108888 miles 3000"] + (0..<20).map { "MPH noise \($0)" })

@@ -303,8 +303,81 @@ final class AnalyticsEngineCoreTests: XCTestCase {
         Autonomia total real: 400-415 km
         Lo mas probable: ≈405 km por tanque
         Combustible restante: 120-140 km antes de llegar a reserva
+        Referencia de gasto: Q 385.00 / 279.5 km = Q 1.38/km
         Patron actual: BMW Z4 2.5i esta mostrando alrededor de 400-410 km por tanque lleno en tu uso real.
         """)
+    }
+
+    func testCurrentTankInsightSummarizesReserveReadingInMilesAndKilometers() throws {
+        let vehicle = Vehicle(
+            name: "Z4",
+            make: "BMW",
+            modelName: "Z4",
+            year: 2003,
+            tankCapacityGallons: 14.0,
+            fuelScaleMax: 8,
+            fuelScaleStep: 0.25,
+            fuelEconomyReferenceKilometersPerGallon: 29.0
+        )
+        let fillOdometerMiles = 109_162.0
+        let latestOdometerMiles = 109_413.0
+        let fullFill = FuelFillEvent(
+            date: date(day: 10),
+            vehicle: vehicle,
+            odometerMilesOriginal: fillOdometerMiles,
+            odometerKilometers: UnitConversion.milesToKilometers(fillOdometerMiles),
+            tripMilesOriginal: 0,
+            tripKilometers: 0,
+            gallons: 3.791,
+            pricePerGallon: 39.57,
+            totalCost: 150,
+            isFullTank: true,
+            fuelLevelRemaining: 8
+        )
+        let previousSnapshot = SnapshotEvent(
+            date: date(day: 12),
+            vehicle: vehicle,
+            odometerMilesOriginal: 109_393.9,
+            odometerKilometers: UnitConversion.milesToKilometers(109_393.9),
+            tripMilesOriginal: 232.9,
+            tripKilometers: UnitConversion.milesToKilometers(232.9),
+            fuelLevelRemaining: 1.5
+        )
+        let reserveSnapshot = SnapshotEvent(
+            date: date(day: 13),
+            vehicle: vehicle,
+            odometerMilesOriginal: latestOdometerMiles,
+            odometerKilometers: UnitConversion.milesToKilometers(latestOdometerMiles),
+            tripMilesOriginal: 251.0,
+            tripKilometers: UnitConversion.milesToKilometers(251.0),
+            fuelLevelRemaining: 1.0
+        )
+
+        let status = AnalyticsEngine.currentTankStatus(
+            fills: [fullFill],
+            snapshots: [previousSnapshot, reserveSnapshot],
+            vehicleID: vehicle.id,
+            calendar: calendar
+        )
+        let insight: CurrentTankInsight = try XCTUnwrap(status.insight)
+        let copy = CurrentTankInsightFormatter.copy(for: insight, vehicleName: "BMW Z4 2.5i")
+
+        XCTAssertEqual(status.distanceKilometers, UnitConversion.milesToKilometers(251.0), accuracy: 0.1)
+        XCTAssertEqualOptional(insight.latestOdometerMiles, 109_413, accuracy: 0.001)
+        XCTAssertEqualOptional(insight.latestTripMiles, 251.0, accuracy: 0.001)
+        XCTAssertEqualOptional(insight.latestTripKilometers, 403.9, accuracy: 0.1)
+        XCTAssertEqualOptional(insight.previousTripMiles, 232.9, accuracy: 0.001)
+        XCTAssertEqualOptional(insight.tripDeltaMiles, 18.1, accuracy: 0.001)
+        XCTAssertEqualOptional(insight.tripDeltaKilometers, 29.1, accuracy: 0.1)
+        XCTAssertEqualOptional(insight.remainingRangeLowerKilometers, 49.5, accuracy: 0.1)
+        XCTAssertEqualOptional(insight.remainingRangeUpperKilometers, 52.0, accuracy: 0.1)
+        XCTAssertEqualOptional(insight.currentCostPerKilometer, 150 / UnitConversion.milesToKilometers(251.0), accuracy: 0.001)
+        XCTAssertTrue(copy.state.contains("Trip: 251.0 millas = 403.9 km"))
+        XCTAssertTrue(copy.state.contains("Odometro: 109,413 millas"))
+        XCTAssertTrue(copy.comparison?.contains("Recorrido desde entonces: 18.1 millas = 29.1 km") == true)
+        XCTAssertTrue(copy.estimate?.contains("Combustible restante: 45-55 km de autonomia estimada") == true)
+        let normalizedEstimate = copy.estimate?.replacingOccurrences(of: "\u{00A0}", with: "")
+        XCTAssertTrue(normalizedEstimate?.contains("Q150.00 / 403.9 km = Q0.37/km") == true)
     }
 
     func testCurrentTankStatusKeepsLastFullFillAsBaselineAfterPartialTopUp() {
@@ -501,6 +574,23 @@ final class AnalyticsEngineCoreTests: XCTestCase {
         XCTAssertEqual(purchases.gallons, 12.5, accuracy: 0.001)
         XCTAssertEqualOptional(purchases.averagePricePerGallon, 33.02, accuracy: 0.001)
         XCTAssertEqual(purchases.liters, UnitConversion.gallonsToLiters(12.5), accuracy: 0.001)
+    }
+
+    func testLocalDataRepairCorrectsReceiptDecimalGallonsSavedAsThousands() {
+        let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
+        let fill = fill(vehicle: vehicle, day: 12, odometer: 1_000, gallons: 3_791, total: 150)
+        fill.pricePerGallon = 39.57
+
+        let repaired = LocalDataRepairService.repairReceiptDecimalArtifacts(fills: [fill], now: date(day: 13))
+
+        XCTAssertEqual(repaired, 1)
+        XCTAssertEqual(fill.gallons, 150 / 39.57, accuracy: 0.0001)
+        XCTAssertEqualOptional(AnalyticsEngine.monthlyPurchases(
+            fills: [fill],
+            vehicleID: vehicle.id,
+            monthStart: date(day: 1),
+            calendar: calendar
+        ).averagePricePerGallon, 39.57, accuracy: 0.001)
     }
 
     func testWeeklyPurchasesSummarizeOpenWeekFillSpendWithoutClosingCycle() {

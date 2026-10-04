@@ -40,6 +40,10 @@ struct ReportsView: View {
         vehicles.first(where: { $0.id == selectedVehicleID })?.displayName ?? "Todos los vehiculos"
     }
 
+    private var selectedDistanceUnit: OdometerUnit {
+        vehicles.first(where: { $0.id == selectedVehicleID })?.odometerUnit ?? .kilometers
+    }
+
     private var weeklyReports: [DetailedWeeklyReport] {
         AnalyticsEngine.detailedWeeklyReports(
             fills: fillEvents,
@@ -72,7 +76,8 @@ struct ReportsView: View {
             granularity: selectedGranularity,
             weeklyReports: weeklyReports,
             monthlyReports: monthlyReports,
-            tankComparisons: tankComparisons
+            tankComparisons: tankComparisons,
+            distanceUnit: selectedDistanceUnit
         )
     }
 
@@ -189,8 +194,8 @@ struct ReportsView: View {
                     HStack {
                         MetricCard(
                             title: "Semana actual",
-                            primary: CartrackFormatters.decimal(report.distanceKilometers, suffix: "km"),
-                            secondary: "\(CartrackFormatters.decimal(report.distanceMiles, suffix: "mi")) • \(report.valueOrigin.title)",
+                            primary: CartrackFormatters.distancePrimary(report.distanceKilometers, unit: selectedDistanceUnit),
+                            secondary: "\(CartrackFormatters.distanceSecondary(report.distanceKilometers, unit: selectedDistanceUnit)) • \(report.valueOrigin.title)",
                             tint: .blue
                         )
                         MetricCard(
@@ -215,7 +220,7 @@ struct ReportsView: View {
                     MetricCard(
                         title: "Mes visible",
                         primary: CartrackFormatters.currency(report.totalPaid),
-                        secondary: "\(CartrackFormatters.decimal(report.distanceKilometers, suffix: "km")) • \(report.consumptionOrigin.title)",
+                        secondary: "\(CartrackFormatters.distancePair(report.distanceKilometers, unit: selectedDistanceUnit)) • \(report.consumptionOrigin.title)",
                         tint: .green
                     )
 
@@ -223,7 +228,7 @@ struct ReportsView: View {
                         MetricCard(
                             title: "Consumo",
                             primary: report.kmPerGallon.map { CartrackFormatters.decimal($0, suffix: "km/gal") } ?? "N/A",
-                            secondary: report.gallonsConsumed.map { CartrackFormatters.decimal($0, suffix: "gal") } ?? "Galones no disponibles",
+                            secondary: report.gallonsConsumed.map { CartrackFormatters.gallons($0) } ?? "Galones no disponibles",
                             tint: .orange
                         )
                         MetricCard(
@@ -255,7 +260,7 @@ struct ReportsView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text(formattedWeek(report.weekStart))
                                 .font(.subheadline.weight(.semibold))
-                            Text("Distancia: \(CartrackFormatters.decimal(report.distanceKilometers, suffix: "km"))")
+                            Text("Distancia: \(CartrackFormatters.distancePair(report.distanceKilometers, unit: selectedDistanceUnit))")
                             Text("Consumo: \(report.kmPerGallon.map { CartrackFormatters.decimal($0, suffix: "km/gal") } ?? "N/A")")
                             Text("Origen: \(report.valueOrigin.title) • Dias de uso: \(report.daysOfUse)")
                                 .foregroundStyle(.secondary)
@@ -274,7 +279,7 @@ struct ReportsView: View {
                             Text(report.monthStart.formattedMonth())
                                 .font(.subheadline.weight(.semibold))
                             Text("Pagado: \(CartrackFormatters.currency(report.totalPaid))")
-                            Text("Distancia: \(CartrackFormatters.decimal(report.distanceKilometers, suffix: "km"))")
+                            Text("Distancia: \(CartrackFormatters.distancePair(report.distanceKilometers, unit: selectedDistanceUnit))")
                             Text("Consumo: \(report.kmPerGallon.map { CartrackFormatters.decimal($0, suffix: "km/gal") } ?? "N/A")")
                             Text("Origen: \(report.consumptionOrigin.title) • Llenados: \(report.fillCount)")
                                 .foregroundStyle(.secondary)
@@ -302,7 +307,7 @@ struct ReportsView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("\(formattedDate(comparison.startDate)) - \(formattedDate(comparison.endDate))")
                             .font(.subheadline.weight(.semibold))
-                        Text("Odometro: \(CartrackFormatters.decimal(comparison.openingOdometerKilometers, suffix: "km")) -> \(CartrackFormatters.decimal(comparison.closingOdometerKilometers, suffix: "km"))")
+                        Text("Odometro: \(CartrackFormatters.distancePrimary(comparison.openingOdometerKilometers, unit: selectedDistanceUnit)) -> \(CartrackFormatters.distancePrimary(comparison.closingOdometerKilometers, unit: selectedDistanceUnit))")
                         Text("Rendimiento: \(CartrackFormatters.decimal(comparison.kmPerGallon, suffix: "km/gal")) • Costo/km: \(CartrackFormatters.currency(comparison.costPerKilometer))")
                         if comparison.isBest || comparison.isWorst {
                             Text(comparison.isBest ? "Mejor tanque" : "Peor tanque")
@@ -365,6 +370,7 @@ struct ReportExportPayload {
     let weeklyReports: [DetailedWeeklyReport]
     let monthlyReports: [DetailedMonthlyReport]
     let tankComparisons: [TankComparisonReport]
+    let distanceUnit: OdometerUnit
 }
 
 enum ReportExportService {
@@ -431,7 +437,7 @@ enum ReportExportService {
                 } else {
                     for report in payload.weeklyReports.prefix(10) {
                         draw(
-                            "\(csvDate(report.weekStart)) | \(formatDecimal(report.distanceKilometers)) km | \(report.kmPerGallon.map { formatDecimal($0) } ?? "N/A") km/gal | \(report.valueOrigin.title)",
+                            "\(csvDate(report.weekStart)) | \(CartrackFormatters.distancePair(report.distanceKilometers, unit: payload.distanceUnit)) | \(report.kmPerGallon.map { formatDecimal($0) } ?? "N/A") km/gal | \(report.valueOrigin.title)",
                             font: .systemFont(ofSize: 13)
                         )
                     }
@@ -443,7 +449,7 @@ enum ReportExportService {
                 } else {
                     for report in payload.monthlyReports.prefix(10) {
                         draw(
-                            "\(csvDate(report.monthStart)) | Pagado \(CartrackFormatters.currency(report.totalPaid)) | \(formatDecimal(report.distanceKilometers)) km | \(report.consumptionOrigin.title)",
+                            "\(csvDate(report.monthStart)) | Pagado \(CartrackFormatters.currency(report.totalPaid)) | \(CartrackFormatters.distancePair(report.distanceKilometers, unit: payload.distanceUnit)) | \(report.consumptionOrigin.title)",
                             font: .systemFont(ofSize: 13)
                         )
                     }
@@ -457,7 +463,7 @@ enum ReportExportService {
                 for comparison in payload.tankComparisons.prefix(10) {
                     let badge = comparison.isBest ? "Mejor" : comparison.isWorst ? "Peor" : "Normal"
                     draw(
-                        "\(csvDate(comparison.startDate)) - \(csvDate(comparison.endDate)) | \(formatDecimal(comparison.distanceKilometers)) km | \(formatDecimal(comparison.kmPerGallon)) km/gal | \(badge)",
+                        "\(csvDate(comparison.startDate)) - \(csvDate(comparison.endDate)) | \(CartrackFormatters.distancePair(comparison.distanceKilometers, unit: payload.distanceUnit)) | \(formatDecimal(comparison.kmPerGallon)) km/gal | \(badge)",
                         font: .systemFont(ofSize: 13)
                     )
                 }

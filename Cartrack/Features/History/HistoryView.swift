@@ -37,7 +37,7 @@ struct HistoryView: View {
                     kind: .fillUp,
                     date: $0.date,
                     title: $0.vehicle?.displayName ?? "Llenado",
-                    subtitle: "\(CartrackFormatters.currency($0.totalCost)) • \(CartrackFormatters.decimal($0.gallons, suffix: "gal")) • \($0.isFullTank ? "tanque lleno" : "parcial") • \(CartrackFormatters.decimal($0.fuelLevelRemaining, suffix: "esp"))",
+                    subtitle: "\(CartrackFormatters.currency($0.totalCost)) • \(CartrackFormatters.gallons($0.gallons)) • \($0.isFullTank ? "tanque lleno" : "parcial") • \(CartrackFormatters.decimal($0.fuelLevelRemaining, suffix: "esp"))",
                     fillEvent: $0,
                     snapshotEvent: nil
                 )
@@ -51,7 +51,7 @@ struct HistoryView: View {
                     kind: .snapshot,
                     date: $0.date,
                     title: $0.vehicle?.displayName ?? "Snapshot",
-                    subtitle: "\(CartrackFormatters.decimal($0.odometerKilometers, suffix: "km")) • \(CartrackFormatters.decimal($0.fuelLevelRemaining, suffix: "esp"))",
+                    subtitle: "\(CartrackFormatters.distancePrimary($0.odometerKilometers, unit: $0.vehicle?.odometerUnit ?? .miles)) • \(CartrackFormatters.decimal($0.fuelLevelRemaining, suffix: "esp"))",
                     fillEvent: nil,
                     snapshotEvent: $0
                 )

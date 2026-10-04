@@ -25,6 +25,12 @@ struct VisionOCRTextRecognizer: OCRTextRecognizing {
         let labeledDisplayTexts = await instrumentClusterLabeledFieldVariants(from: cgImage).asyncMap { variant in
             let text = await recognize(cgImage: variant.image).trimmed
             guard !text.isEmpty else { return "" }
+            if variant.label == "tripRecovery" {
+                return text.components(separatedBy: .newlines)
+                    .filter { !$0.trimmed.isEmpty }
+                    .map { "tripRecovery \($0)" }
+                    .joined(separator: "\n")
+            }
             return "\(variant.label) \(text)"
         }
 
@@ -149,7 +155,27 @@ struct VisionOCRTextRecognizer: OCRTextRecognizing {
             ]
             .compactMap { $0 }
             .map { LabeledClusterCrop(label: item.label, image: $0) }
+        } + labeledTripCandidates(from: cgImage)
+    }
+
+    private func labeledTripCandidates(from cgImage: CGImage) -> [LabeledClusterCrop] {
+        // Portrait dashboard photos can place the display above the usual
+        // band. This crop is intentionally trip-only: it may supply a clear
+        // trip value for contextual reconciliation, never an odometer.
+        guard let crop = crop(
+            cgImage,
+            normalizedRect: CGRect(x: 0.20, y: 0.35, width: 0.62, height: 0.20)
+        ) else {
+            return []
         }
+        return [
+            crop,
+            enhanced(crop, exposure: 0.2, contrast: 1.5, grayscale: false, inverted: false),
+            enhanced(crop, exposure: -0.3, contrast: 2.5, grayscale: true, inverted: true),
+            enhanced(crop, exposure: 1.0, contrast: 3.0, grayscale: false, inverted: false),
+        ]
+        .compactMap { $0 }
+        .map { LabeledClusterCrop(label: "tripRecovery", image: $0) }
     }
 }
 
@@ -472,6 +498,15 @@ final class OCRService: @unchecked Sendable {
             $0.value >= previous.tripMiles
                 && $0.value - previous.tripMiles <= 1_000
         }
+        let recoveryTripCandidates = groupedDigitCandidates(
+            recoveryTripDigits(in: recognizedText).flatMap {
+                expandedDigitCandidates(rawDigits: $0, decimalPlaces: 1)
+            }
+        )
+        .filter {
+            $0.value >= previous.tripMiles
+                && $0.value - previous.tripMiles <= 50
+        }
 
         var best: (reading: InstrumentClusterReading, score: Double)?
         for odometer in odometerCandidates {
@@ -498,7 +533,45 @@ final class OCRService: @unchecked Sendable {
                 }
             }
         }
-        return best?.reading
+        if let best {
+            return best.reading
+        }
+
+        guard !odometerCandidates.contains(where: { $0.edits == 0 }),
+              let exactTrip = recoveryTripCandidates
+                .filter({ $0.edits == 0 })
+                .sorted(by: {
+                    if $0.support != $1.support {
+                        return $0.support > $1.support
+                    }
+                    return ($0.value - previous.tripMiles) < ($1.value - previous.tripMiles)
+                })
+                .first
+        else {
+            return nil
+        }
+
+        let tripDelta = exactTrip.value - previous.tripMiles
+        // A trip-only OCR read cannot prove that it belongs to the latest
+        // snapshot. Keep this fallback to a short, routine drive so it never
+        // fabricates an odometer from an old reading or a reset trip meter.
+        guard tripDelta >= 0, tripDelta <= 50 else { return nil }
+
+        return InstrumentClusterReading(
+            odometerMiles: (previous.odometerMiles + tripDelta).rounded(),
+            tripMiles: exactTrip.value,
+            confidence: 0.70
+        )
+    }
+
+    private func recoveryTripDigits(in recognizedText: String) -> Set<String> {
+        Set(recognizedText.components(separatedBy: .newlines).compactMap { line in
+            guard line.lowercased().hasPrefix("triprecovery ") else { return nil }
+            let value = String(line.dropFirst("tripRecovery ".count))
+            return value.components(separatedBy: .whitespaces).reversed().first { token in
+                token.count == 4 && token.allSatisfy { ("0"..."9").contains($0) }
+            }
+        })
     }
 
     private func clusterDigitCandidates(
@@ -509,6 +582,9 @@ final class OCRService: @unchecked Sendable {
         let labelPattern = #"miles?|mils?|millas?|mileg|miteg|wiles?"#
 
         for line in recognizedText.components(separatedBy: .newlines) {
+            if line.lowercased().hasPrefix("triprecovery ") {
+                continue
+            }
             if let labelRange = line.range(
                 of: labelPattern,
                 options: [.regularExpression, .caseInsensitive]
@@ -816,7 +892,6 @@ struct BMWZ4ClusterDisplayReader: InstrumentClusterReadingProviding {
 
         return nil
     }
-
 
     private func readAlignedDisplay(from cgImage: CGImage) -> InstrumentClusterReading? {
         guard let crop = crop(cgImage, normalizedRect: Self.alignedDisplayRect),
