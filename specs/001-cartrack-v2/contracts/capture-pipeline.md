@@ -24,6 +24,8 @@ Cada imagen incluye ID, tipo declarado opcional, orientación y ubicación local
 7. `confidence`: puntúa por campo y produce banda.
 8. `draftAssembly`: crea un borrador precargado.
 
+T08 implementa la preparación local previa a OCR: normaliza orientación, muestrea una imagen de 96 px para métricas de nitidez/exposición/color/borde, clasifica de forma conservadora con el tipo declarado como pista y genera variantes temporales de máximo 2200 px (`normalized`, `highContrast`, `monochrome`, `redDisplay` para tablero). La salida son objetos `CGImage` en memoria, sin rutas ni escritura a disco. El tablero no se divide automáticamente en odómetro frente a nivel de tanque si falta una pista confiable; se devuelve `other`. T10 conectará esta preparación al flujo de captura y T09 añadirá confianza por campo, por lo que sus umbrales iniciales no equivalen a confirmación automática.
+
 ## Salida
 
 ```swift
@@ -66,6 +68,11 @@ El puntaje numérico y la banda se versionan. Cambiar umbrales exige pruebas de 
 |---|---|
 | `image.tooBlurred` | repetir esa imagen |
 | `image.overexposed` | repetir o aceptar si campos pasan |
+| `image.underexposed` | repetir con más luz o corregir manualmente |
+| `image.orientationCorrected` | continuar con imagen normalizada |
+| `image.lowResolution` | repetir si los campos no son legibles |
+| `image.possibleGlare` | revisar reflejo y repetir esa imagen si afecta lectura |
+| `image.possibleCrop` | revisar bordes de factura y repetir si falta información |
 | `image.wrongKind` | reclasificar/reemplazar |
 | `ocr.noText` | repetir o entrada manual |
 | `field.conflict` | elegir candidato/corregir |

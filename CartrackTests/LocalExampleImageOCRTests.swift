@@ -3,6 +3,33 @@ import XCTest
 @testable import Cartrack
 
 final class LocalExampleImageOCRTests: XCTestCase {
+    func testPrivateImagePreparationKeepsDeclaredEvidenceAndVariantsLocal() throws {
+        let manifest = try loadManifest()
+        let pipeline = CaptureImagePipeline()
+        let scenarioFilter = ProcessInfo.processInfo.environment["CARTRACK_PRIVATE_SCENARIO_ID"]
+
+        for scenario in manifest.scenarios
+        where !scenario.excluded && (scenarioFilter == nil || scenario.id == scenarioFilter) {
+            let images: [(String?, CaptureImageKind)] = [
+                (scenario.invoiceImage, .invoice),
+                (scenario.odometerImage, .odometer),
+                (scenario.fuelImage, .fuelLevel),
+            ]
+            for (path, kind) in images {
+                guard let image = try loadOptionalImage(relativePath: path, scenarioID: scenario.id) else {
+                    continue
+                }
+                let result = try pipeline.prepare(image, declaredKind: kind)
+                XCTAssertFalse(result.quality.issues.contains(.wrongKind),
+                               "scenario=\(scenario.id), declared=\(kind.rawValue), inferred=\(result.classification.kind.rawValue)")
+                XCTAssertFalse(result.variants.isEmpty, "scenario=\(scenario.id)")
+                XCTAssertTrue(result.variants.allSatisfy {
+                    max($0.image.width, $0.image.height) <= 2_200
+                }, "scenario=\(scenario.id)")
+            }
+        }
+    }
+
     func testPrivateManifestCoversEveryAvailableImage() throws {
         let manifest = try loadManifest()
         let declaredPaths = Set(manifest.scenarios.flatMap(\.imagePaths))

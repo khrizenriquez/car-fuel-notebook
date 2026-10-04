@@ -60,10 +60,11 @@
 
 ## Fase 2 — Canalización OCR
 
-- [ ] **T08 — Agregar calidad, clasificación y preprocesamiento de imágenes**
+- [x] **T08 — Agregar calidad, clasificación y preprocesamiento de imágenes**
   - Commit: `Add capture quality and image classification pipeline`
   - Alcance: blur/exposición/orientación/clase y variantes temporales.
   - Gate: fixtures por problema y cero persistencia de variantes.
+  - Evidencia: 6 pruebas sintéticas cubren factura/tablero, tipo erróneo, desenfoque, sobre/subexposición, orientación, reflejo, recorte y tamaño máximo; 1 prueba privada pasó sobre 15 escenarios/30 posiciones de imagen sin falsas alertas de clase. Integración pública iOS: 46 aprobadas, 4 privadas omitidas, 0 fallidas. Las variantes son solo `CGImage` en memoria; T10 conectará el servicio al flujo de captura.
 
 - [ ] **T09 — Modelar candidatos, validación cruzada y confianza por campo**
   - Commit: `Add field candidates and confidence scoring`
@@ -158,6 +159,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T07 completado; sigue T08 (calidad, clasificación y preprocesamiento de imágenes).
+- Implementación v2: T08 completado; sigue T09 (candidatos, validación cruzada y confianza por campo).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.
