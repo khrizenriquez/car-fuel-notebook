@@ -16,6 +16,7 @@ struct CartrackApp: App {
             if isUITesting && arguments.contains("--seed-latest-z4-snapshot") {
                 try UITestSeedData.insertLatestZ4SnapshotScenario(into: container)
             }
+            _ = try SwiftDataCaptureSessionRepository.recoverOnLaunch(in: container)
             bootstrapResult = .success(container)
         } catch {
             bootstrapResult = .failure(error)
@@ -108,6 +109,7 @@ private enum UITestSeedData {
     }
 
     private static func deleteAllData(in context: ModelContext) throws {
+        try context.fetch(FetchDescriptor<CaptureSessionRecord>()).forEach(context.delete)
         try context.fetch(FetchDescriptor<OCRFieldEvidence>()).forEach(context.delete)
         try context.fetch(FetchDescriptor<LocalPhotoAsset>()).forEach(context.delete)
         try context.fetch(FetchDescriptor<V2RecordExtras>()).forEach(context.delete)

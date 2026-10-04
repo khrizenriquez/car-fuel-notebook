@@ -70,10 +70,14 @@ Representa una carga parcial o completa.
 | `id` | UUID | único |
 | `vehicleID` | UUID? | puede asignarse durante flujo |
 | `kind` | fillUp/snapshot | obligatorio |
-| `state` | draft/analyzing/review/confirmed/failed | máquina de estados |
+| `state` | draft/analyzing/review/confirmed/failedRecoverable/failedTerminal/discarded | máquina de estados |
 | `createdAt`, `updatedAt` | Date | recuperación |
+| `revision` | Int64 | control optimista de concurrencia |
 | `lastErrorCode` | String? | sin datos sensibles |
-| `draftPayload` | codificable | escritura atómica |
+| `confirmedEventID` | UUID? | obligatorio al confirmar |
+| `draftPayload`, `draftSHA256` | Data codificable + digest | escritura atómica, integridad verificada al recuperar |
+
+El borrador guarda valores canónicos y solo IDs de fotos, nunca bytes ni rutas. Al relanzar, `analyzing` pasa a `failedRecoverable` con `session.interruptedAnalysis`. El descarte vacía el borrador y elimina evidencia OCR no confirmada; la limpieza de archivos y `LocalPhotoAsset` corresponde a T14.
 
 ### LocalPhotoAsset (solo local)
 

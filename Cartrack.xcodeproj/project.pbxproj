@@ -17,6 +17,8 @@
 		A60600000000000000000011 /* V2LocalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60600000000000000000001 /* V2LocalModels.swift */; };
 		A60600000000000000000012 /* V2Domain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60600000000000000000002 /* V2Domain.swift */; };
 		A60600000000000000000013 /* SwiftDataRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60600000000000000000003 /* SwiftDataRepositories.swift */; };
+		A70700000000000000000011 /* CaptureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70700000000000000000001 /* CaptureSession.swift */; };
+		A70700000000000000000012 /* CaptureSessionPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70700000000000000000002 /* CaptureSessionPersistence.swift */; };
 		1180B3C13BD3D7747670B211 /* FillUpFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EDE99D9FCD8D62647ACD1E /* FillUpFormView.swift */; };
 		16CF094640D71334435A0589 /* OCRTextParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D64CAF23F97871DFD566F7B /* OCRTextParser.swift */; };
 		1DCE7E5963093E5A535656B2 /* MonthlyManualAdjustment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CA66271BDC6F4A36EDC893 /* MonthlyManualAdjustment.swift */; };
@@ -114,6 +116,8 @@
 		A60600000000000000000001 /* V2LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2LocalModels.swift; sourceTree = "<group>"; };
 		A60600000000000000000002 /* V2Domain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2Domain.swift; sourceTree = "<group>"; };
 		A60600000000000000000003 /* SwiftDataRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataRepositories.swift; sourceTree = "<group>"; };
+		A70700000000000000000001 /* CaptureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSession.swift; sourceTree = "<group>"; };
+		A70700000000000000000002 /* CaptureSessionPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSessionPersistence.swift; sourceTree = "<group>"; };
 		8F7EF8AE75D61DB2EB589E2E /* CartrackTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CartrackTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		98A3E24FC1A3ACA6E2E344B2 /* ImageCaptureField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCaptureField.swift; sourceTree = "<group>"; };
 		A74F5A2754B031D8D7C135F4 /* String+Parsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Parsing.swift"; sourceTree = "<group>"; };
@@ -209,6 +213,8 @@
 				A60600000000000000000001 /* V2LocalModels.swift */,
 				A60600000000000000000002 /* V2Domain.swift */,
 				A60600000000000000000003 /* SwiftDataRepositories.swift */,
+				A70700000000000000000001 /* CaptureSession.swift */,
+				A70700000000000000000002 /* CaptureSessionPersistence.swift */,
 			);
 			name = CartrackCore;
 			path = CartrackCore/Sources/CartrackCore;
@@ -440,6 +446,8 @@
 				A60600000000000000000011 /* V2LocalModels.swift in Sources */,
 				A60600000000000000000012 /* V2Domain.swift in Sources */,
 				A60600000000000000000013 /* SwiftDataRepositories.swift in Sources */,
+				A70700000000000000000011 /* CaptureSession.swift in Sources */,
+				A70700000000000000000012 /* CaptureSessionPersistence.swift in Sources */,
 				3234421CBC530A369C96B1CD /* DashboardView.swift in Sources */,
 				27B440B6BA026228BD3BBB0B /* Date+Cartrack.swift in Sources */,
 				976DB9C63E2B81AD9E1D41F9 /* EmptyStateView.swift in Sources */,

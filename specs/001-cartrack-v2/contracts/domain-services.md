@@ -8,11 +8,13 @@ protocol FuelEntryRepository
 protocol UsageSnapshotRepository
 protocol PhotoAssetRepository
 protocol OCRFieldEvidenceRepository
-// T07: CaptureSessionRepository
+protocol CaptureSessionRepository
 // T16: CalibrationRepository
 ```
 
-Los cinco contratos T06 exponen operaciones asíncronas/throwing, aceptan IDs de dominio y no filtran tipos de SwiftData a capas superiores. Sus adaptadores `SwiftData*Repository` trabajan con registros codificables de dominio y un `ModelContext` confinado al actor principal. Captura y calibración se incorporan cuando existan sus modelos en T07 y T16.
+Los cinco contratos T06 y `CaptureSessionRepository` de T07 exponen operaciones asíncronas/throwing, aceptan IDs de dominio y no filtran tipos de SwiftData a capas superiores. Sus adaptadores `SwiftData*Repository` trabajan con registros codificables de dominio y un `ModelContext` confinado al actor principal. Calibración se incorpora en T16.
+
+`CaptureSessionRepository` permite crear, leer, enumerar sesiones reanudables, actualizar borradores por revisión, transicionar estado, descartar y recuperar análisis interrumpido. El adaptador guarda cada borrador en una sola fila con digest SHA-256 y contexto sin autosave. El arranque de la app realiza la recuperación de `analyzing` antes de mostrar la UI. La confirmación de eventos mediante caso de uso queda para T12.
 
 El dominio usa `Decimal` para dinero, volumen, distancia y nivel; el adaptador traduce hacia/desde los `Double` físicos v1 sin exponerlos al consumidor. `SyncMetadata` es un valor del dominio; físicamente se guarda en `SyncMetadataRecord` 1:1 por UUID. `V2RecordExtras` conserva los nuevos valores que las cinco tablas v1 no tienen, sin alterarlas. Las revisiones obsoletas dan `repository.conflict`; un vehículo ausente da `entity.notFound`.
 

@@ -52,10 +52,11 @@
   - Gate: unitarias puras + integración de repositorios; app compila.
   - Evidencia: 99/99 core, cobertura de fuentes 90.20%; integración iOS sin fallos, suite pública UI de 14 pruebas (1 omitida por fixture privado), OCR privado 8/8 y Photos E2E 1/1. Migración de store T05 a esquema aditivo v2 verificada; simuladores apagados.
 
-- [ ] **T07 — Persistir sesiones de captura recuperables**
+- [x] **T07 — Persistir sesiones de captura recuperables**
   - Commit: `Persist recoverable capture sessions`
   - Alcance: máquina de estados, borradores atómicos, reanudación y descarte explícito.
   - Gate: relanzamiento durante draft/analyzing/review.
+  - Evidencia: 9 pruebas de sesión cubren relanzamiento en `draft`, `analyzing` y `review`, fallo antes del commit, corrupción aislada, descarte de borrador/evidencia OCR, revisión obsoleta y actualización de store T06→T07. Core 108/108 con cobertura 90.34%; integración iOS 43 pruebas (3 privadas omitidas), UI 14 (1 privada omitida), sin fallos. La vinculación transaccional del evento confirmado y la limpieza de fotos locales corresponden a T12 y T14.
 
 ## Fase 2 — Canalización OCR
 
@@ -157,6 +158,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T06 completado; sigue T07 (sesiones de captura recuperables).
+- Implementación v2: T07 completado; sigue T08 (calidad, clasificación y preprocesamiento de imágenes).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

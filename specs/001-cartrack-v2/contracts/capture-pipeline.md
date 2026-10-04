@@ -45,9 +45,11 @@ CaptureAnalysisResult(
 draft → analyzing → review → confirmed
                  ↘ failedRecoverable → analyzing
                  ↘ failedTerminal
+draft/analyzing/review/failedRecoverable/failedTerminal → discarded
 ```
 
 Solo `review` puede confirmar. `confirmed` es inmutable como sesión; editar el evento crea una nueva revisión auditada.
+La sesión y su borrador son locales; cada escritura verifica la revisión esperada. Al relanzar, `analyzing` se convierte en `failedRecoverable`, preservando el borrador para reintento. Una sesión corrupta se reporta por ID sin impedir la recuperación de otras. Descartar elimina el contenido del borrador y su evidencia OCR no confirmada; T14 gestionará los archivos de fotos locales. La vinculación transaccional del evento confirmado se implementa en T12.
 
 ## Reglas de selección
 

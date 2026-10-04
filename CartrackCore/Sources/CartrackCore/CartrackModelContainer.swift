@@ -27,10 +27,11 @@ enum CartrackV1Schema: VersionedSchema {
 }
 
 enum CartrackV2Schema: VersionedSchema {
-    static let versionIdentifier = Schema.Version(2, 0, 1)
+    static let versionIdentifier = Schema.Version(2, 0, 2)
     static var models: [any PersistentModel.Type] {
         CartrackV1Schema.models + [LocalStoreVersion.self, SyncMetadataRecord.self,
-                                   V2RecordExtras.self, LocalPhotoAsset.self, OCRFieldEvidence.self]
+                                   V2RecordExtras.self, LocalPhotoAsset.self, OCRFieldEvidence.self,
+                                   CaptureSessionRecord.self]
     }
 }
 
