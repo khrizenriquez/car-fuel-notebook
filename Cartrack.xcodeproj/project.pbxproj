@@ -14,6 +14,9 @@
 		0617D3B5A92E4C7F8D1E2034 /* ReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0617D3B5A92E4C7F8D1E2033 /* ReportsView.swift */; };
 		085AFC4E3D43D4C2903E6F8A /* VehicleFilterPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2112C49AAD17241AF9F6C915 /* VehicleFilterPicker.swift */; };
 		08E00C2324DC4E469ABD2AD0 /* CartrackModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8D9FF5823C3BE7335FBD9F /* CartrackModelContainer.swift */; };
+		A60600000000000000000011 /* V2LocalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60600000000000000000001 /* V2LocalModels.swift */; };
+		A60600000000000000000012 /* V2Domain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60600000000000000000002 /* V2Domain.swift */; };
+		A60600000000000000000013 /* SwiftDataRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60600000000000000000003 /* SwiftDataRepositories.swift */; };
 		1180B3C13BD3D7747670B211 /* FillUpFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19EDE99D9FCD8D62647ACD1E /* FillUpFormView.swift */; };
 		16CF094640D71334435A0589 /* OCRTextParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D64CAF23F97871DFD566F7B /* OCRTextParser.swift */; };
 		1DCE7E5963093E5A535656B2 /* MonthlyManualAdjustment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CA66271BDC6F4A36EDC893 /* MonthlyManualAdjustment.swift */; };
@@ -108,6 +111,9 @@
 		880DC0045036475992FC83F1 /* VehicleFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleFormView.swift; sourceTree = "<group>"; };
 		8C17E4B1082036E1FA855032 /* CartrackUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CartrackUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8C8D9FF5823C3BE7335FBD9F /* CartrackModelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartrackModelContainer.swift; sourceTree = "<group>"; };
+		A60600000000000000000001 /* V2LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2LocalModels.swift; sourceTree = "<group>"; };
+		A60600000000000000000002 /* V2Domain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = V2Domain.swift; sourceTree = "<group>"; };
+		A60600000000000000000003 /* SwiftDataRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataRepositories.swift; sourceTree = "<group>"; };
 		8F7EF8AE75D61DB2EB589E2E /* CartrackTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CartrackTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		98A3E24FC1A3ACA6E2E344B2 /* ImageCaptureField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCaptureField.swift; sourceTree = "<group>"; };
 		A74F5A2754B031D8D7C135F4 /* String+Parsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Parsing.swift"; sourceTree = "<group>"; };
@@ -200,6 +206,9 @@
 				A74F5A2754B031D8D7C135F4 /* String+Parsing.swift */,
 				D61676CF2005658E587C15D3 /* UnitConversion.swift */,
 				27F551451AAE68896BB8F2BD /* Vehicle.swift */,
+				A60600000000000000000001 /* V2LocalModels.swift */,
+				A60600000000000000000002 /* V2Domain.swift */,
+				A60600000000000000000003 /* SwiftDataRepositories.swift */,
 			);
 			name = CartrackCore;
 			path = CartrackCore/Sources/CartrackCore;
@@ -428,6 +437,9 @@
 				73B251F7896EC1167CF1626B /* CaptureHomeView.swift in Sources */,
 				3A3D15E12EAEBCD8D8DB12C9 /* CartrackApp.swift in Sources */,
 				08E00C2324DC4E469ABD2AD0 /* CartrackModelContainer.swift in Sources */,
+				A60600000000000000000011 /* V2LocalModels.swift in Sources */,
+				A60600000000000000000012 /* V2Domain.swift in Sources */,
+				A60600000000000000000013 /* SwiftDataRepositories.swift in Sources */,
 				3234421CBC530A369C96B1CD /* DashboardView.swift in Sources */,
 				27B440B6BA026228BD3BBB0B /* Date+Cartrack.swift in Sources */,
 				976DB9C63E2B81AD9E1D41F9 /* EmptyStateView.swift in Sources */,

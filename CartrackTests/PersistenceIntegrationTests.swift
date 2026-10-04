@@ -4,6 +4,38 @@ import XCTest
 @testable import Cartrack
 
 final class PersistenceIntegrationTests: XCTestCase {
+    func testSyncMetadataMaintainerTracksBaselineSavesAndDeletion() throws {
+        let context = try IntegrationTestSupport.makeInMemoryContext()
+        let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)
+        let fill = FuelFillEvent(vehicle: vehicle, odometerKilometers: 1_000,
+                                 gallons: 10, pricePerGallon: 40, totalCost: 400)
+        context.insert(vehicle)
+        context.insert(fill)
+        try SyncMetadataMaintainer.recordChange(ownerID: vehicle.id, kind: "vehicle",
+                                                createdAt: vehicle.createdAt, updatedAt: vehicle.createdAt,
+                                                in: context)
+        try SyncMetadataMaintainer.recordChange(ownerID: fill.id, kind: "fuelEntry",
+                                                createdAt: fill.createdAt, updatedAt: fill.updatedAt,
+                                                in: context)
+        try context.save()
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SyncMetadataRecord>()).count, 2)
+
+        fill.notes = "edited"
+        fill.updatedAt = .now
+        try SyncMetadataMaintainer.recordChange(ownerID: fill.id, kind: "fuelEntry",
+                                                createdAt: fill.createdAt, updatedAt: fill.updatedAt,
+                                                in: context)
+        try context.save()
+        let fillMetadata = try context.fetch(FetchDescriptor<SyncMetadataRecord>())
+            .first { $0.ownerID == fill.id }
+        XCTAssertEqual(fillMetadata?.revision, 2)
+
+        try EventDeletionService.delete(fillEvent: fill, context: context)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SyncMetadataRecord>()).count, 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SyncMetadataRecord>()).first?.ownerID,
+                       vehicle.id)
+    }
+
     func testInMemoryContainerPersistsVehicleAndEventsInsideContext() throws {
         let context = try IntegrationTestSupport.makeInMemoryContext()
         let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)

@@ -108,6 +108,10 @@ private enum UITestSeedData {
     }
 
     private static func deleteAllData(in context: ModelContext) throws {
+        try context.fetch(FetchDescriptor<OCRFieldEvidence>()).forEach(context.delete)
+        try context.fetch(FetchDescriptor<LocalPhotoAsset>()).forEach(context.delete)
+        try context.fetch(FetchDescriptor<V2RecordExtras>()).forEach(context.delete)
+        try context.fetch(FetchDescriptor<SyncMetadataRecord>()).forEach(context.delete)
         try context.fetch(FetchDescriptor<ImageAsset>()).forEach(context.delete)
         try context.fetch(FetchDescriptor<SnapshotEvent>()).forEach(context.delete)
         try context.fetch(FetchDescriptor<FuelFillEvent>()).forEach(context.delete)

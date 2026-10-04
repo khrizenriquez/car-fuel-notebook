@@ -27,9 +27,10 @@ enum CartrackV1Schema: VersionedSchema {
 }
 
 enum CartrackV2Schema: VersionedSchema {
-    static let versionIdentifier = Schema.Version(2, 0, 0)
+    static let versionIdentifier = Schema.Version(2, 0, 1)
     static var models: [any PersistentModel.Type] {
-        CartrackV1Schema.models + [LocalStoreVersion.self]
+        CartrackV1Schema.models + [LocalStoreVersion.self, SyncMetadataRecord.self,
+                                   V2RecordExtras.self, LocalPhotoAsset.self, OCRFieldEvidence.self]
     }
 }
 
@@ -188,6 +189,8 @@ private struct LocalStoreMigrator {
                   version.schemaVersion == 2, version.sourceFingerprint == pointer.sourceFingerprint else {
                 throw StoreMigrationError.invalidActiveStore
             }
+            try backfillSyncMetadata(in: ModelContext(container))
+            try backfillLegacyOCREvidence(in: ModelContext(container))
             return container
         }
 
@@ -240,6 +243,8 @@ private struct LocalStoreMigrator {
         }
         let version = LocalStoreVersion(sourceFingerprint: candidateInventory.fingerprint)
         context.insert(version)
+        try backfillSyncMetadata(in: context)
+        try backfillLegacyOCREvidence(in: context)
         try context.save()
         try inject(.beforeActivation)
 
@@ -279,6 +284,70 @@ private struct LocalStoreMigrator {
         let configuration = ModelConfiguration("CartrackDataV2", schema: schema, url: url,
                                                allowsSave: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [configuration])
+    }
+
+    private func backfillSyncMetadata(in context: ModelContext) throws {
+        let existing = Set(try context.fetch(FetchDescriptor<SyncMetadataRecord>()).map(\.ownerID))
+        var added = false
+        for vehicle in try context.fetch(FetchDescriptor<Vehicle>()) where !existing.contains(vehicle.id) {
+            context.insert(SyncMetadataRecord(ownerID: vehicle.id, ownerKindRawValue: "vehicle",
+                                              createdAt: vehicle.createdAt, updatedAt: vehicle.createdAt))
+            added = true
+        }
+        for fill in try context.fetch(FetchDescriptor<FuelFillEvent>()) where !existing.contains(fill.id) {
+            context.insert(SyncMetadataRecord(ownerID: fill.id, ownerKindRawValue: "fuelEntry",
+                                              createdAt: fill.createdAt, updatedAt: fill.updatedAt))
+            added = true
+        }
+        for snapshot in try context.fetch(FetchDescriptor<SnapshotEvent>()) where !existing.contains(snapshot.id) {
+            context.insert(SyncMetadataRecord(ownerID: snapshot.id, ownerKindRawValue: "usageSnapshot",
+                                              createdAt: snapshot.createdAt, updatedAt: snapshot.updatedAt))
+            added = true
+        }
+        if added { try context.save() }
+    }
+
+    private func backfillLegacyOCREvidence(in context: ModelContext) throws {
+        let existing = Set(try context.fetch(FetchDescriptor<OCRFieldEvidence>())
+            .compactMap { evidence -> String? in
+                guard let ownerEventID = evidence.ownerEventID else { return nil }
+                return "\(ownerEventID.uuidString):\(evidence.fieldRawValue)"
+            })
+        var added = false
+        func insertIfMissing(eventID: UUID, field: String, value: Double?, unit: String) {
+            guard let value, !existing.contains("\(eventID.uuidString):\(field)") else { return }
+            context.insert(OCRFieldEvidence(sessionID: eventID, ownerEventID: eventID,
+                                            fieldRawValue: field, normalizedValue: String(value),
+                                            unit: unit, confidenceDecimal: "0",
+                                            confidenceBandRawValue: "unknown",
+                                            validationCodes: ["legacy.provenanceUnknown"],
+                                            algorithmVersion: "legacy-v1"))
+            added = true
+        }
+        for fill in try context.fetch(FetchDescriptor<FuelFillEvent>()) {
+            if !fill.invoiceOCRText.isEmpty {
+                insertIfMissing(eventID: fill.id, field: "amount", value: fill.totalCost, unit: "GTQ")
+                insertIfMissing(eventID: fill.id, field: "price", value: fill.pricePerGallon, unit: "GTQ/gal")
+                insertIfMissing(eventID: fill.id, field: "volume", value: fill.gallons, unit: "gal")
+            }
+            if !fill.odometerOCRText.isEmpty {
+                insertIfMissing(eventID: fill.id, field: "odometer", value: fill.odometerKilometers, unit: "km")
+                insertIfMissing(eventID: fill.id, field: "trip", value: fill.tripKilometers, unit: "km")
+            }
+            if !fill.fuelLevelOCRText.isEmpty {
+                insertIfMissing(eventID: fill.id, field: "fuel", value: fill.fuelLevelRemaining, unit: "segments")
+            }
+        }
+        for snapshot in try context.fetch(FetchDescriptor<SnapshotEvent>()) {
+            if !snapshot.odometerOCRText.isEmpty {
+                insertIfMissing(eventID: snapshot.id, field: "odometer", value: snapshot.odometerKilometers, unit: "km")
+                insertIfMissing(eventID: snapshot.id, field: "trip", value: snapshot.tripKilometers, unit: "km")
+            }
+            if !snapshot.fuelLevelOCRText.isEmpty {
+                insertIfMissing(eventID: snapshot.id, field: "fuel", value: snapshot.fuelLevelRemaining, unit: "segments")
+            }
+        }
+        if added { try context.save() }
     }
 
     private func inject(_ checkpoint: StoreMigrationCheckpoint) throws {

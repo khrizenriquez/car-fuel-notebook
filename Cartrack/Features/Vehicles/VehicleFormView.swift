@@ -140,6 +140,9 @@ struct VehicleFormView: View {
         }
 
         do {
+            try SyncMetadataMaintainer.recordChange(ownerID: target.id, kind: "vehicle",
+                                                    createdAt: target.createdAt, updatedAt: .now,
+                                                    in: modelContext)
             try modelContext.save()
             dismiss()
         } catch {

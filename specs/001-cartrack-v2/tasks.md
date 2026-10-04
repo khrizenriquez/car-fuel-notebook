@@ -46,10 +46,11 @@
   - Gate: migración vacía/multivehículo/con imágenes + fallos inyectados.
   - Evidencia: 5 pruebas de migración (instalación limpia, v1 vacío, multivehículo/foto, foto ausente y 3 checkpoints de fallo); 92/92 core y 7/7 pruebas iOS de persistencia. V1 y fotos permanecen locales e intactos.
 
-- [ ] **T06 — Separar dominio, repositorios y metadatos cloud-ready**
+- [x] **T06 — Separar dominio, repositorios y metadatos cloud-ready**
   - Commit: `Separate domain repositories from local persistence`
   - Alcance: protocolos, adaptadores SwiftData, SyncMetadata, DTO internos, `LocalPhotoAsset` y `OCRFieldEvidence`.
   - Gate: unitarias puras + integración de repositorios; app compila.
+  - Evidencia: 99/99 core, cobertura de fuentes 90.20%; integración iOS sin fallos, suite pública UI de 14 pruebas (1 omitida por fixture privado), OCR privado 8/8 y Photos E2E 1/1. Migración de store T05 a esquema aditivo v2 verificada; simuladores apagados.
 
 - [ ] **T07 — Persistir sesiones de captura recuperables**
   - Commit: `Persist recoverable capture sessions`
@@ -156,6 +157,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T05 completado; sigue T06 (dominio y repositorios).
+- Implementación v2: T06 completado; sigue T07 (sesiones de captura recuperables).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

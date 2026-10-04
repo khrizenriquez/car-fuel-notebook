@@ -9,6 +9,7 @@ enum EventDeletionService {
             .filter { $0.vehicle?.id == vehicleID }
         for fillEvent in fillEvents {
             try deleteAssets(eventID: fillEvent.id, ownerType: .fillUp, context: context)
+            try SyncMetadataMaintainer.remove(ownerID: fillEvent.id, in: context)
             context.delete(fillEvent)
         }
 
@@ -16,6 +17,7 @@ enum EventDeletionService {
             .filter { $0.vehicle?.id == vehicleID }
         for snapshotEvent in snapshotEvents {
             try deleteAssets(eventID: snapshotEvent.id, ownerType: .snapshot, context: context)
+            try SyncMetadataMaintainer.remove(ownerID: snapshotEvent.id, in: context)
             context.delete(snapshotEvent)
         }
 
@@ -25,18 +27,21 @@ enum EventDeletionService {
             context.delete(adjustment)
         }
 
+        try SyncMetadataMaintainer.remove(ownerID: vehicleID, in: context)
         context.delete(vehicle)
         try context.save()
     }
 
     static func delete(fillEvent: FuelFillEvent, context: ModelContext) throws {
         try deleteAssets(eventID: fillEvent.id, ownerType: .fillUp, context: context)
+        try SyncMetadataMaintainer.remove(ownerID: fillEvent.id, in: context)
         context.delete(fillEvent)
         try context.save()
     }
 
     static func delete(snapshotEvent: SnapshotEvent, context: ModelContext) throws {
         try deleteAssets(eventID: snapshotEvent.id, ownerType: .snapshot, context: context)
+        try SyncMetadataMaintainer.remove(ownerID: snapshotEvent.id, in: context)
         context.delete(snapshotEvent)
         try context.save()
     }

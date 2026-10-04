@@ -398,6 +398,10 @@ struct SnapshotFormView: View {
                 removedKinds: removedKinds(),
                 context: modelContext
             )
+            try SyncMetadataMaintainer.recordChange(ownerID: snapshot.id, kind: "usageSnapshot",
+                                                    createdAt: snapshot.createdAt,
+                                                    updatedAt: snapshot.updatedAt,
+                                                    in: modelContext)
             try modelContext.save()
             Task {
                 await ReminderService.shared.captureLogged()

@@ -177,6 +177,11 @@ enum BackupTransferService {
 
         let vehicleMap = Dictionary(uniqueKeysWithValues: vehicles.map { ($0.id, $0) })
         vehicles.forEach(context.insert)
+        for vehicle in vehicles {
+            try SyncMetadataMaintainer.recordChange(ownerID: vehicle.id, kind: "vehicle",
+                                                    createdAt: vehicle.createdAt,
+                                                    updatedAt: vehicle.createdAt, in: context)
+        }
 
         for record in payload.fillEvents {
             let fill = FuelFillEvent(
@@ -203,6 +208,9 @@ enum BackupTransferService {
                 updatedAt: record.updatedAt
             )
             context.insert(fill)
+            try SyncMetadataMaintainer.recordChange(ownerID: fill.id, kind: "fuelEntry",
+                                                    createdAt: fill.createdAt,
+                                                    updatedAt: fill.updatedAt, in: context)
         }
 
         for record in payload.snapshotEvents {
@@ -224,6 +232,9 @@ enum BackupTransferService {
                 updatedAt: record.updatedAt
             )
             context.insert(snapshot)
+            try SyncMetadataMaintainer.recordChange(ownerID: snapshot.id, kind: "usageSnapshot",
+                                                    createdAt: snapshot.createdAt,
+                                                    updatedAt: snapshot.updatedAt, in: context)
         }
 
         for record in payload.adjustments {
@@ -272,6 +283,10 @@ enum BackupTransferService {
         try context.fetch(FetchDescriptor<SnapshotEvent>()).forEach(context.delete)
         try context.fetch(FetchDescriptor<MonthlyManualAdjustment>()).forEach(context.delete)
         try context.fetch(FetchDescriptor<Vehicle>()).forEach(context.delete)
+        try context.fetch(FetchDescriptor<SyncMetadataRecord>()).forEach(context.delete)
+        try context.fetch(FetchDescriptor<V2RecordExtras>()).forEach(context.delete)
+        try context.fetch(FetchDescriptor<LocalPhotoAsset>()).forEach(context.delete)
+        try context.fetch(FetchDescriptor<OCRFieldEvidence>()).forEach(context.delete)
         try context.save()
     }
 

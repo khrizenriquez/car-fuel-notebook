@@ -42,7 +42,7 @@ enum MonthlyAllocationMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum OdometerUnit: String, Codable, CaseIterable, Identifiable {
+enum OdometerUnit: String, Codable, CaseIterable, Identifiable, Sendable {
     case miles = "mi"
     case kilometers = "km"
 

@@ -9,6 +9,7 @@ enum ResetService {
             .filter { $0.vehicle?.id == vehicleID }
         for fill in fills {
             try deleteAssets(eventID: fill.id, ownerType: .fillUp, context: context)
+            try SyncMetadataMaintainer.remove(ownerID: fill.id, in: context)
             context.delete(fill)
         }
 
@@ -16,6 +17,7 @@ enum ResetService {
             .filter { $0.vehicle?.id == vehicleID }
         for snapshot in snapshots {
             try deleteAssets(eventID: snapshot.id, ownerType: .snapshot, context: context)
+            try SyncMetadataMaintainer.remove(ownerID: snapshot.id, in: context)
             context.delete(snapshot)
         }
 

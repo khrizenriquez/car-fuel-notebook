@@ -6,12 +6,17 @@
 protocol VehicleRepository
 protocol FuelEntryRepository
 protocol UsageSnapshotRepository
-protocol CaptureSessionRepository
 protocol PhotoAssetRepository
-protocol CalibrationRepository
+protocol OCRFieldEvidenceRepository
+// T07: CaptureSessionRepository
+// T16: CalibrationRepository
 ```
 
-Todos exponen operaciones asíncronas/throwing, aceptan IDs de dominio y no filtran tipos de SwiftData a capas superiores.
+Los cinco contratos T06 exponen operaciones asíncronas/throwing, aceptan IDs de dominio y no filtran tipos de SwiftData a capas superiores. Sus adaptadores `SwiftData*Repository` trabajan con registros codificables de dominio y un `ModelContext` confinado al actor principal. Captura y calibración se incorporan cuando existan sus modelos en T07 y T16.
+
+El dominio usa `Decimal` para dinero, volumen, distancia y nivel; el adaptador traduce hacia/desde los `Double` físicos v1 sin exponerlos al consumidor. `SyncMetadata` es un valor del dominio; físicamente se guarda en `SyncMetadataRecord` 1:1 por UUID. `V2RecordExtras` conserva los nuevos valores que las cinco tablas v1 no tienen, sin alterarlas. Las revisiones obsoletas dan `repository.conflict`; un vehículo ausente da `entity.notFound`.
+
+La app v1 heredada aún consulta algunas entidades SwiftData directamente durante la transición. Sus rutas de guardado actuales actualizan `SyncMetadataRecord` en el mismo `ModelContext`; T10–T12 reemplazarán los flujos de captura por casos de uso sobre estos repositorios. Ningún adaptador usa red, Supabase ni CloudKit.
 
 ## Casos de uso
 

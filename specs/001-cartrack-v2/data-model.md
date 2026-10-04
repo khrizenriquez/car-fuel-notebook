@@ -122,6 +122,8 @@ Para v2.1 se sincroniza únicamente campo, valor final, confianza, corrección, 
 
 ### SyncMetadata (embebido)
 
+En el DTO de dominio está embebido en `VehicleRecord`, `FuelEntryRecord` y `UsageSnapshotRecord`. En SwiftData v2 se almacena como `SyncMetadataRecord` 1:1 por UUID, junto a `V2RecordExtras` para campos nuevos que no existían en las tablas físicas v1. Esta separación conserva la lectura v1 sin modificar su esquema.
+
 | Campo | Tipo | Regla |
 |---|---|---|
 | `schemaVersion` | Int | ≥2 |
@@ -163,3 +165,10 @@ FuelEntry/UsageSnapshot 0..1 ── 1 CaptureSession (referencia de origen)
 - Cachés de OCR/preprocesamiento.
 
 Pueden existir cachés locales desechables, nunca como fuente de verdad.
+
+## 6. Compatibilidad local durante v2
+
+- Las cinco entidades SwiftData v1 permanecen físicamente intactas. `LocalPhotoAsset`, `OCRFieldEvidence`, `SyncMetadataRecord` y `V2RecordExtras` son aditivas.
+- Las fotos antiguas conservan `ImageAsset.localPath`; las nuevas usan `LocalPhotoAsset.localRelativePath`. T14 verificará y optimizará archivos antes de migrar el índice legado.
+- La evidencia OCR legada se crea solo cuando había texto OCR en el evento. Usa `algorithmVersion = legacy-v1`, banda `unknown`, confianza `0` y valor canónico; no duplica el texto OCR ni los bytes de la foto. La banda `unknown` es exclusiva de la procedencia legada.
+- Las rutas, bytes de foto y texto OCR bruto son locales. T19 define por separado el DTO cloud mínimo y demuestra que no contiene esos campos.

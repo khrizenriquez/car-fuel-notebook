@@ -106,6 +106,10 @@ final class StoreMigrationTests: XCTestCase {
             XCTAssertTrue(FileManager.default.fileExists(atPath: photoURL.path))
             XCTAssertTrue(FileManager.default.fileExists(atPath: legacyURL.path))
             XCTAssertEqual(try context.fetch(FetchDescriptor<LocalStoreVersion>()).first?.schemaVersion, 2)
+            XCTAssertEqual(try context.fetch(FetchDescriptor<SyncMetadataRecord>()).count, 4)
+            let legacyEvidence = try context.fetch(FetchDescriptor<OCRFieldEvidence>())
+            XCTAssertEqual(Set(legacyEvidence.map(\.fieldRawValue)), ["amount", "price", "volume"])
+            XCTAssertTrue(legacyEvidence.allSatisfy { $0.rawText == nil && $0.algorithmVersion == "legacy-v1" })
 
             let backupDirectory = directory.appendingPathComponent("CartrackV2/Backups")
             XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: backupDirectory.path)

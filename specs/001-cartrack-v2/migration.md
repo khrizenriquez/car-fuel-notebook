@@ -34,7 +34,7 @@ Los valores canónicos actuales no se recalculan destructivamente durante migrac
 5. Copiar vehículos, eventos, ajustes e índices de fotos preservando UUID, relaciones, timestamps, valores y texto OCR legado.
 6. Recalcular el inventario del candidato y exigir igualdad exacta de conteos y huella de campos/relaciones/imágenes.
 7. Guardar marcador de versión 2 y activar el candidato con un archivo puntero escrito atómicamente.
-8. En T06 crear los metadatos `SyncMetadata`, `LocalPhotoAsset` y `OCRFieldEvidence` como entidades adicionales; en T14 optimizar las fotos locales de manera diferida. La analítica derivada se recalcula, no se migra como fuente de verdad.
+8. En T06 agregar `SyncMetadataRecord`, `LocalPhotoAsset`, `OCRFieldEvidence` y `V2RecordExtras` como entidades adicionales. Completar metadatos para registros existentes de forma idempotente y crear evidencia OCR legada mínima solo cuando existe texto OCR, sin duplicar el texto. En T14 optimizar las fotos locales de manera diferida. La analítica derivada se recalcula, no se migra como fuente de verdad.
 9. Conservar el store y respaldo v1 mientras sea necesaria la recuperación; no existe acceso a red ni a Supabase en esta secuencia.
 
 ## 5. Rollback

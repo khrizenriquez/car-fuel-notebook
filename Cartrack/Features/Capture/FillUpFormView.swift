@@ -457,6 +457,10 @@ struct FillUpFormView: View {
                 removedKinds: removedKinds(),
                 context: modelContext
             )
+            try SyncMetadataMaintainer.recordChange(ownerID: fillEvent.id, kind: "fuelEntry",
+                                                    createdAt: fillEvent.createdAt,
+                                                    updatedAt: fillEvent.updatedAt,
+                                                    in: modelContext)
             try modelContext.save()
             Task {
                 await ReminderService.shared.captureLogged()
