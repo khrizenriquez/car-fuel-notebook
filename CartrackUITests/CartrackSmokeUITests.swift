@@ -284,6 +284,16 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(waitForStaticText(containing: "km/gal", in: app))
     }
 
+    func testDashboardShowsAnalyticsTrendsWhenCyclesExist() throws {
+        let app = launchApp(extraArguments: ["--seed-multivehicle"])
+
+        app.tabBars.buttons["Dashboard"].tap()
+        let efficiency = app.descendants(matching: .any)["dashboard.analytics.efficiency"]
+        XCTAssertTrue(scrollToExistingElement(efficiency, in: app, maxSwipes: 8))
+        XCTAssertTrue(efficiency.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.analytics.calibration"].exists)
+    }
+
     func testBackupActionsAndRefuelMapAreVisible() throws {
         let app = launchApp(extraArguments: ["--seed-multivehicle"])
 

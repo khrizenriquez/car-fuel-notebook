@@ -31,6 +31,8 @@ T15 endurece el cálculo de ciclos y unidades: los llenados parciales se acumula
 
 T16 incorpora calibración local del medidor no lineal. Cada punto combina proporción de combustible consumido y distancia normalizada dentro de un ciclo confirmado del mismo vehículo; la curva usa mediana por banda y sólo declara suficiencia tras historia real. La autonomía existente conserva su intervalo de ciclos y ahora cuenta con una curva explícita disponible para T17. La detección de anomalías no borra datos: señala eficiencia alta/baja sólo con cuatro o más ciclos y umbral robusto mediana/MAD. Los conjuntos insuficiente, suficiente, no lineal y outlier están cubiertos; core 129/129 e iOS público 76/76 verdes.
 
+T17 lleva esos datos al dashboard: primero el estado del tanque y su explicación, luego una tendencia de rendimiento por ciclo y la curva observada de combustible contra odómetro. Si no hay ciclos se explica el siguiente dato requerido; la calibración declara explícitamente si es preliminar o suficiente. Una prueba UI con historial completo confirma ambas gráficas y las pruebas existentes cubren los estados sin vehículo y de actividad parcial.
+
 ## 2. Arquitectura objetivo
 
 ```text

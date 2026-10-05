@@ -1,3 +1,4 @@
+import Charts
 import SwiftData
 import SwiftUI
 
@@ -78,6 +79,21 @@ struct DashboardView: View {
         )
     }
 
+    private var scopedTankCycles: [TankCycle] {
+        AnalyticsEngine.tankCycles(fills: fillEvents, vehicleID: selectedVehicleID ?? vehicles.first?.id)
+    }
+
+    private var scopedFuelReadings: [SnapshotEvent] {
+        snapshotEvents
+            .filter { selectedVehicleID == nil || $0.vehicle?.id == selectedVehicleID }
+            .sorted { $0.odometerKilometers < $1.odometerKilometers }
+    }
+
+    private var selectedCalibration: FuelGaugeCalibration? {
+        guard let vehicleID = selectedVehicleID ?? vehicles.first?.id else { return nil }
+        return AnalyticsEngine.fuelGaugeCalibration(fills: fillEvents, snapshots: snapshotEvents, vehicleID: vehicleID)
+    }
+
     private var inProgressCurrentMonthDistance: Double {
         guard let status = selectedCurrentTankStatus,
               let latestFillDate = status.latestFill?.date,
@@ -139,6 +155,7 @@ struct DashboardView: View {
 
                         summarySection
                         currentTankSection
+                        analyticsChartSection
                         weeklyHistorySection
                         monthlyHistorySection
                     }
@@ -344,6 +361,69 @@ struct DashboardView: View {
         }
     }
 
+    private var analyticsChartSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Tendencias")
+                .font(.headline)
+
+            if scopedTankCycles.isEmpty {
+                ContentUnavailableView(
+                    "Aún no hay tendencia",
+                    systemImage: "chart.line.uptrend.xyaxis",
+                    description: Text("Los gráficos aparecen tras dos llenados completos del mismo vehículo."))
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("dashboard.analytics.empty")
+            } else {
+                Chart(scopedTankCycles.suffix(8)) { cycle in
+                    LineMark(
+                        x: .value("Fecha", cycle.endDate),
+                        y: .value("Rendimiento", cycle.kmPerGallon)
+                    )
+                    .foregroundStyle(.orange)
+                    .interpolationMethod(.catmullRom)
+                    PointMark(
+                        x: .value("Fecha", cycle.endDate),
+                        y: .value("Rendimiento", cycle.kmPerGallon)
+                    )
+                    .foregroundStyle(.orange)
+                }
+                .chartYAxisLabel("km/gal")
+                .frame(height: 150)
+                .accessibilityLabel("Tendencia de rendimiento por tanque")
+                .accessibilityIdentifier("dashboard.analytics.efficiency")
+
+                if scopedFuelReadings.count >= 2 {
+                    Chart(scopedFuelReadings) { reading in
+                        LineMark(
+                            x: .value("Distancia", reading.odometerKilometers),
+                            y: .value("Nivel", reading.fuelLevelRemaining)
+                        )
+                        .foregroundStyle(.teal)
+                        PointMark(
+                            x: .value("Distancia", reading.odometerKilometers),
+                            y: .value("Nivel", reading.fuelLevelRemaining)
+                        )
+                        .foregroundStyle(.teal)
+                    }
+                    .chartYAxisLabel("Nivel")
+                    .chartXAxisLabel("Odómetro (km)")
+                    .frame(height: 150)
+                    .accessibilityLabel("Curva observada de combustible contra distancia")
+                    .accessibilityIdentifier("dashboard.analytics.fuelCurve")
+                }
+
+                if let selectedCalibration {
+                    Text(calibrationCopy(selectedCalibration))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("dashboard.analytics.calibration")
+                }
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
+    }
+
     private var weeklyHistorySection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Historico semanal")
@@ -518,5 +598,16 @@ struct DashboardView: View {
     private func weekRangeText(for weekStart: Date) -> String {
         let end = Calendar.current.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart
         return "\(weekStart.formatted(date: .abbreviated, time: .omitted)) - \(end.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    private func calibrationCopy(_ calibration: FuelGaugeCalibration) -> String {
+        switch calibration.sufficiency {
+        case .sufficient:
+            return "Curva del medidor calibrada con \(calibration.sampleCount) lecturas confirmadas."
+        case .limited:
+            return "Curva preliminar: \(calibration.sampleCount) lecturas; sigue registrando el nivel para estrechar la autonomía."
+        case .insufficient:
+            return "Aún no hay lecturas suficientes para calibrar la curva del medidor."
+        }
     }
 }

@@ -116,10 +116,11 @@
   - Gate: datasets suficiente/insuficiente/no lineal/outlier.
   - Evidencia: `FuelGaugeCalibration` normaliza puntos de consumo/recorrido por vehículo, exige 3/8 observaciones para estados limitada/suficiente, interpola una curva no lineal y usa la mediana por banda del indicador para que un outlier no la doble. `TankCycleAnomaly` necesita al menos cuatro ciclos y usa mediana/MAD con un piso del 15%. Los datasets insuficiente, no lineal, outlier, historia suficiente y aislamiento por vehículo pasaron. Core 129/129, cobertura 90.57%; integración iOS pública 76 aprobadas, 7 privadas omitidas, 0 fallos.
 
-- [ ] **T17 — Incorporar dashboard y gráficas v2**
+- [x] **T17 — Incorporar dashboard y gráficas v2**
   - Commit: `Present Cartrack v2 analytics and projections`
   - Alcance: tanque, curva, consumo, costos, proyección vs realidad y procedencia.
   - Gate: UI/snapshot de estados vacío/parcial/completo.
+  - Evidencia: dashboard presenta el tanque actual y proyección existentes junto con tendencia de rendimiento por tanque, curva de nivel de combustible contra odómetro y texto de suficiencia/procedencia de calibración. Sin ciclos muestra estado vacío explicado; el flujo snapshot-only cubre estado parcial y el fixture multi-vehículo cubre estado completo. La UI focalizada de gráficas pasó 1/1 y la UI previa de métricas/proyección sigue pasando; ningún gráfico consulta red ni conserva píxeles.
 
 - [ ] **T18 — Versionar respaldo, validación y restauración transaccional**
   - Commit: `Add versioned transactional backups`
@@ -167,6 +168,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T16 completado; sigue T17 (dashboard y gráficas v2).
+- Implementación v2: T17 completado; sigue T18 (respaldo y restauración transaccional).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.
