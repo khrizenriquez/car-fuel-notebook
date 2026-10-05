@@ -1,6 +1,79 @@
 import Foundation
 import SwiftData
 
+enum CalibrationSufficiency: String, Codable, Sendable {
+    case insufficient
+    case limited
+    case sufficient
+}
+
+struct FuelGaugeCalibrationPoint: Equatable, Sendable {
+    let fuelConsumedRatio: Double
+    let distanceConsumedRatio: Double
+}
+
+/// Local, vehicle-specific mapping for a non-linear analogue fuel gauge. Both axes
+/// are ratios so the calibration survives a change in tank capacity or unit display.
+struct FuelGaugeCalibration: Equatable, Sendable {
+    let points: [FuelGaugeCalibrationPoint]
+    let sampleCount: Int
+    let sufficiency: CalibrationSufficiency
+
+    static func build(observations: [FuelGaugeCalibrationPoint]) -> FuelGaugeCalibration {
+        let valid = observations.filter {
+            (0...1).contains($0.fuelConsumedRatio) && (0...1).contains($0.distanceConsumedRatio)
+        }
+        // One anomalous gauge/OCR observation must not bend the whole curve. At each
+        // coarse gauge band retain the median normalized-distance observation.
+        let grouped = Dictionary(grouping: valid) {
+            min(max(Int(($0.fuelConsumedRatio * 8).rounded()), 0), 8)
+        }
+        let medians = grouped.values.compactMap { bucket -> FuelGaugeCalibrationPoint? in
+            guard !bucket.isEmpty else { return nil }
+            let sortedFuel = bucket.map(\.fuelConsumedRatio).sorted()
+            let sortedDistance = bucket.map(\.distanceConsumedRatio).sorted()
+            let middle = bucket.count / 2
+            return FuelGaugeCalibrationPoint(fuelConsumedRatio: sortedFuel[middle], distanceConsumedRatio: sortedDistance[middle])
+        }.sorted { $0.fuelConsumedRatio < $1.fuelConsumedRatio }
+        let sufficiency: CalibrationSufficiency = valid.count >= 8 && medians.count >= 4 ? .sufficient
+            : valid.count >= 3 && medians.count >= 2 ? .limited : .insufficient
+        return FuelGaugeCalibration(points: medians, sampleCount: valid.count, sufficiency: sufficiency)
+    }
+
+    /// Returns the calibrated fraction of the tank-distance already consumed.
+    func distanceConsumedRatio(forFuelConsumedRatio fuelConsumedRatio: Double) -> Double? {
+        guard sufficiency != .insufficient, !points.isEmpty else { return nil }
+        let target = min(max(fuelConsumedRatio, 0), 1)
+        let anchors = [FuelGaugeCalibrationPoint(fuelConsumedRatio: 0, distanceConsumedRatio: 0)] + points
+            + [FuelGaugeCalibrationPoint(fuelConsumedRatio: 1, distanceConsumedRatio: 1)]
+        for (lower, upper) in zip(anchors, anchors.dropFirst()) where target >= lower.fuelConsumedRatio && target <= upper.fuelConsumedRatio {
+            let span = upper.fuelConsumedRatio - lower.fuelConsumedRatio
+            guard span > 0 else { return upper.distanceConsumedRatio }
+            let progress = (target - lower.fuelConsumedRatio) / span
+            return lower.distanceConsumedRatio + progress * (upper.distanceConsumedRatio - lower.distanceConsumedRatio)
+        }
+        return target
+    }
+}
+
+enum TankCycleAnomaly: Equatable, Sendable {
+    case none
+    case lowEfficiency
+    case highEfficiency
+
+    static func classify(_ cycle: TankCycle, against cycles: [TankCycle]) -> TankCycleAnomaly {
+        let values = cycles.map(\.kmPerGallon).filter { $0 > 0 }.sorted()
+        guard values.count >= 4 else { return .none }
+        let median = values[values.count / 2]
+        let deviations = values.map { abs($0 - median) }.sorted()
+        let mad = deviations[deviations.count / 2]
+        let tolerance = max(median * 0.15, mad * 3)
+        if cycle.kmPerGallon < median - tolerance { return .lowEfficiency }
+        if cycle.kmPerGallon > median + tolerance { return .highEfficiency }
+        return .none
+    }
+}
+
 struct TankCycle: Identifiable {
     let id: UUID
     let vehicleID: UUID
@@ -625,6 +698,31 @@ enum AnalyticsEngine {
             estimatedFuelCostConsumed: costConsumed,
             insight: insight
         )
+    }
+
+    static func fuelGaugeCalibration(
+        fills: [FuelFillEvent],
+        snapshots: [SnapshotEvent],
+        vehicleID: UUID
+    ) -> FuelGaugeCalibration {
+        let cycles = tankCycles(fills: fills, vehicleID: vehicleID)
+        guard let vehicle = fills.first(where: { $0.vehicle?.id == vehicleID })?.vehicle else {
+            return FuelGaugeCalibration.build(observations: [])
+        }
+        let scale = max(vehicle.fuelScaleMax, 1)
+        let observations = cycles.flatMap { cycle in
+            snapshots.compactMap { snapshot -> FuelGaugeCalibrationPoint? in
+                guard snapshot.vehicle?.id == vehicleID,
+                      snapshot.date >= cycle.startDate, snapshot.date <= cycle.endDate,
+                      cycle.distanceKilometers > 0
+                else { return nil }
+                let fuelConsumed = (scale - snapshot.fuelLevelRemaining) / scale
+                let distanceConsumed = (snapshot.odometerKilometers - cycle.openingOdometerKilometers) / cycle.distanceKilometers
+                guard (0...1).contains(fuelConsumed), (0...1).contains(distanceConsumed) else { return nil }
+                return FuelGaugeCalibrationPoint(fuelConsumedRatio: fuelConsumed, distanceConsumedRatio: distanceConsumed)
+            }
+        }
+        return FuelGaugeCalibration.build(observations: observations)
     }
 
     static func weeklySummaries(

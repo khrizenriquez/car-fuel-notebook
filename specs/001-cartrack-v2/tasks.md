@@ -110,10 +110,11 @@
   - Gate: casos multi-vehículo y límites mensuales.
   - Evidencia: un caso de regresión con llenados intercalados de dos vehículos reproducía tres ciclos inválidos (0 km/4,000 km); el cálculo global ahora usa primero el camino monovehículo y luego combina los ciclos. Se probaron MPG, km/gal, km/L y L/100 km de un ciclo cerrado; los tests existentes cubren parcial+full, edición, eliminación, asignación mensual final/prorrateada y resúmenes multi-vehículo. Core 125/125 con 90.35% de cobertura; integración iOS pública 76 aprobadas, 7 privadas omitidas, 0 fallos.
 
-- [ ] **T16 — Calibrar medidor, autonomía y anomalías**
+- [x] **T16 — Calibrar medidor, autonomía y anomalías**
   - Commit: `Add calibrated range and anomaly estimates`
   - Alcance: puntos confirmados, curva no lineal, suficiencia, intervalos y anomalías.
   - Gate: datasets suficiente/insuficiente/no lineal/outlier.
+  - Evidencia: `FuelGaugeCalibration` normaliza puntos de consumo/recorrido por vehículo, exige 3/8 observaciones para estados limitada/suficiente, interpola una curva no lineal y usa la mediana por banda del indicador para que un outlier no la doble. `TankCycleAnomaly` necesita al menos cuatro ciclos y usa mediana/MAD con un piso del 15%. Los datasets insuficiente, no lineal, outlier, historia suficiente y aislamiento por vehículo pasaron. Core 129/129, cobertura 90.57%; integración iOS pública 76 aprobadas, 7 privadas omitidas, 0 fallos.
 
 - [ ] **T17 — Incorporar dashboard y gráficas v2**
   - Commit: `Present Cartrack v2 analytics and projections`
@@ -166,6 +167,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T15 completado; sigue T16 (calibración de medidor, autonomía y anomalías).
+- Implementación v2: T16 completado; sigue T17 (dashboard y gráficas v2).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

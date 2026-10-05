@@ -56,6 +56,80 @@ final class AnalyticsEngineCoreTests: XCTestCase {
         XCTAssertEqual(cycles.first { $0.vehicleID == other.id }?.distanceKilometers, 160)
     }
 
+    func testFuelGaugeCalibrationRequiresHistoryAndPreservesNonLinearCurve() {
+        let insufficient = FuelGaugeCalibration.build(observations: [
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.25, distanceConsumedRatio: 0.10),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.50, distanceConsumedRatio: 0.45)
+        ])
+        XCTAssertEqual(insufficient.sufficiency, .insufficient)
+        XCTAssertNil(insufficient.distanceConsumedRatio(forFuelConsumedRatio: 0.5))
+
+        let calibrated = FuelGaugeCalibration.build(observations: [
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.20, distanceConsumedRatio: 0.08),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.25, distanceConsumedRatio: 0.10),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.45, distanceConsumedRatio: 0.38),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.50, distanceConsumedRatio: 0.43),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.70, distanceConsumedRatio: 0.78),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.75, distanceConsumedRatio: 0.82),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.90, distanceConsumedRatio: 0.96),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.95, distanceConsumedRatio: 0.98)
+        ])
+        XCTAssertEqual(calibrated.sufficiency, .sufficient)
+        XCTAssertGreaterThan(calibrated.distanceConsumedRatio(forFuelConsumedRatio: 0.75) ?? 0, 0.75)
+        XCTAssertLessThan(calibrated.distanceConsumedRatio(forFuelConsumedRatio: 0.25) ?? 1, 0.25)
+    }
+
+    func testFuelGaugeCalibrationMedianRejectsSingleOutlier() {
+        let calibration = FuelGaugeCalibration.build(observations: [
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.50, distanceConsumedRatio: 0.45),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.51, distanceConsumedRatio: 0.46),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.52, distanceConsumedRatio: 1.00),
+            FuelGaugeCalibrationPoint(fuelConsumedRatio: 0.75, distanceConsumedRatio: 0.80)
+        ])
+        XCTAssertEqual(calibration.sufficiency, .limited)
+        XCTAssertEqual(calibration.distanceConsumedRatio(forFuelConsumedRatio: 0.5) ?? 0, 0.46, accuracy: 0.02)
+    }
+
+    func testFuelGaugeCalibrationBuildsVehicleSpecificPointsFromConfirmedCycles() {
+        let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003, fuelScaleMax: 8)
+        let fills = [
+            fill(vehicle: vehicle, day: 1, odometer: 1_000, gallons: 10, total: 300),
+            fill(vehicle: vehicle, day: 10, odometer: 1_400, gallons: 10, total: 300),
+            fill(vehicle: vehicle, day: 20, odometer: 1_800, gallons: 10, total: 300)
+        ]
+        let snapshots = [
+            SnapshotEvent(date: date(day: 2), vehicle: vehicle, odometerKilometers: 1_040, fuelLevelRemaining: 7),
+            SnapshotEvent(date: date(day: 3), vehicle: vehicle, odometerKilometers: 1_100, fuelLevelRemaining: 6),
+            SnapshotEvent(date: date(day: 4), vehicle: vehicle, odometerKilometers: 1_180, fuelLevelRemaining: 5),
+            SnapshotEvent(date: date(day: 5), vehicle: vehicle, odometerKilometers: 1_280, fuelLevelRemaining: 3),
+            SnapshotEvent(date: date(day: 12), vehicle: vehicle, odometerKilometers: 1_440, fuelLevelRemaining: 7),
+            SnapshotEvent(date: date(day: 13), vehicle: vehicle, odometerKilometers: 1_500, fuelLevelRemaining: 6),
+            SnapshotEvent(date: date(day: 14), vehicle: vehicle, odometerKilometers: 1_580, fuelLevelRemaining: 5),
+            SnapshotEvent(date: date(day: 15), vehicle: vehicle, odometerKilometers: 1_680, fuelLevelRemaining: 3)
+        ]
+
+        let calibration = AnalyticsEngine.fuelGaugeCalibration(fills: fills, snapshots: snapshots, vehicleID: vehicle.id)
+
+        XCTAssertEqual(calibration.sufficiency, .sufficient)
+        XCTAssertGreaterThan(calibration.distanceConsumedRatio(forFuelConsumedRatio: 0.625) ?? 0, 0.6)
+    }
+
+    func testTankCycleAnomalyFlagsOnlyMaterialEfficiencyOutlier() {
+        let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
+        let fills = [
+            fill(vehicle: vehicle, day: 1, odometer: 1_000, gallons: 10, total: 300),
+            fill(vehicle: vehicle, day: 2, odometer: 1_400, gallons: 10, total: 300),
+            fill(vehicle: vehicle, day: 3, odometer: 1_805, gallons: 10, total: 300),
+            fill(vehicle: vehicle, day: 4, odometer: 2_200, gallons: 10, total: 300),
+            fill(vehicle: vehicle, day: 5, odometer: 2_610, gallons: 10, total: 300),
+            fill(vehicle: vehicle, day: 6, odometer: 2_810, gallons: 10, total: 300)
+        ]
+        let cycles = AnalyticsEngine.tankCycles(fills: fills, vehicleID: vehicle.id)
+
+        XCTAssertEqual(TankCycleAnomaly.classify(cycles[0], against: cycles), .none)
+        XCTAssertEqual(TankCycleAnomaly.classify(cycles[4], against: cycles), .lowEfficiency)
+    }
+
     func testTankCyclesAccumulatePartialFillWithoutClosingCycle() {
         let vehicle = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
         let fills = [

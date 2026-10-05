@@ -29,6 +29,8 @@ T14 optimiza evidencia confirmada únicamente en el dispositivo. Cada original s
 
 T15 endurece el cálculo de ciclos y unidades: los llenados parciales se acumulan hasta el siguiente lleno del mismo vehículo, y una consulta global agrupa primero por vehículo para que líneas de tiempo intercaladas nunca generen ciclos cruzados. Los ciclos y resúmenes exponen MPG, km/gal, km/L, L/100 km y costo por distancia a partir de los mismos datos canónicos. Los límites mensual final/prorrateado, edición y eliminación continúan cubiertos; core 125/125 y la integración iOS pública 76/76 pasaron.
 
+T16 incorpora calibración local del medidor no lineal. Cada punto combina proporción de combustible consumido y distancia normalizada dentro de un ciclo confirmado del mismo vehículo; la curva usa mediana por banda y sólo declara suficiencia tras historia real. La autonomía existente conserva su intervalo de ciclos y ahora cuenta con una curva explícita disponible para T17. La detección de anomalías no borra datos: señala eficiencia alta/baja sólo con cuatro o más ciclos y umbral robusto mediana/MAD. Los conjuntos insuficiente, suficiente, no lineal y outlier están cubiertos; core 129/129 e iOS público 76/76 verdes.
+
 ## 2. Arquitectura objetivo
 
 ```text
