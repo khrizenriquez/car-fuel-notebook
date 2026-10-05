@@ -71,6 +71,35 @@ struct CapturePhotoStore {
         if fileManager.fileExists(atPath: url.path) { try fileManager.removeItem(at: url) }
     }
 
+    /// Restores a retained evidence file from a verified backup.  The record is deliberately
+    /// addressed by its relative path, never by an archived absolute path.
+    func restore(_ data: Data, for record: LocalPhotoRecord) throws {
+        let url = try resolvedURL(for: record)
+        let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        guard digest == record.sha256,
+              data.count == record.byteCount,
+              let image = UIImage(data: data),
+              let cgImage = image.cgImage,
+              cgImage.width == record.pixelWidth,
+              cgImage.height == record.pixelHeight else {
+            throw CapturePhotoStoreError.integrityMismatch
+        }
+        try fileManager.createDirectory(at: url.deletingLastPathComponent(),
+                                        withIntermediateDirectories: true)
+        do {
+            try data.write(to: url, options: .atomic)
+            try fileManager.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: url.path
+            )
+            let restored = try Data(contentsOf: url)
+            guard restored == data else { throw CapturePhotoStoreError.integrityMismatch }
+        } catch {
+            try? fileManager.removeItem(at: url)
+            throw error
+        }
+    }
+
     func absolutePath(for record: LocalPhotoRecord) throws -> String {
         try resolvedURL(for: record).path
     }

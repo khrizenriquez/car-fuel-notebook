@@ -1,6 +1,7 @@
 import SwiftData
 import UIKit
 import XCTest
+import CryptoKit
 @testable import Cartrack
 
 final class PersistenceIntegrationTests: XCTestCase {
@@ -308,6 +309,187 @@ final class PersistenceIntegrationTests: XCTestCase {
         XCTAssertEqual(vehicles.count, 1)
         XCTAssertEqual(vehicles.first?.displayName, "Roadster BMW Z4 2003")
         XCTAssertFalse(FileManager.default.fileExists(atPath: existingImagePath))
+    }
+
+    func testVersion2BackupHasVerifiedManifestAndCanOmitImages() throws {
+        let sourceContext = try IntegrationTestSupport.makeInMemoryContext()
+        let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)
+        let fill = FuelFillEvent(vehicle: vehicle, odometerKilometers: 1_000,
+                                 gallons: 10, pricePerGallon: 35, totalCost: 350)
+        let imagePath = try ImageStorageService.shared.saveImage(
+            makeImage(color: .purple), preferredName: "backup-v2-\(UUID().uuidString)"
+        )
+        sourceContext.insert(vehicle)
+        sourceContext.insert(fill)
+        sourceContext.insert(ImageAsset(eventID: fill.id, ownerType: .fillUp,
+                                        kind: .invoice, localPath: imagePath))
+        try sourceContext.save()
+
+        let fullPackage = try BackupTransferService.exportBackup(from: sourceContext, includeImages: true)
+        XCTAssertEqual(fullPackage.pathExtension, "cartrackbackup")
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: fullPackage.appendingPathComponent("manifest.json").path
+        ))
+        let fullPlan = try BackupTransferService.inspectBackup(from: fullPackage)
+        XCTAssertEqual(fullPlan.formatVersion, 2)
+        XCTAssertEqual(fullPlan.schemaVersion, 2)
+        XCTAssertTrue(fullPlan.includesImageBytes)
+        XCTAssertEqual(fullPlan.imageCount, 1)
+
+        let structuredOnly = try BackupTransferService.exportBackup(from: sourceContext, includeImages: false)
+        let structuredPlan = try BackupTransferService.inspectBackup(from: structuredOnly)
+        XCTAssertEqual(structuredPlan.formatVersion, 2)
+        XCTAssertFalse(structuredPlan.includesImageBytes)
+        XCTAssertEqual(structuredPlan.imageCount, 1)
+        let records = try String(contentsOf: structuredOnly.appendingPathComponent("records.json"), encoding: .utf8)
+        XCTAssertFalse(records.contains(imagePath))
+        XCTAssertTrue(records.contains("\"hasLocalEvidence\" : true"))
+
+        let destination = try IntegrationTestSupport.makeInMemoryContext()
+        let summary = try BackupTransferService.importBackup(from: structuredOnly, into: destination)
+        XCTAssertEqual(summary.imageCount, 1)
+        XCTAssertEqual(try IntegrationTestSupport.count(ImageAsset.self, in: destination), 0)
+    }
+
+    func testVersion2BackupRestoresConfirmedCaptureEvidenceWithoutAbsolutePaths() throws {
+        let source = try IntegrationTestSupport.makeInMemoryContext()
+        let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)
+        let fill = FuelFillEvent(vehicle: vehicle, odometerKilometers: 1_000,
+                                 gallons: 10, pricePerGallon: 35, totalCost: 350)
+        let sessionID = UUID()
+        let stored = try CapturePhotoStore().save(makeImage(color: .purple), sessionID: sessionID,
+                                                   kind: .odometer)
+        source.insert(vehicle)
+        source.insert(fill)
+        source.insert(LocalPhotoAsset(
+            id: stored.id, sessionID: sessionID, eventID: fill.id, kindRawValue: stored.kind,
+            localRelativePath: stored.localRelativePath, sha256: stored.sha256,
+            pixelWidth: stored.pixelWidth, pixelHeight: stored.pixelHeight,
+            byteCount: stored.byteCount, mimeType: stored.mimeType, capturedAt: stored.capturedAt,
+            optimizationStateRawValue: "optimized", createdAt: stored.createdAt
+        ))
+        try source.save()
+
+        let package = try BackupTransferService.exportBackup(from: source, includeImages: true)
+        let records = try String(contentsOf: package.appendingPathComponent("records.json"), encoding: .utf8)
+        XCTAssertFalse(records.contains(stored.localRelativePath))
+        XCTAssertEqual(try BackupTransferService.inspectBackup(from: package).imageCount, 1)
+
+        let destination = try IntegrationTestSupport.makeInMemoryContext()
+        _ = try BackupTransferService.importBackup(from: package, into: destination)
+        let restored = try XCTUnwrap(destination.fetch(FetchDescriptor<LocalPhotoAsset>()).first)
+        XCTAssertEqual(restored.id, stored.id)
+        XCTAssertEqual(restored.sha256, stored.sha256)
+        let restoredRecord = LocalPhotoRecord(
+            id: restored.id, sessionID: restored.sessionID, eventID: restored.eventID,
+            kind: restored.kindRawValue, localRelativePath: restored.localRelativePath,
+            sha256: restored.sha256, pixelWidth: restored.pixelWidth,
+            pixelHeight: restored.pixelHeight, byteCount: restored.byteCount,
+            mimeType: restored.mimeType, capturedAt: restored.capturedAt,
+            optimizationState: restored.optimizationStateRawValue, createdAt: restored.createdAt
+        )
+        XCTAssertNotNil(try CapturePhotoStore().load(restoredRecord))
+    }
+
+    func testBackupImportSupportsVersion1AndRejectsDuplicateUUIDs() throws {
+        let source = try IntegrationTestSupport.makeInMemoryContext()
+        let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)
+        source.insert(vehicle)
+        source.insert(FuelFillEvent(vehicle: vehicle, odometerKilometers: 1_000,
+                                    gallons: 10, pricePerGallon: 35, totalCost: 350))
+        try source.save()
+
+        let package = try BackupTransferService.exportBackup(from: source, includeImages: false)
+        var v1Object = try backupRecordsObject(in: package)
+        v1Object["formatVersion"] = 1
+        let v1URL = try writeBackupJSON(v1Object, named: "backup-v1")
+
+        let destination = try IntegrationTestSupport.makeInMemoryContext()
+        let v1Summary = try BackupTransferService.importBackup(from: v1URL, into: destination)
+        XCTAssertEqual(v1Summary.vehicleCount, 1)
+        XCTAssertEqual(v1Summary.fillCount, 1)
+
+        var duplicateObject = v1Object
+        var vehicles = try XCTUnwrap(duplicateObject["vehicles"] as? [[String: Any]])
+        vehicles.append(try XCTUnwrap(vehicles.first))
+        duplicateObject["vehicles"] = vehicles
+        let duplicateURL = try writeBackupJSON(duplicateObject, named: "backup-duplicate")
+        XCTAssertThrowsError(try BackupTransferService.inspectBackup(from: duplicateURL)) { error in
+            guard case BackupTransferError.duplicateRecord = error else {
+                return XCTFail("Expected duplicate backup rejection, got \(error)")
+            }
+        }
+    }
+
+    func testCorruptOrInterruptedImportPreservesExistingData() throws {
+        let source = try IntegrationTestSupport.makeInMemoryContext()
+        let importedVehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)
+        source.insert(importedVehicle)
+        source.insert(FuelFillEvent(vehicle: importedVehicle, odometerKilometers: 1_000,
+                                    gallons: 10, pricePerGallon: 35, totalCost: 350))
+        try source.save()
+        let package = try BackupTransferService.exportBackup(from: source, includeImages: false)
+
+        let destination = try IntegrationTestSupport.makeInMemoryContext()
+        let originalVehicle = Vehicle(name: "Commuter", make: "Toyota", modelName: "Yaris", year: 2020)
+        destination.insert(originalVehicle)
+        try destination.save()
+
+        let recordsURL = package.appendingPathComponent("records.json")
+        let originalRecords = try Data(contentsOf: recordsURL)
+        try (originalRecords + Data(" ".utf8)).write(to: recordsURL, options: .atomic)
+        XCTAssertThrowsError(try BackupTransferService.importBackup(from: package, into: destination)) { error in
+            guard case BackupTransferError.integrityFailed = error else {
+                return XCTFail("Expected manifest integrity rejection, got \(error)")
+            }
+        }
+        XCTAssertEqual(try IntegrationTestSupport.count(Vehicle.self, in: destination), 1)
+        XCTAssertEqual(try XCTUnwrap(destination.fetch(FetchDescriptor<Vehicle>()).first).name, "Commuter")
+
+        try originalRecords.write(to: recordsURL, options: .atomic)
+        try rewriteManifestHash(for: recordsURL, in: package)
+        XCTAssertThrowsError(
+            try BackupTransferService.importBackup(from: package, into: destination,
+                                                   failureAt: .beforeConfirmation)
+        ) { error in
+            guard case BackupTransferError.restoreInterrupted = error else {
+                return XCTFail("Expected injected interruption, got \(error)")
+            }
+        }
+        XCTAssertEqual(try IntegrationTestSupport.count(Vehicle.self, in: destination), 1)
+        XCTAssertEqual(try XCTUnwrap(destination.fetch(FetchDescriptor<Vehicle>()).first).name, "Commuter")
+    }
+
+    private func backupRecordsObject(in package: URL) throws -> [String: Any] {
+        let data = try Data(contentsOf: package.appendingPathComponent("records.json"))
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func writeBackupJSON(_ object: [String: Any], named: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(named)-\(UUID().uuidString).cartrackbackup.json")
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
+    private func rewriteManifestHash(for recordsURL: URL, in package: URL) throws {
+        let manifestURL = package.appendingPathComponent("manifest.json")
+        var manifest = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
+        )
+        var files = try XCTUnwrap(manifest["files"] as? [[String: Any]])
+        let records = try Data(contentsOf: recordsURL)
+        let digest = SHA256.hash(data: records).map { String(format: "%02x", $0) }.joined()
+        let index = try XCTUnwrap(files.firstIndex { $0["path"] as? String == "records.json" })
+        files[index]["sha256"] = digest
+        files[index]["byteCount"] = records.count
+        manifest["files"] = files
+        manifest["expectedTotalByteCount"] = files.reduce(0) { total, file in
+            total + (file["byteCount"] as? Int ?? 0)
+        }
+        let data = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])
+        try data.write(to: manifestURL, options: .atomic)
     }
 
     private func makeImage(color: UIColor) -> UIImage {

@@ -43,9 +43,9 @@
 | FR-035 | GAP | detección de anomalías | T16 |
 | FR-036 | CURRENT | UI + recalculo | T15, T20 |
 | FR-037 | CURRENT | export tests y origen visible | T18 |
-| FR-038 | GAP | contrato/fixture de respaldo v2 | T18 |
-| FR-039 | GAP | staging/rollback de restauración | T18 |
-| FR-040 | GAP | UUID/hash duplicado | T18 |
+| FR-038 | CURRENT | paquete v2, manifiesto SHA-256 e imágenes opcionales | T18 |
+| FR-039 | CURRENT | plan validado, staging y rollback de restauración | T18 |
+| FR-040 | CURRENT | rechazo de UUID/hash duplicado | T18 |
 | FR-041 | GAP | diagnóstico redactado | T21 |
 | FR-042 | CURRENT | tests de recordatorios | T20 |
 | FR-043 | GAP | protocolos/adaptadores | T06 |

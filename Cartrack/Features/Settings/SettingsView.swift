@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var backupError: String?
     @State private var isShowingBackupImporter = false
     @State private var pendingImportURL: URL?
+    @State private var includeBackupImages = true
 
     private var selectedResetVehicle: Vehicle? {
         vehicles.first(where: { $0.id == selectedResetVehicleID }) ?? vehicles.first
@@ -28,7 +29,15 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 Text("El borrado de datos solo ocurre si tu lo confirmas aqui y no elimina vehiculos.")
                     .foregroundStyle(.secondary)
-                Text("El respaldo incluye vehiculos, llenados, snapshots, ajustes mensuales e imagenes locales.")
+                Text("El respaldo incluye vehiculos, llenados, snapshots y ajustes mensuales.")
+                    .foregroundStyle(.secondary)
+
+                Toggle("Incluir fotos locales verificadas", isOn: $includeBackupImages)
+                    .accessibilityIdentifier("settings.backup.includeImages")
+                Text(includeBackupImages
+                     ? "Las fotos se conservan dentro del paquete local; nunca se suben a la nube."
+                     : "Se exportan datos estructurados y metadatos, pero no se copian fotos.")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
 
                 Button("Exportar respaldo") {
@@ -136,7 +145,7 @@ struct SettingsView: View {
         }
         .fileImporter(
             isPresented: $isShowingBackupImporter,
-            allowedContentTypes: [.json],
+            allowedContentTypes: [.folder, .json],
             allowsMultipleSelection: false
         ) { result in
             switch result {
@@ -196,7 +205,8 @@ struct SettingsView: View {
 
     private func exportBackup() {
         do {
-            let url = try BackupTransferService.exportBackup(from: modelContext)
+            let url = try BackupTransferService.exportBackup(from: modelContext,
+                                                             includeImages: includeBackupImages)
             lastBackupURL = url
             backupStatusMessage = "Respaldo listo: \(url.lastPathComponent)"
         } catch {

@@ -2,7 +2,7 @@
 
 ## Contenedor
 
-Paquete con extensión `.cartrackbackup` que contiene:
+Directorio-paquete con extensión `.cartrackbackup` que contiene:
 
 ```text
 manifest.json
@@ -21,10 +21,15 @@ Campos obligatorios:
 - `appVersion`
 - conteos por entidad
 - presencia/ausencia de imágenes
-- SHA-256 de `records.json` y cada archivo incluido
+- arreglo `files` con ruta relativa, tamaño y SHA-256 de `records.json` y cada archivo de evidencia incluido
 - tamaño total esperado
 
 No incluye credenciales, tokens ni rutas absolutas.
+
+`records.json` conserva la bandera `hasLocalEvidence` cuando se omiten bytes. Así una
+restauración puede distinguir “no había foto” de “había foto en el teléfono de origen,
+pero este respaldo estructurado no la copió”. Las fotos de captura v2 se restauran con
+su UUID, hash y ruta relativa regenerada; nunca con la ruta absoluta del dispositivo de origen.
 
 ## Exportación
 
@@ -32,6 +37,7 @@ No incluye credenciales, tokens ni rutas absolutas.
 - Verificación de hashes antes de publicar el archivo.
 - Opción explícita de incluir imágenes.
 - Si no se incluyen, los registros conservan `hasLocalEvidence` como información, sin rutas inválidas.
+- Antes de publicar el paquete se valida el mismo manifiesto que validará la importación.
 
 ## Validación previa
 
@@ -46,7 +52,8 @@ Debe comprobar:
 - espacio disponible;
 - conflictos con datos actuales.
 
-Produce un `BackupImportPlan` sin modificar persistencia.
+Produce un `BackupImportPlan` sin modificar persistencia. El plan expone versión, conteos,
+presencia de bytes de imagen y número de UUID que reemplazarían registros locales.
 
 ## Restauración
 
@@ -58,6 +65,10 @@ Produce un `BackupImportPlan` sin modificar persistencia.
 6. conservar respaldo anterior hasta confirmación.
 
 Ante error se restaura el estado original.
+
+La copia de seguridad de la restauración permanece en temporal hasta la confirmación del
+`save()`. Los checkpoints de prueba cubren fallo después de crear esa copia, después del
+staging y justo antes de confirmar el reemplazo.
 
 ## Compatibilidad
 

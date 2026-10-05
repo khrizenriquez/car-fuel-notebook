@@ -122,10 +122,11 @@
   - Gate: UI/snapshot de estados vacío/parcial/completo.
   - Evidencia: dashboard presenta el tanque actual y proyección existentes junto con tendencia de rendimiento por tanque, curva de nivel de combustible contra odómetro y texto de suficiencia/procedencia de calibración. Sin ciclos muestra estado vacío explicado; el flujo snapshot-only cubre estado parcial y el fixture multi-vehículo cubre estado completo. La UI focalizada de gráficas pasó 1/1 y la UI previa de métricas/proyección sigue pasando; ningún gráfico consulta red ni conserva píxeles.
 
-- [ ] **T18 — Versionar respaldo, validación y restauración transaccional**
+- [x] **T18 — Versionar respaldo, validación y restauración transaccional**
   - Commit: `Add versioned transactional backups`
   - Alcance: paquete, manifiesto, hashes, imágenes opcionales, staging, duplicados y rollback.
   - Gate: fixtures v1/v2/corrupto/duplicado/interrumpido.
+  - Evidencia: el paquete `.cartrackbackup` publica `manifest.json`, `records.json` y evidencia opcional sólo después de verificar SHA-256/tamaños. El importador crea un plan sin mutar datos, adapta JSON v1, detecta UUID/hash inválidos, conserva `hasLocalEvidence` sin rutas absolutas y toma una copia de seguridad hasta confirmar el reemplazo. `PersistenceIntegrationTests` pasó 13/13, incluidos v1, v2, corrupción de hash, UUID duplicado, interrupción con rollback y evidencia local de captura v2; núcleo 129/129 y 90.57% de cobertura.
 
 - [ ] **T19 — Definir DTO y conflictos estructurados para v2.1**
   - Commit: `Add structured sync readiness contracts`
@@ -168,6 +169,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T17 completado; sigue T18 (respaldo y restauración transaccional).
+- Implementación v2: T18 completado; sigue T19 (contratos de sincronización v2.1).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.
