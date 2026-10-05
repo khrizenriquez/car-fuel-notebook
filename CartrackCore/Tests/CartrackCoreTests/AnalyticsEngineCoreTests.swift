@@ -18,6 +18,9 @@ final class AnalyticsEngineCoreTests: XCTestCase {
         XCTAssertEqual(cycles[0].gallons, 12, accuracy: 0.001)
         XCTAssertEqual(cycles[0].totalCost, 420, accuracy: 0.001)
         XCTAssertEqual(cycles[0].kmPerGallon, 20, accuracy: 0.001)
+        XCTAssertEqual(cycles[0].milesPerGallon, 12.4274, accuracy: 0.0001)
+        XCTAssertEqual(cycles[0].kilometersPerLiter, 5.28344, accuracy: 0.0001)
+        XCTAssertEqual(cycles[0].litersPer100Kilometers, 18.92706, accuracy: 0.0001)
         XCTAssertEqual(cycles[0].costPerKilometer, 1.75, accuracy: 0.001)
     }
 
@@ -33,6 +36,24 @@ final class AnalyticsEngineCoreTests: XCTestCase {
 
         XCTAssertEqual(AnalyticsEngine.tankCycles(fills: fills, vehicleID: bmw.id).count, 1)
         XCTAssertEqual(AnalyticsEngine.tankCycles(fills: fills, vehicleID: other.id).count, 1)
+    }
+
+    func testTankCyclesKeepVehiclesSeparateWhenBuildingAnAllVehicleReport() {
+        let bmw = Vehicle(name: "BMW", make: "BMW", modelName: "Z4", year: 2003)
+        let other = Vehicle(name: "Other", make: "Toyota", modelName: "Yaris", year: 2020)
+        let fills = [
+            fill(vehicle: bmw, day: 1, odometer: 1_000, gallons: 10, total: 300),
+            fill(vehicle: other, day: 2, odometer: 5_000, gallons: 8, total: 240),
+            fill(vehicle: bmw, day: 3, odometer: 1_240, gallons: 12, total: 420),
+            fill(vehicle: other, day: 4, odometer: 5_160, gallons: 9, total: 270),
+        ]
+
+        let cycles = AnalyticsEngine.tankCycles(fills: fills)
+
+        XCTAssertEqual(cycles.count, 2)
+        XCTAssertEqual(Set(cycles.map(\.vehicleID)), Set([bmw.id, other.id]))
+        XCTAssertEqual(cycles.first { $0.vehicleID == bmw.id }?.distanceKilometers, 240)
+        XCTAssertEqual(cycles.first { $0.vehicleID == other.id }?.distanceKilometers, 160)
     }
 
     func testTankCyclesAccumulatePartialFillWithoutClosingCycle() {

@@ -27,6 +27,8 @@ T13 conecta una política de integridad de dominio a capturas nuevas y ediciones
 
 T14 optimiza evidencia confirmada únicamente en el dispositivo. Cada original se conserva hasta que un JPEG protegido de calidad 72%, máximo 2000 px y máximo 450 KB se escribe, se reabre y pasa hash, dimensiones, decodificación y calidad. Las filas y referencias se intercambian en un único guardado, y los archivos antiguos se retiran sólo después; un fallo conserva los originales. También limpia capturas descartadas y huérfanos con antigüedad. Cinco capturas semanales de dos fotos, al límite de 450 KB, proyectan 234 MB/año y cumplen el límite de 250 MB. La verificación incluye original privado OCR, fallos inyectados de staging/guardado/decodificación, core y suites iOS.
 
+T15 endurece el cálculo de ciclos y unidades: los llenados parciales se acumulan hasta el siguiente lleno del mismo vehículo, y una consulta global agrupa primero por vehículo para que líneas de tiempo intercaladas nunca generen ciclos cruzados. Los ciclos y resúmenes exponen MPG, km/gal, km/L, L/100 km y costo por distancia a partir de los mismos datos canónicos. Los límites mensual final/prorrateado, edición y eliminación continúan cubiertos; core 125/125 y la integración iOS pública 76/76 pasaron.
+
 ## 2. Arquitectura objetivo
 
 ```text

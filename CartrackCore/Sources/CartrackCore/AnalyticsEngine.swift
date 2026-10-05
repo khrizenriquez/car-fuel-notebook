@@ -21,6 +21,19 @@ struct TankCycle: Identifiable {
         gallons > 0 ? distanceKilometers / gallons : 0
     }
 
+    var milesPerGallon: Double {
+        gallons > 0 ? UnitConversion.kilometersToMiles(distanceKilometers) / gallons : 0
+    }
+
+    var kilometersPerLiter: Double {
+        let liters = UnitConversion.gallonsToLiters(gallons)
+        return liters > 0 ? distanceKilometers / liters : 0
+    }
+
+    var litersPer100Kilometers: Double {
+        distanceKilometers > 0 ? UnitConversion.gallonsToLiters(gallons) / distanceKilometers * 100 : 0
+    }
+
     var costPerKilometer: Double {
         distanceKilometers > 0 ? totalCost / distanceKilometers : 0
     }
@@ -38,7 +51,19 @@ struct MonthlySummary: Identifiable {
 
     var totalDistanceKilometers: Double { distanceKilometers + manualDistanceKilometers }
     var kmPerGallon: Double { gallons > 0 ? totalDistanceKilometers / gallons : 0 }
+    var milesPerGallon: Double { gallons > 0 ? UnitConversion.kilometersToMiles(totalDistanceKilometers) / gallons : 0 }
+    var kilometersPerLiter: Double {
+        let liters = UnitConversion.gallonsToLiters(gallons)
+        return liters > 0 ? totalDistanceKilometers / liters : 0
+    }
+    var litersPer100Kilometers: Double {
+        totalDistanceKilometers > 0 ? UnitConversion.gallonsToLiters(gallons) / totalDistanceKilometers * 100 : 0
+    }
     var costPerKilometer: Double { totalDistanceKilometers > 0 ? spend / totalDistanceKilometers : 0 }
+    var costPerMile: Double {
+        let miles = UnitConversion.kilometersToMiles(totalDistanceKilometers)
+        return miles > 0 ? spend / miles : 0
+    }
 }
 
 struct CurrentTankStatus {
@@ -401,8 +426,15 @@ enum AnalyticsEngine {
         fills: [FuelFillEvent],
         vehicleID: UUID? = nil
     ) -> [TankCycle] {
+        // A global timeline must never let one vehicle's full fill close another
+        // vehicle's cycle. Reuse the already-tested single-vehicle path, then merge.
+        guard let vehicleID else {
+            let vehicleIDs = Set(fills.compactMap { $0.vehicle?.id })
+            return vehicleIDs.flatMap { tankCycles(fills: fills, vehicleID: $0) }
+                .sorted { $0.endDate < $1.endDate }
+        }
         let scoped = fills
-            .filter { vehicleID == nil || $0.vehicle?.id == vehicleID }
+            .filter { $0.vehicle?.id == vehicleID }
             .sorted { $0.date < $1.date }
 
         guard scoped.count > 1 else { return [] }

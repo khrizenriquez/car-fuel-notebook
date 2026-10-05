@@ -104,10 +104,11 @@
 
 ## Fase 3 — Analítica y experiencia
 
-- [ ] **T15 — Consolidar ciclos, costos y unidades de consumo**
+- [x] **T15 — Consolidar ciclos, costos y unidades de consumo**
   - Commit: `Harden tank cycle and cost analytics`
   - Alcance: fills parciales/completos, MPG, km/gal, km/L, L/100 km, costos y edición/eliminación.
   - Gate: casos multi-vehículo y límites mensuales.
+  - Evidencia: un caso de regresión con llenados intercalados de dos vehículos reproducía tres ciclos inválidos (0 km/4,000 km); el cálculo global ahora usa primero el camino monovehículo y luego combina los ciclos. Se probaron MPG, km/gal, km/L y L/100 km de un ciclo cerrado; los tests existentes cubren parcial+full, edición, eliminación, asignación mensual final/prorrateada y resúmenes multi-vehículo. Core 125/125 con 90.35% de cobertura; integración iOS pública 76 aprobadas, 7 privadas omitidas, 0 fallos.
 
 - [ ] **T16 — Calibrar medidor, autonomía y anomalías**
   - Commit: `Add calibrated range and anomaly estimates`
@@ -165,6 +166,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T14 completado; sigue T15 (modelo analítico y métricas reales/estimadas).
+- Implementación v2: T15 completado; sigue T16 (calibración de medidor, autonomía y anomalías).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.
