@@ -12,24 +12,26 @@ final class EventImageIntegrationTests: XCTestCase {
         context.insert(fill)
         try context.save()
 
-        try EventImageSynchronizer.replaceAssets(
+        let initialPlan = try EventImageSynchronizer.prepareReplacement(
             for: fill,
             images: [.invoice: makeImage(color: .red)],
             context: context
         )
         try context.save()
+        initialPlan.finish(in: context)
 
         var assets = try context.fetch(FetchDescriptor<ImageAsset>())
         XCTAssertEqual(assets.count, 1)
         let firstPath = try XCTUnwrap(assets.first?.localPath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: firstPath))
 
-        try EventImageSynchronizer.replaceAssets(
+        let replacementPlan = try EventImageSynchronizer.prepareReplacement(
             for: fill,
             images: [.invoice: makeImage(color: .blue)],
             context: context
         )
         try context.save()
+        replacementPlan.finish(in: context)
 
         assets = try context.fetch(FetchDescriptor<ImageAsset>())
         XCTAssertEqual(assets.count, 1)
@@ -37,13 +39,14 @@ final class EventImageIntegrationTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: secondPath))
         XCTAssertFalse(FileManager.default.fileExists(atPath: firstPath))
 
-        try EventImageSynchronizer.replaceAssets(
+        let removalPlan = try EventImageSynchronizer.prepareReplacement(
             for: fill,
             images: [:],
             removedKinds: [.invoice],
             context: context
         )
         try context.save()
+        removalPlan.finish(in: context)
 
         XCTAssertEqual(try IntegrationTestSupport.count(ImageAsset.self, in: context), 0)
         XCTAssertFalse(FileManager.default.fileExists(atPath: secondPath))
@@ -57,12 +60,13 @@ final class EventImageIntegrationTests: XCTestCase {
         context.insert(snapshot)
         try context.save()
 
-        try EventImageSynchronizer.replaceAssets(
+        let imagePlan = try EventImageSynchronizer.prepareReplacement(
             for: snapshot,
             images: [.fuelLevel: makeImage(color: .green)],
             context: context
         )
         try context.save()
+        imagePlan.finish(in: context)
 
         let path = try XCTUnwrap(try context.fetch(FetchDescriptor<ImageAsset>()).first?.localPath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: path))
@@ -88,7 +92,7 @@ final class EventImageIntegrationTests: XCTestCase {
         context.insert(fill)
         try context.save()
 
-        try EventImageSynchronizer.replaceAssets(
+        let imagePlan = try EventImageSynchronizer.prepareReplacement(
             for: fill,
             images: [
                 .invoice: makeImage(color: .red),
@@ -98,6 +102,7 @@ final class EventImageIntegrationTests: XCTestCase {
             context: context
         )
         try context.save()
+        imagePlan.finish(in: context)
 
         let paths = try context.fetch(FetchDescriptor<ImageAsset>()).map(\.localPath)
         XCTAssertEqual(paths.count, 3)
@@ -118,12 +123,13 @@ final class EventImageIntegrationTests: XCTestCase {
         context.insert(fill)
         try context.save()
 
-        try EventImageSynchronizer.replaceAssets(
+        let imagePlan = try EventImageSynchronizer.prepareReplacement(
             for: fill,
             images: [.invoice: makeImage(color: .red)],
             context: context
         )
         try context.save()
+        imagePlan.finish(in: context)
 
         let path = try XCTUnwrap(try context.fetch(FetchDescriptor<ImageAsset>()).first?.localPath)
         try FileManager.default.removeItem(atPath: path)
@@ -148,17 +154,19 @@ final class EventImageIntegrationTests: XCTestCase {
         context.insert(adjustment)
         try context.save()
 
-        try EventImageSynchronizer.replaceAssets(
+        let fillPlan = try EventImageSynchronizer.prepareReplacement(
             for: fill,
             images: [.invoice: makeImage(color: .red)],
             context: context
         )
-        try EventImageSynchronizer.replaceAssets(
+        let snapshotPlan = try EventImageSynchronizer.prepareReplacement(
             for: snapshot,
             images: [.fuelLevel: makeImage(color: .green)],
             context: context
         )
         try context.save()
+        fillPlan.finish(in: context)
+        snapshotPlan.finish(in: context)
 
         let paths = try context.fetch(FetchDescriptor<ImageAsset>()).map(\.localPath)
         XCTAssertEqual(paths.count, 2)

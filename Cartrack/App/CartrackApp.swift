@@ -29,6 +29,9 @@ struct CartrackApp: App {
             case .success(let modelContainer):
                 RootTabView()
                     .modelContainer(modelContainer)
+                    .task {
+                        _ = try? await LocalEvidenceOptimizationService.optimizePending(in: modelContainer)
+                    }
             case .failure(let error):
                 PersistenceUnavailableView(error: error)
             }

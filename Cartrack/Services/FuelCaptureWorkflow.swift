@@ -80,9 +80,14 @@ final class FuelCaptureWorkflow {
             store: photoStore, pipeline: imagePipeline
         )
         let photoIDs = prepared.assets.map(\.id)
-        if session.draft.photoIDs != photoIDs || session.draft.occurredAt != input.occurredAt {
+        let selectedPhotoIDs = Dictionary(uniqueKeysWithValues: prepared.selectedAssets.map {
+            ($0.key.rawValue, $0.value.id)
+        })
+        if session.draft.photoIDs != photoIDs || session.draft.occurredAt != input.occurredAt
+            || session.draft.selectedPhotoIDsByKind != selectedPhotoIDs {
             var draft = session.draft
             draft.photoIDs = photoIDs
+            draft.selectedPhotoIDsByKind = selectedPhotoIDs
             draft.occurredAt = input.occurredAt
             session = try await sessions.updateDraft(id: session.id,
                                                      expectedRevision: session.revision, draft: draft)

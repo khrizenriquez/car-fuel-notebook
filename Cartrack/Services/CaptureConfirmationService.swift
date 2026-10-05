@@ -42,6 +42,9 @@ enum CaptureConfirmationService {
             )
             try beforeSave?()
             try context.save()
+            Task {
+                _ = try? await LocalEvidenceOptimizationService.optimizePending(in: container)
+            }
             return eventID
         } catch {
             context.rollback()

@@ -37,6 +37,8 @@ struct CaptureDraft: Codable, Equatable, Sendable {
     var notes: String?
     var odometerOverrideReason: String?
     var photoIDs: [UUID] = []
+    /// Final photo chosen for each kind; older retakes remain as local OCR evidence.
+    var selectedPhotoIDsByKind: [String: UUID]? = nil
     /// Explicit user corrections survive OCR retries for an individual photo.
     var manuallyEditedFields: [CaptureField]? = nil
 
@@ -75,6 +77,10 @@ struct CaptureDraft: Codable, Equatable, Sendable {
     func validate(for kind: CaptureSessionKind) throws {
         guard version == 1 else { throw CaptureSessionError.unsupportedDraftVersion }
         guard photoIDs.count == Set(photoIDs).count else { throw CaptureSessionError.invalidDraft }
+        if let selectedPhotoIDsByKind,
+           !Set(selectedPhotoIDsByKind.values).isSubset(of: Set(photoIDs)) {
+            throw CaptureSessionError.invalidDraft
+        }
         if let manuallyEditedFields,
            manuallyEditedFields.count != Set(manuallyEditedFields).count {
             throw CaptureSessionError.invalidDraft

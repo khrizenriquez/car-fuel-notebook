@@ -530,6 +530,7 @@ struct SnapshotFormView: View {
             snapshot.updatedAt = .now
         }
 
+        var imagePlan: ImageReplacementPlan?
         do {
             if event == nil {
                 guard let captureSessionID, let captureSessionRevision else {
@@ -573,7 +574,7 @@ struct SnapshotFormView: View {
             EventIntegrityService.recordOverride(integrityResult, input: integrityInput,
                                                  eventID: snapshot.id, sessionID: nil,
                                                  in: modelContext)
-            try EventImageSynchronizer.replaceAssets(
+            imagePlan = try EventImageSynchronizer.prepareReplacement(
                 for: snapshot,
                 images: [
                     .odometer: odometerImage,
@@ -587,11 +588,14 @@ struct SnapshotFormView: View {
                                                     updatedAt: snapshot.updatedAt,
                                                     in: modelContext)
             try modelContext.save()
+            imagePlan?.finish(in: modelContext)
             Task {
                 await ReminderService.shared.captureLogged()
             }
             dismiss()
         } catch {
+            modelContext.rollback()
+            imagePlan?.rollback()
             errorMessage = error.localizedDescription
         }
     }

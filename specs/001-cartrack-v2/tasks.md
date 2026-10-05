@@ -96,10 +96,11 @@
   - Gate: unitarias de límites + integración que prueba rollback.
   - Evidencia: 124/124 pruebas core y cobertura 90.58%; integración iOS pública 64 aprobadas/6 privadas omitidas, 0 fallos; 4/4 pruebas enfocadas de confirmación verifican rollback, rechazo de doble guardado y override auditado. La suite UI pública final pasó 14/14 (1 privada omitida). La prueba de edición se corrigió de 13 gal × Q35 = Q450 a su total coherente Q455 y pasó nuevamente. La validación es obligatoria en el servicio de confirmación y corre antes de mutar nuevos eventos y ediciones. Preflight y `git diff --check` verdes. T14 seguirá con atomicidad/limpieza de archivos de imagen.
 
-- [ ] **T14 — Optimizar evidencia local de forma atómica**
+- [x] **T14 — Optimizar evidencia local de forma atómica**
   - Commit: `Optimize confirmed evidence for local storage`
   - Alcance: máximo 2000 px, JPEG 70–75%, hash, verificación, file protection y limpieza.
   - Gate: originales de fixture, fallo de disco/decodificación y presupuesto anual.
+  - Evidencia: cinco pruebas de optimización validan reemplazo sólo después de copia verificada, SHA-256, dimensiones, JPEG ≤450 KB, retención ante fallo de guardado/decodificación/staging y eliminación de captura descartada; las cinco pruebas de integración de imágenes siguen verdes. El fixture privado original de odómetro/trip pasó después de optimizarse (1/1). La suite iOS pública pasó 76 pruebas, con 7 privadas omitidas y 0 fallos; core 124/124 con cobertura 90.56%. A 10 fotos/semana × 450 KB el presupuesto es 234 MB/año, bajo el límite de 250 MB. El OCR privado completo se mantiene como gate del runtime de referencia: iOS 18.2 mostró una lectura heredada distinta para `z4-2026-06-14-1733` (77,299 vs. 107,729), por lo que no se usa ese runtime como señal de regresión.
 
 ## Fase 3 — Analítica y experiencia
 
@@ -164,6 +165,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T13 completado; sigue T14 (optimización de evidencia local).
+- Implementación v2: T14 completado; sigue T15 (modelo analítico y métricas reales/estimadas).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

@@ -601,6 +601,7 @@ struct FillUpFormView: View {
             fillEvent.updatedAt = .now
         }
 
+        var imagePlan: ImageReplacementPlan?
         do {
             if event == nil {
                 guard let captureSessionID, let captureSessionRevision else {
@@ -649,7 +650,7 @@ struct FillUpFormView: View {
             EventIntegrityService.recordOverride(integrityResult, input: integrityInput,
                                                  eventID: fillEvent.id, sessionID: nil,
                                                  in: modelContext)
-            try EventImageSynchronizer.replaceAssets(
+            imagePlan = try EventImageSynchronizer.prepareReplacement(
                 for: fillEvent,
                 images: [
                     .invoice: invoiceImage,
@@ -664,11 +665,14 @@ struct FillUpFormView: View {
                                                     updatedAt: fillEvent.updatedAt,
                                                     in: modelContext)
             try modelContext.save()
+            imagePlan?.finish(in: modelContext)
             Task {
                 await ReminderService.shared.captureLogged()
             }
             dismiss()
         } catch {
+            modelContext.rollback()
+            imagePlan?.rollback()
             errorMessage = error.localizedDescription
         }
     }

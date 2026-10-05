@@ -4,11 +4,14 @@ import SwiftData
 enum ResetService {
     static func resetData(for vehicle: Vehicle, context: ModelContext) throws {
         let vehicleID = vehicle.id
+        var retiredPaths: [String] = []
 
         let fills = try context.fetch(FetchDescriptor<FuelFillEvent>())
             .filter { $0.vehicle?.id == vehicleID }
         for fill in fills {
-            try deleteAssets(eventID: fill.id, ownerType: .fillUp, context: context)
+            retiredPaths += try EventDeletionService.prepareDeleteAssets(
+                eventID: fill.id, ownerType: .fillUp, context: context
+            )
             try SyncMetadataMaintainer.remove(ownerID: fill.id, in: context)
             context.delete(fill)
         }
@@ -16,7 +19,9 @@ enum ResetService {
         let snapshots = try context.fetch(FetchDescriptor<SnapshotEvent>())
             .filter { $0.vehicle?.id == vehicleID }
         for snapshot in snapshots {
-            try deleteAssets(eventID: snapshot.id, ownerType: .snapshot, context: context)
+            retiredPaths += try EventDeletionService.prepareDeleteAssets(
+                eventID: snapshot.id, ownerType: .snapshot, context: context
+            )
             try SyncMetadataMaintainer.remove(ownerID: snapshot.id, in: context)
             context.delete(snapshot)
         }
@@ -28,17 +33,6 @@ enum ResetService {
         }
 
         try context.save()
-    }
-
-    private static func deleteAssets(eventID: UUID, ownerType: ImageOwnerKind, context: ModelContext) throws {
-        let descriptor = FetchDescriptor<ImageAsset>(
-            predicate: #Predicate { asset in
-                asset.eventID == eventID && asset.ownerTypeRawValue == ownerType.rawValue
-            }
-        )
-        for asset in try context.fetch(descriptor) {
-            try ImageStorageService.shared.deleteImage(at: asset.localPath)
-            context.delete(asset)
-        }
+        EventDeletionService.retire(retiredPaths, in: context)
     }
 }

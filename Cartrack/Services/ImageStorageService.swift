@@ -3,6 +3,7 @@ import UIKit
 
 enum ImageStorageError: Error {
     case encodingFailed
+    case unreadableSavedImage
 }
 
 final class ImageStorageService: @unchecked Sendable {
@@ -13,10 +14,8 @@ final class ImageStorageService: @unchecked Sendable {
     private init() {}
 
     func saveImage(_ image: UIImage, preferredName: String = UUID().uuidString) throws -> String {
-        guard let data = image.jpegData(compressionQuality: 0.85) else {
-            throw ImageStorageError.encodingFailed
-        }
-        return try saveImageData(data, preferredName: preferredName)
+        let optimized = try CapturePhotoStore.encodeOptimizedJPEG(image)
+        return try saveImageData(optimized.data, preferredName: preferredName)
     }
 
     func loadImage(at path: String) -> UIImage? {
@@ -30,9 +29,17 @@ final class ImageStorageService: @unchecked Sendable {
     func saveImageData(_ data: Data, preferredName: String = UUID().uuidString) throws -> String {
         let directory = try imagesDirectory()
         let url = directory.appendingPathComponent("\(preferredName).jpg")
-        try data.write(to: url, options: .atomic)
-        try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: url.path)
-        return url.path
+        do {
+            try data.write(to: url, options: .atomic)
+            try fileManager.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: url.path)
+            guard UIImage(contentsOfFile: url.path) != nil else {
+                throw ImageStorageError.unreadableSavedImage
+            }
+            return url.path
+        } catch {
+            try? fileManager.removeItem(at: url)
+            throw error
+        }
     }
 
     func deleteImage(at path: String) throws {

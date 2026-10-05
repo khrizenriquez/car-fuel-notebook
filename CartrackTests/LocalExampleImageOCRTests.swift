@@ -5,6 +5,32 @@ import XCTest
 
 final class LocalExampleImageOCRTests: XCTestCase {
     @MainActor
+    func testPrivateOriginalOdometerRemainsLegibleAfterLocalOptimization() async throws {
+        let manifest = try loadManifest()
+        let scenario = try XCTUnwrap(manifest.scenarios.first { $0.id == "z4-2026-07-24-2255" })
+        let expected = try XCTUnwrap(scenario.expected)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CartrackPrivateOptimized-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = CapturePhotoStore(rootURL: root)
+        let original = try XCTUnwrap(loadOptionalImage(relativePath: scenario.odometerImage,
+                                                       scenarioID: scenario.id))
+        let originalRecord = try store.save(original, sessionID: UUID(), kind: .odometer)
+        let optimized = try store.optimizedCopy(of: originalRecord)
+        XCTAssertEqual(optimized.optimizationState, "optimized")
+        XCTAssertLessThanOrEqual(optimized.byteCount, CapturePhotoStore.maxOptimizedByteCount)
+        XCTAssertLessThanOrEqual(max(optimized.pixelWidth, optimized.pixelHeight), 2_000)
+        let prefill = await OCRService().analyzeSnapshot(
+            odometerImage: try store.load(optimized), fuelLevelImage: nil, fuelScaleMax: 8,
+            previousClusterReading: previousReading(before: scenario, in: manifest)
+        )
+        XCTAssertEqual(try XCTUnwrap(prefill.odometerMiles), try XCTUnwrap(expected.odometerMiles),
+                       accuracy: scenario.tolerance.odometerMiles)
+        XCTAssertEqual(try XCTUnwrap(prefill.tripMiles), try XCTUnwrap(expected.tripMiles),
+                       accuracy: scenario.tolerance.tripMiles)
+    }
+
+    @MainActor
     func testPrivateSnapshotWorkflowPrefillsFromRealPhotos() async throws {
         let manifest = try loadManifest()
         let scenario = try XCTUnwrap(manifest.scenarios.first { $0.id == "z4-2026-07-24-2255" })
