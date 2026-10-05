@@ -14,7 +14,7 @@ struct FuelLevelInputView: View {
             HStack {
                 Text(title)
                 Spacer()
-                Text(CartrackFormatters.decimal(value, suffix: "espacios"))
+                Text(CartrackFormatters.decimal(value, suffix: AppCopy.text("espacios", "segments")))
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("\(accessibilityPrefix).fuelLevel.value")
             }
@@ -27,15 +27,15 @@ struct FuelLevelInputView: View {
                         .font(.title3)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Disminuir espacios")
+                .accessibilityLabel(AppCopy.text("Disminuir espacios", "Decrease segments"))
                 .accessibilityIdentifier("\(accessibilityPrefix).fuelLevel.decrement")
 
-                TextField("Espacios", text: $textValue)
+                TextField(AppCopy.text("Espacios", "Segments"), text: $textValue)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.center)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("\(accessibilityPrefix).fuelLevel")
-                    .accessibilityValue(CartrackFormatters.decimal(value, suffix: "espacios"))
+                    .accessibilityValue(CartrackFormatters.decimal(value, suffix: AppCopy.text("espacios", "segments")))
                     .onChange(of: textValue) { _, newValue in
                         guard let parsed = newValue.asDecimalDouble else { return }
                         updateValue(parsed, shouldSyncText: false)
@@ -48,14 +48,14 @@ struct FuelLevelInputView: View {
                         .font(.title3)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Aumentar espacios")
+                .accessibilityLabel(AppCopy.text("Aumentar espacios", "Increase segments"))
                 .accessibilityIdentifier("\(accessibilityPrefix).fuelLevel.increment")
             }
 
             Slider(value: normalizedBinding, in: 0...maxValue, step: step)
                 .accessibilityIdentifier("\(accessibilityPrefix).fuelLevel.slider")
 
-            Text("Rango 0 a \(CartrackFormatters.decimal(maxValue)); pasos de \(CartrackFormatters.decimal(step)).")
+            Text(AppCopy.text("Rango 0 a \(CartrackFormatters.decimal(maxValue)); pasos de \(CartrackFormatters.decimal(step)).", "Range 0 to \(CartrackFormatters.decimal(maxValue)); increments of \(CartrackFormatters.decimal(step))."))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

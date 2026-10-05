@@ -1,6 +1,65 @@
 import SwiftData
 import SwiftUI
 
+enum AppCopy {
+    enum Language: Equatable {
+        case spanish
+        case english
+    }
+
+    static func language(for locale: Locale? = nil) -> Language {
+        let identifier = locale?.identifier
+            ?? UserDefaults.standard.stringArray(forKey: "AppleLanguages")?.first
+            ?? Locale.autoupdatingCurrent.identifier
+        let code = Locale(identifier: identifier).language.languageCode?.identifier
+            ?? identifier.split(separator: "_").first.map(String.init)
+        return code == "es" ? .spanish : .english
+    }
+
+    static func text(_ spanish: String, _ english: String, locale: Locale? = nil) -> String {
+        language(for: locale) == .spanish ? spanish : english
+    }
+
+    static var dashboard: String { "Dashboard" }
+    static var capture: String { text("Capturar", "Capture") }
+    static var history: String { text("Historial", "History") }
+    static var vehicles: String { text("Vehiculos", "Vehicles") }
+    static var settings: String { text("Ajustes", "Settings") }
+    static var camera: String { text("Cámara", "Camera") }
+    static var photos: String { text("Fotos", "Photos") }
+    static var remove: String { text("Quitar", "Remove") }
+    static var noImage: String { text("Sin imagen", "No image") }
+    static var next: String { text("Siguiente", "Next") }
+    static var back: String { text("Atrás", "Back") }
+    static var save: String { text("Guardar", "Save") }
+    static var analyzing: String { text("Analizando…", "Analyzing…") }
+    static var vehicle: String { text("Vehículo", "Vehicle") }
+    static var location: String { text("Usar ubicación actual", "Use current location") }
+    static var locationHint: String {
+        text("Opcional. Solicita acceso a la ubicación sólo al tocarlo.",
+             "Optional. Requests location access only when you tap it.")
+    }
+    static var reminder: String { text("Recordatorio", "Reminder") }
+    static var notificationPermission: String {
+        text("Activar recordatorios", "Enable reminders")
+    }
+    static var notificationHint: String {
+        text("Solicita permiso de notificaciones sólo al tocarlo.",
+             "Requests notification permission only when you tap it.")
+    }
+
+    static func photoActionHint(for title: String) -> String {
+        text("Añade una foto de \(title.lowercased()) desde la cámara o tu biblioteca.",
+             "Add a \(title.lowercased()) photo from the camera or your library.")
+    }
+
+    static func photoPreview(for title: String, hasImage: Bool) -> String {
+        hasImage
+            ? text("Foto de \(title) seleccionada.", "Selected \(title) photo.")
+            : text("Aún no hay foto de \(title).", "No \(title) photo yet.")
+    }
+}
+
 struct RootTabView: View {
     @Environment(\.modelContext) private var modelContext
 
@@ -10,7 +69,7 @@ struct RootTabView: View {
                 DashboardView()
             }
             .tabItem {
-                Label("Dashboard", systemImage: "chart.xyaxis.line")
+                Label(AppCopy.dashboard, systemImage: "chart.xyaxis.line")
             }
             .accessibilityIdentifier("tab.dashboard")
 
@@ -18,7 +77,7 @@ struct RootTabView: View {
                 CaptureHomeView()
             }
             .tabItem {
-                Label("Capturar", systemImage: "camera.viewfinder")
+                Label(AppCopy.capture, systemImage: "camera.viewfinder")
             }
             .accessibilityIdentifier("tab.capture")
 
@@ -26,7 +85,7 @@ struct RootTabView: View {
                 HistoryView()
             }
             .tabItem {
-                Label("Historial", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                Label(AppCopy.history, systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
             }
             .accessibilityIdentifier("tab.history")
 
@@ -34,7 +93,7 @@ struct RootTabView: View {
                 VehiclesView()
             }
             .tabItem {
-                Label("Vehiculos", systemImage: "car.side")
+                Label(AppCopy.vehicles, systemImage: "car.side")
             }
             .accessibilityIdentifier("tab.vehicles")
 
@@ -42,7 +101,7 @@ struct RootTabView: View {
                 SettingsView()
             }
             .tabItem {
-                Label("Ajustes", systemImage: "gearshape")
+                Label(AppCopy.settings, systemImage: "gearshape")
             }
             .accessibilityIdentifier("tab.settings")
         }

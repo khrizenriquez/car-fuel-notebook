@@ -10,20 +10,20 @@ private enum FillUpWizardStep: Int {
 
     var title: String {
         switch self {
-        case .evidence: "Evidencias"
-        case .review: "Revision"
-        case .confirm: "Confirmar"
+        case .evidence: AppCopy.text("Evidencias", "Evidence")
+        case .review: AppCopy.text("Revisión", "Review")
+        case .confirm: AppCopy.text("Confirmar", "Confirm")
         }
     }
 
     var subtitle: String {
         switch self {
         case .evidence:
-            "Agrega las fotos de factura, odometro y nivel de tanque."
+            AppCopy.text("Agrega las fotos de factura, odómetro y nivel de tanque.", "Add receipt, odometer, and fuel-level photos.")
         case .review:
-            "Revisa lo que el OCR pudo prellenar y corrige cualquier valor."
+            AppCopy.text("Revisa lo que el OCR pudo prellenar y corrige cualquier valor.", "Review what OCR prefilled and correct any value.")
         case .confirm:
-            "Confirma el resumen antes de guardar el llenado."
+            AppCopy.text("Confirma el resumen antes de guardar el llenado.", "Confirm the summary before saving the fill-up.")
         }
     }
 }
@@ -91,10 +91,6 @@ struct FillUpFormView: View {
         selectedVehicle?.odometerUnit ?? .miles
     }
 
-    private var isUITesting: Bool {
-        ProcessInfo.processInfo.arguments.contains("--uitesting")
-    }
-
     private var tripWarning: String? {
         guard let trip = tripMiles.asDouble, trip > 5 else { return nil }
         return "El trip no parece estar cerca de 0 despues del llenado. Se guardara igual, pero revisalo."
@@ -105,11 +101,11 @@ struct FillUpFormView: View {
             wizardProgressSection
             wizardContent
         }
-        .navigationTitle(event == nil ? "Nuevo llenado" : "Editar llenado")
+        .navigationTitle(event == nil ? AppCopy.text("Nuevo llenado", "New fill-up") : AppCopy.text("Editar llenado", "Edit fill-up"))
         .toolbar {
             if wizardStep == .evidence {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                    Button(isAnalyzing ? AppCopy.analyzing : AppCopy.next) {
                         Task { await continueFromEvidence() }
                     }
                     .disabled(isAnalyzing || selectedVehicle == nil)
@@ -117,14 +113,14 @@ struct FillUpFormView: View {
                 }
             } else if wizardStep == .review {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Siguiente") {
+                    Button(AppCopy.next) {
                         wizardStep = .confirm
                     }
                     .accessibilityIdentifier("fill.next")
                 }
             } else if wizardStep == .confirm {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Guardar", action: save)
+                    Button(AppCopy.save, action: save)
                         .disabled(isSaving)
                         .accessibilityIdentifier("fill.save")
                 }
@@ -139,11 +135,6 @@ struct FillUpFormView: View {
             loadExistingData()
             if let resumeSessionID, event == nil {
                 await resumeCaptureSession(resumeSessionID)
-            }
-            if !isUITesting {
-                await ReminderService.shared.requestAuthorization()
-                locationService.requestAccessIfNeeded()
-                locationService.refreshLocation()
             }
         }
         .onChange(of: draftSignature) { _, _ in scheduleDraftAutosave() }
@@ -170,7 +161,7 @@ struct FillUpFormView: View {
             vehicleSection
             evidenceSections
             Section {
-                Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                Button(isAnalyzing ? AppCopy.analyzing : AppCopy.next) {
                     Task { await continueFromEvidence() }
                 }
                 .disabled(isAnalyzing || selectedVehicle == nil)
@@ -187,14 +178,14 @@ struct FillUpFormView: View {
             ocrSection
             Section {
                 HStack {
-                    Button("Atras") {
+                    Button(AppCopy.back) {
                         wizardStep = .evidence
                     }
                     .accessibilityIdentifier("fill.back")
 
                     Spacer()
 
-                    Button("Siguiente") {
+                    Button(AppCopy.next) {
                         wizardStep = .confirm
                     }
                     .buttonStyle(.borderedProminent)
@@ -206,14 +197,14 @@ struct FillUpFormView: View {
             tripWarningSection
             Section {
                 HStack {
-                    Button("Atras") {
+                    Button(AppCopy.back) {
                         wizardStep = .review
                     }
                     .accessibilityIdentifier("fill.back")
 
                     Spacer()
 
-                    Button("Guardar", action: save)
+                    Button(AppCopy.save, action: save)
                         .disabled(isSaving)
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("fill.save.inline")
@@ -223,35 +214,42 @@ struct FillUpFormView: View {
     }
 
     private var vehicleSection: some View {
-        Section("Vehiculo") {
-            Picker("Vehiculo", selection: $selectedVehicleID) {
+        Section(AppCopy.vehicle) {
+            Picker(AppCopy.vehicle, selection: $selectedVehicleID) {
                 ForEach(vehicles, id: \.id) { vehicle in
                     Text(vehicle.displayName).tag(Optional(vehicle.id))
                 }
             }
             .accessibilityIdentifier("fill.vehicle.picker")
+
+            Button(AppCopy.location) {
+                locationService.requestAccessIfNeeded()
+                locationService.refreshLocation()
+            }
+            .accessibilityHint(AppCopy.locationHint)
+            .accessibilityIdentifier("fill.location")
         }
     }
 
     @ViewBuilder
     private var evidenceSections: some View {
         ImageCaptureField(
-            title: "Factura",
-            caption: "Factura del llenado para leer galones, precio y total.",
+            title: AppCopy.text("Factura", "Receipt"),
+            caption: AppCopy.text("Factura del llenado para leer galones, precio y total.", "Fill-up receipt used to read gallons, price, and total."),
             accessibilityPrefix: "fill.invoiceImage",
             existingPath: $existingInvoicePath,
             image: $invoiceImage
         )
         ImageCaptureField(
-            title: "Odometro",
-            caption: "Foto del odometro o cluster donde se vea el trip.",
+            title: AppCopy.text("Odómetro", "Odometer"),
+            caption: AppCopy.text("Foto del odómetro o tablero donde se vea el trip.", "Photo of the odometer or instrument cluster showing the trip."),
             accessibilityPrefix: "fill.odometerImage",
             existingPath: $existingOdometerPath,
             image: $odometerImage
         )
         ImageCaptureField(
-            title: "Nivel de tanque",
-            caption: "Foto separada del nivel de combustible. Si es una aguja analogica, confirma los espacios manualmente en el siguiente paso.",
+            title: AppCopy.text("Nivel de tanque", "Fuel level"),
+            caption: AppCopy.text("Foto separada del nivel de combustible. Si es una aguja analógica, confirma los espacios manualmente en el siguiente paso.", "Separate fuel-level photo. For an analog needle, confirm the remaining segments manually in the next step."),
             accessibilityPrefix: "fill.fuelImage",
             existingPath: $existingFuelLevelPath,
             image: $fuelLevelImage

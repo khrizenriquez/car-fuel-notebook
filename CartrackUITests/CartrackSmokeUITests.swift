@@ -16,6 +16,33 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["capture.snapshot"].exists)
     }
 
+    func testP0CaptureWorkflowUsesEnglishAndExplicitPermissionActions() throws {
+        let app = launchApp(extraArguments: ["--seed-multivehicle"], language: "en")
+
+        XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Capture"].tap()
+        XCTAssertTrue(app.buttons["capture.fillup"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["capture.fillup"].label, "Log fill-up")
+
+        app.buttons["capture.fillup"].tap()
+        XCTAssertTrue(waitForStaticText(containing: "Evidence", in: app))
+        XCTAssertEqual(app.buttons["fill.location"].label, "Use current location")
+        XCTAssertEqual(app.buttons["fill.invoiceImage.camera"].label, "Camera: Receipt")
+        XCTAssertTrue(scrollToExistingElement(app.buttons["fill.next.inline"], in: app))
+    }
+
+    func testP0CaptureControlsRemainReachableAtAccessibilityTextSize() throws {
+        let app = launchApp(
+            extraArguments: ["--seed-multivehicle", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        )
+
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.snapshot"].tap()
+        XCTAssertTrue(app.buttons["snapshot.location"].waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToExistingElement(app.buttons["snapshot.odometerImage.camera"], in: app))
+        XCTAssertTrue(scrollToExistingElement(app.buttons["snapshot.next.inline"], in: app))
+    }
+
     func testSaveFillUpAndSnapshotThenShowInHistory() throws {
         let app = launchApp()
 
@@ -424,9 +451,10 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(waitForStaticText(containing: "108,768", in: app, timeout: 10))
     }
 
-    private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
+    private func launchApp(extraArguments: [String] = [], language: String = "es") -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitesting"] + extraArguments
+        let locale = language == "es" ? "es_GT" : "en_US"
+        app.launchArguments = ["--uitesting", "-AppleLanguages", "(\(language))", "-AppleLocale", locale] + extraArguments
         app.launch()
         return app
     }

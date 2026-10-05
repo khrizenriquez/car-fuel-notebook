@@ -63,8 +63,8 @@
 | NFR-004 | GAP | medición p50/p95 | T22 |
 | NFR-005 | GAP | benchmark de optimización/proyección | T14, T22 |
 | NFR-006 | TARGET-V2 | test de tamaño serializado | T19, T22 |
-| NFR-007 | GAP | auditoría VoiceOver/Dynamic Type | T20 |
-| NFR-008 | GAP | pruebas español/inglés | T20 |
+| NFR-007 | VERIFIED | VoiceOver: nombres/estado explícitos; UI P0 con tamaño de accesibilidad | T20 |
+| NFR-008 | VERIFIED | recorrido P0 español/inglés y recordatorio localizado | T20 |
 | NFR-009 | GAP | fixtures de migración | T05 |
 | NFR-010 | CURRENT | coverage + gates completos | T24 |
 | NFR-011 | GAP | export diagnóstico | T21 |

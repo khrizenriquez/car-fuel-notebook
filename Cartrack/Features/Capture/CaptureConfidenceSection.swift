@@ -33,6 +33,9 @@ struct CaptureConfidenceSection: View {
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(color(for: result))
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(result.field.displayTitle): \(label(for: result))")
+                        .accessibilityHint("El estado se expresa también con texto, no solo con color.")
                         if let selected = result.candidates.first(where: {
                             $0.candidate.id == result.selectedCandidateID
                         }) {

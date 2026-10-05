@@ -13,13 +13,16 @@ final class ReminderService: @unchecked Sendable {
     static let shared = ReminderService()
     private let center: ReminderNotificationCenter
     private let identifier: String
+    private let localeProvider: @Sendable () -> Locale
 
     init(
         center: ReminderNotificationCenter = UNUserNotificationCenter.current(),
-        identifier: String = "cartrack.inactivity.reminder"
+        identifier: String = "cartrack.inactivity.reminder",
+        localeProvider: @escaping @Sendable () -> Locale = { .autoupdatingCurrent }
     ) {
         self.center = center
         self.identifier = identifier
+        self.localeProvider = localeProvider
     }
 
     func requestAuthorization() async {
@@ -44,7 +47,11 @@ final class ReminderService: @unchecked Sendable {
 
         let content = UNMutableNotificationContent()
         content.title = "Cartrack"
-        content.body = "Hace tiempo que no registras una lectura. Toma una foto del tablero o factura para mantener tu historial."
+        content.body = AppCopy.text(
+            "Hace tiempo que no registras una lectura. Toma una foto del tablero o factura para mantener tu historial.",
+            "You have not logged a reading recently. Take a dashboard or receipt photo to keep your history current.",
+            locale: localeProvider()
+        )
         content.sound = .default
 
         let seconds = max(3_600, hours * 3_600)

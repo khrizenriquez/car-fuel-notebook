@@ -24,28 +24,28 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Persistencia") {
-                Text("La base de datos local y las imagenes deben sobrevivir actualizaciones normales de la app.")
+            Section(AppCopy.text("Persistencia", "Storage")) {
+                Text(AppCopy.text("La base de datos local y las imágenes deben sobrevivir actualizaciones normales de la app.", "The local database and images survive normal app updates."))
                     .foregroundStyle(.secondary)
-                Text("El borrado de datos solo ocurre si tu lo confirmas aqui y no elimina vehiculos.")
+                Text(AppCopy.text("El borrado de datos solo ocurre si tú lo confirmas aquí y no elimina vehículos.", "Data is deleted only after you confirm it here, and vehicles are preserved."))
                     .foregroundStyle(.secondary)
-                Text("El respaldo incluye vehiculos, llenados, snapshots y ajustes mensuales.")
+                Text(AppCopy.text("El respaldo incluye vehículos, llenados, registros de uso y ajustes mensuales.", "Backups include vehicles, fill-ups, usage snapshots, and monthly adjustments."))
                     .foregroundStyle(.secondary)
 
-                Toggle("Incluir fotos locales verificadas", isOn: $includeBackupImages)
+                Toggle(AppCopy.text("Incluir fotos locales verificadas", "Include verified local photos"), isOn: $includeBackupImages)
                     .accessibilityIdentifier("settings.backup.includeImages")
                 Text(includeBackupImages
-                     ? "Las fotos se conservan dentro del paquete local; nunca se suben a la nube."
-                     : "Se exportan datos estructurados y metadatos, pero no se copian fotos.")
+                     ? AppCopy.text("Las fotos se conservan dentro del paquete local; nunca se suben a la nube.", "Photos remain inside the local package; they are never uploaded to the cloud.")
+                     : AppCopy.text("Se exportan datos estructurados y metadatos, pero no se copian fotos.", "Structured data and metadata are exported, but photos are not copied."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                Button("Exportar respaldo") {
+                Button(AppCopy.text("Exportar respaldo", "Export backup")) {
                     exportBackup()
                 }
                 .accessibilityIdentifier("settings.backup.export")
 
-                Button("Importar respaldo") {
+                Button(AppCopy.text("Importar respaldo", "Import backup")) {
                     isShowingBackupImporter = true
                 }
                 .accessibilityIdentifier("settings.backup.import")
@@ -59,25 +59,27 @@ struct SettingsView: View {
 
                 if let lastBackupURL {
                     ShareLink(item: lastBackupURL) {
-                        Label("Compartir ultimo respaldo", systemImage: "square.and.arrow.up")
+                        Label(AppCopy.text("Compartir último respaldo", "Share latest backup"), systemImage: "square.and.arrow.up")
                     }
                     .accessibilityIdentifier("settings.backup.share")
                 }
             }
 
-            Section("Recordatorios") {
-                Toggle("Activar recordatorio por inactividad", isOn: $reminderEnabled)
+            Section(AppCopy.reminder) {
+                Toggle(AppCopy.text("Activar recordatorio por inactividad", "Enable inactivity reminder"), isOn: $reminderEnabled)
                 VStack(alignment: .leading) {
                     HStack {
-                        Text("Horas sin actividad")
+                        Text(AppCopy.text("Horas sin actividad", "Hours without activity"))
                         Spacer()
                         Text(CartrackFormatters.decimal(reminderHours))
                     }
                     Slider(value: $reminderHours, in: 12...168, step: 12)
                 }
-                Button("Solicitar permisos de notificacion") {
+                Button(AppCopy.notificationPermission) {
                     Task { await ReminderService.shared.requestAuthorization() }
                 }
+                .accessibilityHint(AppCopy.notificationHint)
+                .accessibilityIdentifier("settings.reminder.permission")
             }
 
             Section("Datos del vehiculo") {
@@ -110,7 +112,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .navigationTitle("Ajustes")
+        .navigationTitle(AppCopy.settings)
         .confirmationDialog(resetConfirmationTitle, isPresented: $isShowingResetConfirmation) {
             Button("Borrar datos", role: .destructive, action: resetSelectedVehicleData)
                 .accessibilityIdentifier("settings.reset.confirm")

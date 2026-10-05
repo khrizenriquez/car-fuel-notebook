@@ -18,14 +18,14 @@ struct CaptureHomeView: View {
         Group {
             if vehicles.isEmpty {
                 EmptyStateView(
-                    title: "Primero crea un vehiculo",
-                    message: "Necesitas al menos un vehiculo antes de registrar llenados o snapshots.",
+                    title: AppCopy.text("Primero crea un vehículo", "Create a vehicle first"),
+                    message: AppCopy.text("Necesitas al menos un vehículo antes de registrar llenados o registros de uso.", "You need at least one vehicle before logging fill-ups or usage snapshots."),
                     systemImage: "car.side.fill"
                 )
             } else {
                 List {
                     if !resumableSessions.isEmpty {
-                        Section("Continuar captura") {
+                        Section(AppCopy.text("Continuar captura", "Resume capture")) {
                             ForEach(resumableSessions, id: \.id) { row in
                                 NavigationLink {
                                     if row.kindRawValue == CaptureSessionKind.fillUp.rawValue {
@@ -36,7 +36,7 @@ struct CaptureHomeView: View {
                                 } label: {
                                     VStack(alignment: .leading) {
                                         Text(row.kindRawValue == CaptureSessionKind.fillUp.rawValue
-                                             ? "Continuar llenado" : "Continuar registro de uso")
+                                             ? AppCopy.text("Continuar llenado", "Resume fill-up") : AppCopy.text("Continuar registro de uso", "Resume usage snapshot"))
                                         if let vehicle = vehicles.first(where: { $0.id == row.vehicleID }) {
                                             Text(vehicle.displayName)
                                                 .font(.caption)
@@ -48,30 +48,30 @@ struct CaptureHomeView: View {
                             }
                         }
                     }
-                    Section("Nuevo registro") {
+                    Section(AppCopy.text("Nuevo registro", "New record")) {
                         NavigationLink {
                             FillUpFormView()
                         } label: {
-                            Label("Registrar llenado", systemImage: "fuelpump.fill")
+                            Label(AppCopy.text("Registrar llenado", "Log fill-up"), systemImage: "fuelpump.fill")
                         }
                         .accessibilityIdentifier("capture.fillup")
 
                         NavigationLink {
                             SnapshotFormView()
                         } label: {
-                            Label("Registrar snapshot", systemImage: "gauge.open.with.lines.needle.33percent")
+                            Label(AppCopy.text("Registrar registro de uso", "Log usage snapshot"), systemImage: "gauge.open.with.lines.needle.33percent")
                         }
                         .accessibilityIdentifier("capture.snapshot")
                     }
 
-                    Section("Que se captura") {
-                        Text("Llenado: factura, odometro y nivel de tanque.")
-                        Text("Snapshot: odometro, nivel de tanque y opcionalmente trip.")
+                    Section(AppCopy.text("Qué se captura", "What is captured")) {
+                        Text(AppCopy.text("Llenado: factura, odómetro y nivel de tanque.", "Fill-up: receipt, odometer, and fuel level."))
+                        Text(AppCopy.text("Registro de uso: odómetro, nivel de tanque y trip opcional.", "Usage snapshot: odometer, fuel level, and optional trip."))
                     }
                     .foregroundStyle(.secondary)
                 }
             }
         }
-        .navigationTitle("Capturar")
+        .navigationTitle(AppCopy.capture)
     }
 }

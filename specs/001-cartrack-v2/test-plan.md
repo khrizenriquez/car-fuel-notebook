@@ -110,6 +110,8 @@ Se comparan IDs, conteos, relaciones, valores, timestamps y hashes antes/despué
 - Español/inglés y formatos regionales.
 - Prueba de ausencia de literales críticos sin localizar.
 
+**Evidencia T20:** `CartrackSmokeUITests.testP0CaptureWorkflowUsesEnglishAndExplicitPermissionActions` verifica navegación y etiquetas del recorrido P0 en inglés; el resto de la suite UI se inicia en español. `testP0CaptureControlsRemainReachableAtAccessibilityTextSize` verifica que los controles del registro de uso siguen alcanzables al tamaño de accesibilidad XXXL. `ReminderServiceTests` cubre copias de recordatorio en ambos idiomas. Los botones de cámara, fotos, ubicación y recordatorios exponen nombre y propósito para VoiceOver; la confianza conserva un estado textual además de su color. Las ubicaciones y notificaciones ya no se solicitan al abrir un formulario: sólo al tocar su acción explícita.
+
 ## 8. Gates y evidencia
 
 | Gate | Cuándo | Evidencia |

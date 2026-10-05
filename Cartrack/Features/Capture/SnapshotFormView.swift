@@ -9,20 +9,20 @@ private enum SnapshotWizardStep: Int {
 
     var title: String {
         switch self {
-        case .evidence: "Evidencias"
-        case .review: "Revision"
-        case .confirm: "Confirmar"
+        case .evidence: AppCopy.text("Evidencias", "Evidence")
+        case .review: AppCopy.text("Revisión", "Review")
+        case .confirm: AppCopy.text("Confirmar", "Confirm")
         }
     }
 
     var subtitle: String {
         switch self {
         case .evidence:
-            "Agrega las fotos del odometro y del nivel de tanque."
+            AppCopy.text("Agrega las fotos del odómetro y del nivel de tanque.", "Add odometer and fuel-level photos.")
         case .review:
-            "Revisa lo que el OCR pudo prellenar y ajusta el nivel de tanque."
+            AppCopy.text("Revisa lo que el OCR pudo prellenar y ajusta el nivel de tanque.", "Review what OCR prefilled and adjust the fuel level.")
         case .confirm:
-            "Confirma el resumen antes de guardar el snapshot."
+            AppCopy.text("Confirma el resumen antes de guardar el registro de uso.", "Confirm the summary before saving the usage snapshot.")
         }
     }
 }
@@ -85,20 +85,16 @@ struct SnapshotFormView: View {
         selectedVehicle?.odometerUnit ?? .miles
     }
 
-    private var isUITesting: Bool {
-        ProcessInfo.processInfo.arguments.contains("--uitesting")
-    }
-
     var body: some View {
         Form {
             wizardProgressSection
             wizardContent
         }
-        .navigationTitle(event == nil ? "Nuevo snapshot" : "Editar snapshot")
+        .navigationTitle(event == nil ? AppCopy.text("Nuevo registro de uso", "New usage snapshot") : AppCopy.text("Editar registro de uso", "Edit usage snapshot"))
         .toolbar {
             if wizardStep == .evidence {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                    Button(isAnalyzing ? AppCopy.analyzing : AppCopy.next) {
                         Task { await continueFromEvidence() }
                     }
                     .disabled(isAnalyzing || selectedVehicle == nil)
@@ -106,14 +102,14 @@ struct SnapshotFormView: View {
                 }
             } else if wizardStep == .review {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Siguiente") {
+                    Button(AppCopy.next) {
                         wizardStep = .confirm
                     }
                     .accessibilityIdentifier("snapshot.next")
                 }
             } else if wizardStep == .confirm {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Guardar", action: save)
+                    Button(AppCopy.save, action: save)
                         .disabled(isSaving)
                         .accessibilityIdentifier("snapshot.save")
                 }
@@ -128,11 +124,6 @@ struct SnapshotFormView: View {
             loadExistingData()
             if let resumeSessionID, event == nil {
                 await resumeCaptureSession(resumeSessionID)
-            }
-            if !isUITesting {
-                await ReminderService.shared.requestAuthorization()
-                locationService.requestAccessIfNeeded()
-                locationService.refreshLocation()
             }
         }
         .onChange(of: draftSignature) { _, _ in scheduleDraftAutosave() }
@@ -159,7 +150,7 @@ struct SnapshotFormView: View {
             vehicleSection
             evidenceSections
             Section {
-                Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                Button(isAnalyzing ? AppCopy.analyzing : AppCopy.next) {
                     Task { await continueFromEvidence() }
                 }
                 .disabled(isAnalyzing || selectedVehicle == nil)
@@ -175,14 +166,14 @@ struct SnapshotFormView: View {
             ocrSection
             Section {
                 HStack {
-                    Button("Atras") {
+                    Button(AppCopy.back) {
                         wizardStep = .evidence
                     }
                     .accessibilityIdentifier("snapshot.back")
 
                     Spacer()
 
-                    Button("Siguiente") {
+                    Button(AppCopy.next) {
                         wizardStep = .confirm
                     }
                     .buttonStyle(.borderedProminent)
@@ -193,14 +184,14 @@ struct SnapshotFormView: View {
             confirmationSection
             Section {
                 HStack {
-                    Button("Atras") {
+                    Button(AppCopy.back) {
                         wizardStep = .review
                     }
                     .accessibilityIdentifier("snapshot.back")
 
                     Spacer()
 
-                    Button("Guardar", action: save)
+                    Button(AppCopy.save, action: save)
                         .disabled(isSaving)
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("snapshot.save.inline")
@@ -210,28 +201,35 @@ struct SnapshotFormView: View {
     }
 
     private var vehicleSection: some View {
-        Section("Vehiculo") {
-            Picker("Vehiculo", selection: $selectedVehicleID) {
+        Section(AppCopy.vehicle) {
+            Picker(AppCopy.vehicle, selection: $selectedVehicleID) {
                 ForEach(vehicles, id: \.id) { vehicle in
                     Text(vehicle.displayName).tag(Optional(vehicle.id))
                 }
             }
             .accessibilityIdentifier("snapshot.vehicle.picker")
+
+            Button(AppCopy.location) {
+                locationService.requestAccessIfNeeded()
+                locationService.refreshLocation()
+            }
+            .accessibilityHint(AppCopy.locationHint)
+            .accessibilityIdentifier("snapshot.location")
         }
     }
 
     @ViewBuilder
     private var evidenceSections: some View {
         ImageCaptureField(
-            title: "Odometro",
-            caption: "Captura separada del odometro o cluster.",
+            title: AppCopy.text("Odómetro", "Odometer"),
+            caption: AppCopy.text("Captura separada del odómetro o tablero.", "Separate photo of the odometer or instrument cluster."),
             accessibilityPrefix: "snapshot.odometerImage",
             existingPath: $existingOdometerPath,
             image: $odometerImage
         )
         ImageCaptureField(
-            title: "Nivel de tanque",
-            caption: "Captura separada del nivel de combustible. Si es una aguja analogica, confirma los espacios manualmente en el siguiente paso.",
+            title: AppCopy.text("Nivel de tanque", "Fuel level"),
+            caption: AppCopy.text("Captura separada del nivel de combustible. Si es una aguja analógica, confirma los espacios manualmente en el siguiente paso.", "Separate fuel-level photo. For an analog needle, confirm the remaining segments manually in the next step."),
             accessibilityPrefix: "snapshot.fuelImage",
             existingPath: $existingFuelLevelPath,
             image: $fuelLevelImage

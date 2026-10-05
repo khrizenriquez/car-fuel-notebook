@@ -134,10 +134,11 @@
   - Gate: DTO no contiene imagen/ruta; tamaño anual ≤5 MB; identificador Supabase existente prohibido.
   - Evidencia: `SyncRecordDTO` tiene payloads tipados de vehículo, llenado, snapshot y evidencia OCR mínima, con decimales codificados como strings exactos y metadatos de revisión/tombstone. El resolvedor es idempotente por `(id, revision)` y deja odómetro, volumen, precio, total y vehículo en resolución manual si cambian concurrentemente. Las pruebas verifican exclusión de foto/ruta/placa/notas/ubicación/OCR crudo, conflictos, decodificación inválida y proyección anual <5 MB; `check_cloud_readiness.sh` confirma que v2 no contiene endpoint, proyecto ni credencial Supabase. Core 132/132 con 90.42% de cobertura y compilación iOS sin fallos.
 
-- [ ] **T20 — Completar accesibilidad, localización y permisos**
+- [x] **T20 — Completar accesibilidad, localización y permisos**
   - Commit: `Complete accessible localized v2 workflows`
   - Alcance: VoiceOver, Dynamic Type, contraste, español/inglés, permisos bajo demanda y recordatorios.
   - Gate: recorrido P0 en ambos idiomas + auditoría de accesibilidad.
+  - Evidencia: `ReminderServiceTests` pasó 7/7 con copias español/inglés; las pruebas UI P0 pasaron en inglés y con Dynamic Type de accesibilidad XXXL. Cámara/fotos, ubicación y recordatorios sólo solicitan el permiso al accionar el control correspondiente; VoiceOver recibe etiquetas y estados textuales.
 
 - [ ] **T21 — Agregar diagnóstico local redactado y recuperación de errores**
   - Commit: `Add privacy safe diagnostics and recovery`
@@ -170,6 +171,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T19 completado; sigue T20 (accesibilidad, localización y permisos).
+- Implementación v2: T20 completado; sigue T21 (diagnóstico local redactado y recuperación de errores).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.
