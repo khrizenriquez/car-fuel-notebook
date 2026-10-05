@@ -39,6 +39,15 @@ Cada DTO usa:
 - `deletedAt` opcional;
 - valores decimales serializados sin pérdida.
 
+La implementación v2 define `SyncRecordDTO` con `SyncRecordMetadata` y un payload etiquetado:
+`vehicle`, `fuelEntry`, `usageSnapshot` u `ocrFieldEvidence`. `ownerID` es nulo sólo mientras
+la app funciona localmente; v2.1 deberá asignarlo desde Auth antes de transmitir un registro.
+`SyncDecimal` se codifica como string decimal exacto, nunca como número JSON.
+
+Los DTO tipados excluyen por construcción placa, notas, ubicación, `sourceSessionID`, texto OCR
+crudo, ID de foto y cualquier ruta o byte de imagen. La evidencia OCR sólo incluye valor
+normalizado, unidad, confianza, correcciones, códigos y versión del algoritmo.
+
 ## Conflictos
 
 - Campos no críticos pueden usar revisión más nueva con auditoría.
@@ -46,11 +55,20 @@ Cada DTO usa:
 - Conflictos concurrentes críticos quedan pendientes de resolución del usuario.
 - Las operaciones son idempotentes por `(id, revision)`.
 
+`StructuredSyncConflictResolver` aplica una revisión remota mayor, conserva una menor, ignora
+el mismo documento y compara `updatedAt` sólo para cambios no críticos con la misma revisión.
+Un cambio concurrente de odómetro, volumen, precio, total o vehículo genera
+`needsUserResolution`; nunca se escoge automáticamente.
+
 ## Presupuesto
 
 - Objetivo: ≤5 MB por usuario/año a cinco eventos por semana.
 - No guardar payloads duplicados ni resultados derivados.
 - Medir tamaño serializado e impacto real de índices antes del lanzamiento 2.1.
+
+`SyncPayloadBudget` mide bytes de JSON y proyecta 5 eventos por semana durante 52 semanas.
+El test de contrato mantiene esa proyección por debajo de 5,000,000 bytes. T22 medirá el
+impacto de los índices y del almacenamiento real en una ejecución de release.
 
 ## Recuperación
 

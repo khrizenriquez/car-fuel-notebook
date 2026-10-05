@@ -27,9 +27,9 @@
 | FR-019 | GAP | fallback y calibración confirmada | T09, T16 |
 | FR-020 | CURRENT | unitarias de conversión/DTO | T06 |
 | FR-021 | GAP | archivo optimizado atómico | T14 |
-| FR-022 | GAP | hash/ruta local; DTO sin imagen | T06, T14, T19 |
+| FR-022 | CURRENT | hash/ruta local; DTO cloud sin imagen/ruta | T06, T14, T19 |
 | FR-023 | CURRENT | integración de limpieza sin huérfanos | T14 |
-| FR-024 | GAP | modelos v2/migración | T05, T06 |
+| FR-024 | CURRENT | metadatos v2, tombstones y DTO estructurado | T05, T06, T19 |
 | FR-025 | GAP | validación y override auditado | T13 |
 | FR-026 | GAP | unitarias de reset de trip | T13 |
 | FR-027 | CURRENT | ciclos de tanque | T15 |

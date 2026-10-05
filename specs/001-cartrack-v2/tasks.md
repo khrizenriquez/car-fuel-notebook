@@ -128,10 +128,11 @@
   - Gate: fixtures v1/v2/corrupto/duplicado/interrumpido.
   - Evidencia: el paquete `.cartrackbackup` publica `manifest.json`, `records.json` y evidencia opcional sólo después de verificar SHA-256/tamaños. El importador crea un plan sin mutar datos, adapta JSON v1, detecta UUID/hash inválidos, conserva `hasLocalEvidence` sin rutas absolutas y toma una copia de seguridad hasta confirmar el reemplazo. `PersistenceIntegrationTests` pasó 13/13, incluidos v1, v2, corrupción de hash, UUID duplicado, interrupción con rollback y evidencia local de captura v2; núcleo 129/129 y 90.57% de cobertura.
 
-- [ ] **T19 — Definir DTO y conflictos estructurados para v2.1**
+- [x] **T19 — Definir DTO y conflictos estructurados para v2.1**
   - Commit: `Add structured sync readiness contracts`
   - Alcance: codificación mínima, tombstones, revisiones, conflictos y presupuesto; sin SDK/red.
   - Gate: DTO no contiene imagen/ruta; tamaño anual ≤5 MB; identificador Supabase existente prohibido.
+  - Evidencia: `SyncRecordDTO` tiene payloads tipados de vehículo, llenado, snapshot y evidencia OCR mínima, con decimales codificados como strings exactos y metadatos de revisión/tombstone. El resolvedor es idempotente por `(id, revision)` y deja odómetro, volumen, precio, total y vehículo en resolución manual si cambian concurrentemente. Las pruebas verifican exclusión de foto/ruta/placa/notas/ubicación/OCR crudo, conflictos, decodificación inválida y proyección anual <5 MB; `check_cloud_readiness.sh` confirma que v2 no contiene endpoint, proyecto ni credencial Supabase. Core 132/132 con 90.42% de cobertura y compilación iOS sin fallos.
 
 - [ ] **T20 — Completar accesibilidad, localización y permisos**
   - Commit: `Complete accessible localized v2 workflows`
@@ -169,6 +170,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T18 completado; sigue T19 (contratos de sincronización v2.1).
+- Implementación v2: T19 completado; sigue T20 (accesibilidad, localización y permisos).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.
