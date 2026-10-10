@@ -146,7 +146,7 @@ struct VehicleFormView: View {
             try modelContext.save()
             dismiss()
         } catch {
-            saveError = error.localizedDescription
+            saveError = LocalDiagnosticsService.recovery(for: error, operation: "vehicle.save").message
         }
     }
 

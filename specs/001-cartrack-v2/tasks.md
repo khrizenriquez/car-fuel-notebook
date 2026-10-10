@@ -140,10 +140,11 @@
   - Gate: recorrido P0 en ambos idiomas + auditoría de accesibilidad.
   - Evidencia: `ReminderServiceTests` pasó 7/7 con copias español/inglés; las pruebas UI P0 pasaron en inglés y con Dynamic Type de accesibilidad XXXL. Cámara/fotos, ubicación y recordatorios sólo solicitan el permiso al accionar el control correspondiente; VoiceOver recibe etiquetas y estados textuales.
 
-- [ ] **T21 — Agregar diagnóstico local redactado y recuperación de errores**
+- [x] **T21 — Agregar diagnóstico local redactado y recuperación de errores**
   - Commit: `Add privacy safe diagnostics and recovery`
   - Alcance: códigos estables, export redactado, errores de persistencia/espacio/archivo y acciones.
   - Gate: inyección de errores y revisión del artefacto exportado.
+  - Evidencia: `LocalDiagnosticsService` persiste como máximo 30 incidentes con código, fecha, operación permitida y acción; no serializa `Error.localizedDescription`. El diagnóstico se exporta como JSON local separado, no forma parte del respaldo y no contiene fotos, rutas, OCR, placas, ubicación, notas ni bytes. Las rutas de error de captura, borradores, persistencia, respaldos, vehículos, historial, ajustes y reportes muestran recuperación segura en español/inglés. `PersistenceIntegrationTests` pasó 15/15, incluidos falta de espacio, respaldo corrupto con path privado, rechazo de operación no permitida, revisión de JSON redactado y retención.
 
 ## Fase 4 — Verificación y entrega
 
@@ -171,6 +172,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T20 completado; sigue T21 (diagnóstico local redactado y recuperación de errores).
+- Implementación v2: T21 completado; sigue T22 (rendimiento y presupuestos de almacenamiento).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

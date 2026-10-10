@@ -387,7 +387,7 @@ struct FillUpFormView: View {
                 applyCaptureDraft(outcome.session.draft)
                 return true
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.fillup.analyze").message
                 return false
             }
         }
@@ -477,7 +477,7 @@ struct FillUpFormView: View {
             captureDraft = session.draft
             if await analyzeImages(persistCurrentValues: false) { wizardStep = .review }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.fillup.analyze").message
         }
     }
 
@@ -671,7 +671,7 @@ struct FillUpFormView: View {
         } catch {
             modelContext.rollback()
             imagePlan?.rollback()
-            errorMessage = error.localizedDescription
+            errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.fillup.save").message
         }
     }
 
@@ -731,7 +731,7 @@ struct FillUpFormView: View {
             captureDraft = saved.draft
             return true
         } catch {
-            errorMessage = "No se pudo conservar el borrador: \(error.localizedDescription)"
+            errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.fillup.draft").message
             return false
         }
     }

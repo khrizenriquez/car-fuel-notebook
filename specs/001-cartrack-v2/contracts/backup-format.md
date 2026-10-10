@@ -8,8 +8,12 @@ Directorio-paquete con extensión `.cartrackbackup` que contiene:
 manifest.json
 records.json
 images/          # opcional
-diagnostics/     # opcional, redactado
 ```
+
+El diagnóstico es un JSON local separado, exportado explícitamente por la persona usuaria;
+no se incorpora al respaldo. Sólo contiene versión, fecha, códigos estables, operaciones
+permitidas y acciones sugeridas. Nunca contiene fotos, bytes, rutas, texto OCR, placas,
+ubicaciones, notas ni la descripción cruda de un error.
 
 ## Manifiesto
 

@@ -46,7 +46,7 @@
 | FR-038 | CURRENT | paquete v2, manifiesto SHA-256 e imágenes opcionales | T18 |
 | FR-039 | CURRENT | plan validado, staging y rollback de restauración | T18 |
 | FR-040 | CURRENT | rechazo de UUID/hash duplicado | T18 |
-| FR-041 | GAP | diagnóstico redactado | T21 |
+| FR-041 | VERIFIED | códigos estables, acciones y JSON local redactado | T21 |
 | FR-042 | CURRENT | tests de recordatorios | T20 |
 | FR-043 | GAP | protocolos/adaptadores | T06 |
 | FR-044 | DEFERRED-2.1 | tests de DTO/conflictos sin red | T19 |
@@ -67,7 +67,7 @@
 | NFR-008 | VERIFIED | recorrido P0 español/inglés y recordatorio localizado | T20 |
 | NFR-009 | GAP | fixtures de migración | T05 |
 | NFR-010 | CURRENT | coverage + gates completos | T24 |
-| NFR-011 | GAP | export diagnóstico | T21 |
+| NFR-011 | VERIFIED | inyección y revisión de export sin datos sensibles | T21 |
 | NFR-012 | CURRENT | preflight/permisos/protección | T01, T23 |
 | NFR-013 | GAP | repositorios y unitarias puras | T06 |
 | NFR-014 | GAP | inspección de persistencia/DTO | T06, T19 |

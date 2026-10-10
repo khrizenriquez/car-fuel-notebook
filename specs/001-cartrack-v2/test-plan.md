@@ -114,6 +114,13 @@ Se comparan IDs, conteos, relaciones, valores, timestamps y hashes antes/despué
 
 ## 8. Gates y evidencia
 
+**Evidencia T21:** `PersistenceIntegrationTests` cubre la clasificación de falta de
+espacio, un respaldo corrupto que incluye una ruta privada en su error, la retención
+de los 30 incidentes más recientes y la exportación JSON. La prueba verifica que el
+archivo final contiene únicamente `formatVersion`, fecha, código estable, operación
+permitida y acción sugerida; una operación que contiene una placa se sustituye por
+`local.operation` y ni la placa ni la ruta aparecen en el artefacto.
+
 | Gate | Cuándo | Evidencia |
 |---|---|---|
 | pruebas focalizadas | cada commit | log local |

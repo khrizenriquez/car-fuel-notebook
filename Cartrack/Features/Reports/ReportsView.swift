@@ -335,7 +335,7 @@ struct ReportsView: View {
             lastCSVURL = url
             exportMessage = "CSV listo: \(url.lastPathComponent)"
         } catch {
-            exportErrorMessage = error.localizedDescription
+            exportErrorMessage = LocalDiagnosticsService.recovery(for: error, operation: "report.export").message
         }
     }
 
@@ -345,7 +345,7 @@ struct ReportsView: View {
             lastPDFURL = url
             exportMessage = "PDF listo: \(url.lastPathComponent)"
         } catch {
-            exportErrorMessage = error.localizedDescription
+            exportErrorMessage = LocalDiagnosticsService.recovery(for: error, operation: "report.export").message
         }
     }
 

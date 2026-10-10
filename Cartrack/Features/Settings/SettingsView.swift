@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var isShowingBackupImporter = false
     @State private var pendingImportURL: URL?
     @State private var includeBackupImages = true
+    @State private var lastDiagnosticURL: URL?
 
     private var selectedResetVehicle: Vehicle? {
         vehicles.first(where: { $0.id == selectedResetVehicleID }) ?? vehicles.first
@@ -62,6 +63,19 @@ struct SettingsView: View {
                         Label(AppCopy.text("Compartir último respaldo", "Share latest backup"), systemImage: "square.and.arrow.up")
                     }
                     .accessibilityIdentifier("settings.backup.share")
+                }
+
+                Button(AppCopy.text("Exportar diagnóstico redactado", "Export redacted diagnostic")) {
+                    exportDiagnostics()
+                }
+                .accessibilityHint(AppCopy.text("Incluye sólo códigos de error, acciones sugeridas y fechas; nunca fotos, rutas, OCR ni datos del vehículo.", "Includes only error codes, recommended actions, and dates; never photos, paths, OCR, or vehicle data."))
+                .accessibilityIdentifier("settings.diagnostics.export")
+
+                if let lastDiagnosticURL {
+                    ShareLink(item: lastDiagnosticURL) {
+                        Label(AppCopy.text("Compartir diagnóstico redactado", "Share redacted diagnostic"), systemImage: "stethoscope")
+                    }
+                    .accessibilityIdentifier("settings.diagnostics.share")
                 }
             }
 
@@ -154,7 +168,7 @@ struct SettingsView: View {
             case .success(let urls):
                 pendingImportURL = urls.first
             case .failure(let error):
-                backupError = error.localizedDescription
+                backupError = LocalDiagnosticsService.recovery(for: error, operation: "backup.select").message
             }
         }
         .onChange(of: reminderEnabled) { _, enabled in
@@ -201,7 +215,7 @@ struct SettingsView: View {
             try ResetService.resetData(for: vehicle, context: modelContext)
             ReminderService.shared.cancelInactivityReminder()
         } catch {
-            resetError = error.localizedDescription
+            resetError = LocalDiagnosticsService.recovery(for: error, operation: "vehicle.reset").message
         }
     }
 
@@ -212,7 +226,7 @@ struct SettingsView: View {
             lastBackupURL = url
             backupStatusMessage = "Respaldo listo: \(url.lastPathComponent)"
         } catch {
-            backupError = error.localizedDescription
+            backupError = LocalDiagnosticsService.recovery(for: error, operation: "backup.export").message
         }
     }
 
@@ -231,7 +245,17 @@ struct SettingsView: View {
             let summary = try BackupTransferService.importBackup(from: pendingImportURL, into: modelContext)
             backupStatusMessage = "Respaldo importado: \(summary.vehicleCount) vehiculos, \(summary.fillCount) llenados, \(summary.snapshotCount) snapshots y \(summary.imageCount) imagenes."
         } catch {
-            backupError = error.localizedDescription
+            backupError = LocalDiagnosticsService.recovery(for: error, operation: "backup.import").message
+        }
+    }
+
+    private func exportDiagnostics() {
+        do {
+            let url = try LocalDiagnosticsService.export()
+            lastDiagnosticURL = url
+            backupStatusMessage = AppCopy.text("Diagnóstico redactado listo: \(url.lastPathComponent)", "Redacted diagnostic ready: \(url.lastPathComponent)")
+        } catch {
+            backupError = LocalDiagnosticsService.recovery(for: error, operation: "diagnostics.export").message
         }
     }
 }

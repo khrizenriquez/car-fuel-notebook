@@ -340,7 +340,7 @@ struct SnapshotFormView: View {
                 applyCaptureDraft(outcome.session.draft)
                 return true
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.snapshot.analyze").message
                 return false
             }
         }
@@ -417,7 +417,7 @@ struct SnapshotFormView: View {
             captureDraft = session.draft
             if await analyzeImages(persistCurrentValues: false) { wizardStep = .review }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.snapshot.analyze").message
         }
     }
 
@@ -594,7 +594,7 @@ struct SnapshotFormView: View {
         } catch {
             modelContext.rollback()
             imagePlan?.rollback()
-            errorMessage = error.localizedDescription
+            errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.snapshot.save").message
         }
     }
 
@@ -644,7 +644,7 @@ struct SnapshotFormView: View {
             captureDraft = saved.draft
             return true
         } catch {
-            errorMessage = "No se pudo conservar el borrador: \(error.localizedDescription)"
+            errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.snapshot.draft").message
             return false
         }
     }

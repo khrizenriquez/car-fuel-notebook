@@ -5,6 +5,81 @@ import CryptoKit
 @testable import Cartrack
 
 final class PersistenceIntegrationTests: XCTestCase {
+    func testLocalDiagnosticsClassifiesStorageFailureWithoutPersistingSensitiveDetails() throws {
+        let defaults = try makeDiagnosticDefaults()
+        defer { LocalDiagnosticsService.clear(userDefaults: defaults) }
+
+        let recovery = LocalDiagnosticsService.recovery(
+            for: StoreMigrationError.insufficientSpace,
+            operation: "capture.fillup.save",
+            userDefaults: defaults,
+            now: Date(timeIntervalSince1970: 1_000)
+        )
+
+        XCTAssertEqual(recovery.code, .insufficientStorage)
+        let report = LocalDiagnosticsService.report(userDefaults: defaults, now: Date(timeIntervalSince1970: 1_001))
+        XCTAssertEqual(report.incidents.count, 1)
+        XCTAssertEqual(report.incidents.first?.code, .insufficientStorage)
+        XCTAssertEqual(report.incidents.first?.operation, "capture.fillup.save")
+        let encoded = try JSONEncoder().encode(report)
+        let text = try XCTUnwrap(String(data: encoded, encoding: .utf8))
+        XCTAssertFalse(text.contains("P123ABC"))
+        XCTAssertFalse(text.contains("/Users/"))
+        XCTAssertFalse(text.contains("raw OCR"))
+    }
+
+    func testLocalDiagnosticsExportIsRedactedAndRejectsUnknownOperationNames() throws {
+        let defaults = try makeDiagnosticDefaults()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CartrackDiagnostics-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            LocalDiagnosticsService.clear(userDefaults: defaults)
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        _ = LocalDiagnosticsService.recovery(
+            for: BackupTransferError.integrityFailed("/private/receipt-P123ABC.jpg"),
+            operation: "backup.import?plate=P123ABC",
+            userDefaults: defaults,
+            now: Date(timeIntervalSince1970: 2_000)
+        )
+        let url = try LocalDiagnosticsService.export(
+            userDefaults: defaults,
+            now: Date(timeIntervalSince1970: 2_001),
+            directory: directory
+        )
+        let data = try Data(contentsOf: url)
+        let text = try XCTUnwrap(String(data: data, encoding: .utf8))
+        XCTAssertTrue(text.contains("backup.rejected"))
+        XCTAssertTrue(text.contains("local.operation"))
+        XCTAssertFalse(text.contains("receipt-P123ABC"))
+        XCTAssertFalse(text.contains("/private/"))
+        XCTAssertFalse(text.contains("plate=P123ABC"))
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        XCTAssertEqual(try decoder.decode(LocalDiagnosticReport.self, from: data).incidents.count, 1)
+    }
+
+    func testLocalDiagnosticsRetainsOnlyMostRecentThirtyIncidents() throws {
+        let defaults = try makeDiagnosticDefaults()
+        defer { LocalDiagnosticsService.clear(userDefaults: defaults) }
+
+        for index in 0..<31 {
+            _ = LocalDiagnosticsService.recovery(
+                for: CaptureSessionError.invalidDraft,
+                operation: "capture.snapshot.draft",
+                userDefaults: defaults,
+                now: Date(timeIntervalSince1970: TimeInterval(index))
+            )
+        }
+
+        let incidents = LocalDiagnosticsService.report(userDefaults: defaults).incidents
+        XCTAssertEqual(incidents.count, 30)
+        XCTAssertEqual(incidents.first?.occurredAt, Date(timeIntervalSince1970: 1))
+        XCTAssertEqual(incidents.last?.occurredAt, Date(timeIntervalSince1970: 30))
+    }
+
     func testSyncMetadataMaintainerTracksBaselineSavesAndDeletion() throws {
         let context = try IntegrationTestSupport.makeInMemoryContext()
         let vehicle = Vehicle(name: "Roadster", make: "BMW", modelName: "Z4", year: 2003)
@@ -463,6 +538,15 @@ final class PersistenceIntegrationTests: XCTestCase {
     private func backupRecordsObject(in package: URL) throws -> [String: Any] {
         let data = try Data(contentsOf: package.appendingPathComponent("records.json"))
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private func makeDiagnosticDefaults() throws -> UserDefaults {
+        let suite = "CartrackTests.Diagnostics.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suite) else {
+            throw XCTSkip("No isolated UserDefaults suite available")
+        }
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
     }
 
     private func writeBackupJSON(_ object: [String: Any], named: String) throws -> URL {

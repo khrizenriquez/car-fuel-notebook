@@ -19,6 +19,7 @@ struct CartrackApp: App {
             _ = try SwiftDataCaptureSessionRepository.recoverOnLaunch(in: container)
             bootstrapResult = .success(container)
         } catch {
+            _ = LocalDiagnosticsService.recovery(for: error, operation: "app.start")
             bootstrapResult = .failure(error)
         }
     }
@@ -32,8 +33,8 @@ struct CartrackApp: App {
                     .task {
                         _ = try? await LocalEvidenceOptimizationService.optimizePending(in: modelContainer)
                     }
-            case .failure(let error):
-                PersistenceUnavailableView(error: error)
+            case .failure:
+                PersistenceUnavailableView()
             }
         }
     }
@@ -137,15 +138,13 @@ private enum UITestSeedData {
 }
 
 private struct PersistenceUnavailableView: View {
-    let error: Error
-
     var body: some View {
         ContentUnavailableView {
             Label("Cartrack no pudo abrir la base local", systemImage: "externaldrive.badge.exclamationmark")
         } description: {
             Text("Tus datos no se borraron automaticamente. Cierra y vuelve a abrir la app. Si el problema sigue, revisa el almacenamiento disponible antes de borrar datos de un vehiculo.")
         } actions: {
-            Text(error.localizedDescription)
+            Text("La causa técnica se guardó sólo como un código local redactado. Puedes exportarlo desde Ajustes cuando la base local esté disponible.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

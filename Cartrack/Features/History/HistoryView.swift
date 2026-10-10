@@ -177,7 +177,7 @@ struct HistoryView: View {
                 try delete(row)
             }
         } catch {
-            deletionError = error.localizedDescription
+            deletionError = LocalDiagnosticsService.recovery(for: error, operation: "history.delete").message
         }
     }
 

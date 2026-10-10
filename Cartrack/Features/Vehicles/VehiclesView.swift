@@ -89,7 +89,7 @@ struct VehiclesView: View {
                 try EventDeletionService.delete(vehicle: vehicle, context: modelContext)
             }
         } catch {
-            deletionError = error.localizedDescription
+            deletionError = LocalDiagnosticsService.recovery(for: error, operation: "vehicle.delete").message
         }
     }
 }

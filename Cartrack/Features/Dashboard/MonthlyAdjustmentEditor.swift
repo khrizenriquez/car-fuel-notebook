@@ -94,7 +94,7 @@ struct MonthlyAdjustmentEditor: View {
             try modelContext.save()
             dismiss()
         } catch {
-            persistenceError = error.localizedDescription
+            persistenceError = LocalDiagnosticsService.recovery(for: error, operation: "dashboard.adjustment").message
         }
     }
 
@@ -106,7 +106,7 @@ struct MonthlyAdjustmentEditor: View {
             try modelContext.save()
             dismiss()
         } catch {
-            persistenceError = error.localizedDescription
+            persistenceError = LocalDiagnosticsService.recovery(for: error, operation: "dashboard.adjustment").message
         }
     }
 }
