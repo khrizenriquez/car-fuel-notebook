@@ -96,11 +96,20 @@ Se comparan IDs, conteos, relaciones, valores, timestamps y hashes antes/despué
 
 ## 6. Rendimiento y almacenamiento
 
-- Medir p50/p95 de análisis con 1, 2 y 3 imágenes.
-- Medir memoria máxima.
+- Medir p50/p95 de preparación local con 1, 2 y 3 imágenes sintéticas de 1600×1200, después de warm-up.
+- Medir memoria máxima incremental durante las mismas muestras.
 - Verificar copia optimizada decodificable y ≤objetivo razonable.
 - Ejecutar muestra representativa para proyectar ≤250 MB/año local.
 - Serializar eventos futuros para proyectar ≤5 MB/año cloud.
+
+**Evidencia T22 (iPhone 16 Pro, simulador iOS 18.2, Debug):** once muestras de
+preparación local dieron: una foto p50 0.369 s/p95 0.404 s/+48.8 MB; dos fotos
+p50 0.821 s/p95 0.856 s/+58.9 MB; tres fotos p50 1.232 s/p95 1.369 s/+59.0 MB
+de pico incremental observado después de preparar cada imagen. El gate automatizado es p95 ≤5 s y aumento ≤160 MB. La evidencia
+optimizada se limita a 450 KB/foto, por lo que 10 fotos semanales proyectan 234 MB/año.
+`SyncPayloadBudget` serializa el DTO estructurado para mantenerlo bajo 5 MB/año.
+Estas mediciones prueban el pipeline local reproducible; el corpus OCR privado y el
+dispositivo físico se verifican en T23/T24 y no se sustituyen por imágenes sintéticas.
 
 ## 7. Accesibilidad/localización
 

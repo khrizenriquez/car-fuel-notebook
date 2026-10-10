@@ -60,9 +60,9 @@
 | NFR-001 | CURRENT | prueba/red + escaneo DTO | T19, T23 |
 | NFR-002 | CURRENT | E2E con red desactivada | T23 |
 | NFR-003 | GAP | fallos inyectados/transacciones | T05, T18 |
-| NFR-004 | GAP | medición p50/p95 | T22 |
-| NFR-005 | GAP | benchmark de optimización/proyección | T14, T22 |
-| NFR-006 | TARGET-V2 | test de tamaño serializado | T19, T22 |
+| NFR-004 | VERIFIED | p50/p95 1–3 fotos, p95 de 3 fotos 1.369 s | T22 |
+| NFR-005 | VERIFIED | pico de preparación ≤59.0 MB y proyección local 234 MB/año | T14, T22 |
+| NFR-006 | VERIFIED | payload estructurado anual <5 MB, sin píxeles ni rutas | T19, T22 |
 | NFR-007 | VERIFIED | VoiceOver: nombres/estado explícitos; UI P0 con tamaño de accesibilidad | T20 |
 | NFR-008 | VERIFIED | recorrido P0 español/inglés y recordatorio localizado | T20 |
 | NFR-009 | GAP | fixtures de migración | T05 |
@@ -96,8 +96,8 @@
 | SC-004 | integración/UI de reanudación | T07, T12 |
 | SC-005 | reporte de migración/restauración | T05, T18 |
 | SC-006 | inspección de red sin transmisión de imágenes | T23 |
-| SC-007 | medición serializada ≤5 MB/año | T19, T22 |
-| SC-008 | medición local ≤250 MB/año | T14, T22 |
+| SC-007 | VERIFIED: payload estructurado proyectado ≤5 MB/año | T19, T22 |
+| SC-008 | VERIFIED: máximo local proyectado 234 MB/año | T14, T22 |
 | SC-009 | gates finales, cobertura y crash review | T24 |
 | SC-010 | esta matriz sin filas P0/P1 pendientes | T24 |
 

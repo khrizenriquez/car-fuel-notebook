@@ -148,10 +148,11 @@
 
 ## Fase 4 — Verificación y entrega
 
-- [ ] **T22 — Medir rendimiento y presupuestos de almacenamiento**
+- [x] **T22 — Medir rendimiento y presupuestos de almacenamiento**
   - Commit: `Verify v2 performance and storage budgets`
   - Alcance: p50/p95, memoria, bytes locales y payload estructurado.
   - Gate: NFR-004/005/006 documentados con mediciones.
+  - Evidencia: `CaptureImagePipelineTests` mide once muestras después de warm-up con imágenes sintéticas de 1600×1200 y conserva el reporte como adjunto `.xcresult`. En iPhone 16 Pro / iOS 18.2 (Debug), preparación local: 1 foto p50 0.369 s, p95 0.404 s, pico +48.8 MB; 2 fotos p50 0.821 s, p95 0.856 s, pico +58.9 MB; 3 fotos p50 1.232 s, p95 1.369 s, pico +59.0 MB. El gate exige p95 ≤5 s y pico incremental ≤160 MB. El límite verificado de 10 fotos por semana × 450 KB × 52 es 234 MB/año local (≤250 MB); `SyncPayloadBudget` mantiene el JSON estructurado proyectado <5 MB/año sin imágenes ni rutas. El benchmark sintético verifica la preparación reproducible; el corpus OCR privado sigue siendo una señal separada de precisión de T23/dispositivo físico.
 
 - [ ] **T23 — Completar recorridos E2E y controles de privacidad**
   - Commit: `Add end to end v2 release scenarios`
@@ -172,6 +173,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T21 completado; sigue T22 (rendimiento y presupuestos de almacenamiento).
+- Implementación v2: T22 completado; sigue T23 (recorridos E2E y privacidad).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

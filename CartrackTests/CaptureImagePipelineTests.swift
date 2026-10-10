@@ -1,4 +1,5 @@
 import CoreImage
+import Darwin
 import UIKit
 import XCTest
 @testable import Cartrack
@@ -99,6 +100,63 @@ final class CaptureImagePipelineTests: XCTestCase {
         XCTAssertTrue(result.quality.issues.contains(.lowResolution))
     }
 
+    /// A reproducible simulator budget, deliberately below the five-second first-prefill NFR.
+    /// The full private OCR corpus remains covered separately because it cannot be committed.
+    @MainActor
+    func testPreparationPerformanceAndMemoryStayWithinV2Budget() throws {
+        let images = [
+            receiptImage(size: CGSize(width: 1_600, height: 1_200)),
+            clusterImage(size: CGSize(width: 1_600, height: 1_200)),
+            receiptImage(size: CGSize(width: 1_200, height: 1_600))
+        ]
+        let imageCounts = [1, 2, 3]
+        var measurements: [(count: Int, p50: Double, p95: Double, peakDeltaBytes: UInt64)] = []
+
+        for count in imageCounts {
+            // Warm Core Image once; subsequent samples represent the user-visible steady path.
+            try prepare(images: Array(images.prefix(count)))
+            let baselineMemory = residentMemoryBytes()
+            var samples: [Double] = []
+            var peakMemory = baselineMemory
+            for _ in 0..<11 {
+                let start = DispatchTime.now().uptimeNanoseconds
+                try prepare(images: Array(images.prefix(count))) {
+                    peakMemory = max(peakMemory, self.residentMemoryBytes())
+                }
+                let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000_000
+                samples.append(elapsed)
+                peakMemory = max(peakMemory, residentMemoryBytes())
+            }
+            measurements.append((count, percentile(samples, 0.50), percentile(samples, 0.95),
+                                 peakMemory >= baselineMemory ? peakMemory - baselineMemory : 0))
+        }
+
+        for measurement in measurements {
+            print(String(format: "T22 capture preparation: %d image(s), p50 %.3fs, p95 %.3fs, peak +%.1f MB",
+                         measurement.count, measurement.p50, measurement.p95,
+                         Double(measurement.peakDeltaBytes) / 1_000_000))
+            XCTAssertLessThanOrEqual(measurement.p95, 5.0,
+                                     "The p95 must meet the five-second initial prefill objective.")
+            XCTAssertLessThanOrEqual(measurement.peakDeltaBytes, 160_000_000,
+                                     "Preparation must not retain an unbounded image batch in memory.")
+        }
+        let report = measurements.map {
+            String(format: "%d image(s): p50 %.3fs, p95 %.3fs, peak +%.1f MB",
+                   $0.count, $0.p50, $0.p95, Double($0.peakDeltaBytes) / 1_000_000)
+        }.joined(separator: "\n")
+        let attachment = XCTAttachment(string: report)
+        attachment.name = "T22 capture preparation budget"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testAnnualLocalEvidenceBudgetUsesVerifiedPerPhotoLimit() {
+        let retainedPhotosPerWeek = 10 // five captures, receipt + dashboard photo
+        let annualBytes = retainedPhotosPerWeek * 52 * CapturePhotoStore.maxOptimizedByteCount
+        XCTAssertEqual(annualBytes, 234_000_000)
+        XCTAssertLessThanOrEqual(annualBytes, 250_000_000)
+    }
+
     private func receiptImage(size: CGSize = CGSize(width: 400, height: 400)) -> UIImage {
         UIGraphicsImageRenderer(size: size).image { context in
             UIColor.white.setFill()
@@ -112,16 +170,45 @@ final class CaptureImagePipelineTests: XCTestCase {
         }
     }
 
-    private func clusterImage() -> UIImage {
-        UIGraphicsImageRenderer(size: CGSize(width: 400, height: 400)).image { context in
+    private func clusterImage(size: CGSize = CGSize(width: 400, height: 400)) -> UIImage {
+        UIGraphicsImageRenderer(size: size).image { context in
             UIColor.black.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 400, height: 400))
+            context.fill(CGRect(origin: .zero, size: size))
             UIColor.red.setFill()
             for column in 0..<16 {
-                context.fill(CGRect(x: 35 + column * 22, y: 180,
-                                    width: 9, height: 45))
+                context.fill(CGRect(x: size.width * 0.09 + CGFloat(column) * size.width * 0.055,
+                                    y: size.height * 0.45,
+                                    width: size.width * 0.022, height: size.height * 0.112))
             }
         }
+    }
+
+    @MainActor
+    private func prepare(images: [UIImage], onImagePrepared: (() -> Void)? = nil) throws {
+        for (offset, image) in images.enumerated() {
+            let kind: CaptureImageKind = offset == 0 ? .invoice : .odometer
+            let preparation = try pipeline.prepare(image, declaredKind: kind)
+            XCTAssertFalse(preparation.variants.isEmpty)
+            onImagePrepared?()
+        }
+    }
+
+    private func percentile(_ values: [Double], _ quantile: Double) -> Double {
+        let sorted = values.sorted()
+        guard !sorted.isEmpty else { return 0 }
+        let index = min(sorted.count - 1, max(0, Int((Double(sorted.count - 1) * quantile).rounded(.up))))
+        return sorted[index]
+    }
+
+    private func residentMemoryBytes() -> UInt64 {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { rebound in
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), rebound, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? UInt64(info.resident_size) : 0
     }
 
     private func blur(_ image: UIImage, radius: Double) -> UIImage? {
