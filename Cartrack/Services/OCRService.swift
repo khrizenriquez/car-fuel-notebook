@@ -628,11 +628,18 @@ final class OCRService: @unchecked Sendable {
         if let best {
             let odometerDelta = best.reading.odometerMiles - previous.odometerMiles
             let tripDelta = best.reading.tripMiles - previous.tripMiles
+            let hasRepeatedExactPair = odometerCandidates.contains {
+                $0.value == best.reading.odometerMiles && $0.edits == 0 && $0.support >= 2
+            } && tripCandidates.contains {
+                $0.value == best.reading.tripMiles && $0.edits == 0 && $0.support >= 2
+            }
             // A single noisy digit can turn the previous reading into a
             // superficially consistent next reading.  With no independent
-            // display confirmation, leave sub-five-mile changes for review
-            // instead of silently advancing the odometer.
-            guard max(odometerDelta, tripDelta) >= 5 else { return nil }
+            // display confirmation, leave sub-five-mile changes for review.
+            // Repeated, exact evidence for both fields is an exception: it
+            // makes a short legitimate drive more reliable than a conflicting
+            // specialized-reader guess.
+            guard max(odometerDelta, tripDelta) >= 5 || hasRepeatedExactPair else { return nil }
             return best.reading
         }
 
