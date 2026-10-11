@@ -66,6 +66,9 @@ require_file "README.md"
 require_file "SECURITY.md"
 require_file ".github/workflows/ios-ci.yml"
 require_file "Scripts/verify_local.sh"
+require_file "Scripts/verify_private_image_scenarios.sh"
+require_file "Scripts/prepare_private_fixture_simulator.sh"
+require_file "Scripts/check_v2_privacy.sh"
 require_file "Scripts/check_core_coverage.sh"
 require_file "Scripts/check_remote_ci.sh"
 require_file "Scripts/publish_private.sh"
@@ -76,7 +79,7 @@ require_file "docs/testing/ocr-fixtures.md"
 require_file "docs/release/private-github-publish.md"
 require_file "docs/release/v1-readiness-audit.md"
 
-for adr in 001 002 003 004 005 006; do
+for adr in 001 002 003 004 005 006 007; do
   matches=(docs/adr/ADR-"$adr"-*.md)
   [[ -e "${matches[0]}" ]] || fail "Missing ADR-$adr"
 done
@@ -94,8 +97,22 @@ require_gitignore_pattern ".build/"
 require_gitignore_pattern "xcuserdata/"
 
 info "Checking that private evidence files are not tracked"
-if git ls-files | rg -i '(invoice|odometer|fuellevel|capture|receipt|factura).*\.(heic|heif|jpg|jpeg|png|tiff|pdf)$'; then
+tracked_private_evidence="$(
+  git ls-files \
+    | rg -i '(invoice|odometer|fuellevel|capture|receipt|factura).*\.(heic|heif|jpg|jpeg|png|tiff|pdf)$' \
+    | rg -v '^docs/assets/readme/' || true
+)"
+if [[ -n "$tracked_private_evidence" ]]; then
+  echo "$tracked_private_evidence"
   fail "Potential private evidence image/PDF is tracked. Remove it before publishing."
+fi
+
+info "Running v2 privacy gate"
+./Scripts/check_v2_privacy.sh
+
+info "Checking production OCR for exact-fixture response tables"
+if rg -n 'knownFixtureReading|knownInvoiceText|fixtureSignature' Cartrack CartrackCore; then
+  fail "Production OCR contains an exact-fixture response path forbidden by ADR-007."
 fi
 
 info "Running basic secret scan"

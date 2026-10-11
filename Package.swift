@@ -14,7 +14,8 @@ let package = Package(
     targets: [
         .target(
             name: "CartrackCore",
-            path: "CartrackCore/Sources/CartrackCore"
+            path: "CartrackCore/Sources/CartrackCore",
+            linkerSettings: [.linkedLibrary("sqlite3")]
         ),
         .testTarget(
             name: "CartrackCoreTests",

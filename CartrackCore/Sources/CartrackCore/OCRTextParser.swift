@@ -3,10 +3,33 @@ import Foundation
 struct OCRTextParser {
     func parseFillUp(invoiceText: String, odometerText: String, fuelLevelText: String, fuelScaleMax: Double) -> FillUpTextParseResult {
         let lineItem = parseFuelLineItem(from: invoiceText)
+        let gallons = lineItem?.gallons ?? parseGallons(from: invoiceText)
+        let reconciledAmounts = gallons.flatMap {
+            reconcileFuelAmounts(in: invoiceText, gallons: $0)
+        }
+        let totalCost = parseTemporarySocialSupportTotal(from: invoiceText)
+            ?? lineItem?.totalCost
+            ?? reconciledAmounts?.totalCost
+            ?? parseExplicitTotalLine(from: invoiceText)
+            ?? parseTotalCost(from: invoiceText)
+        let parsedPrice = parsePricePerGallon(from: invoiceText)
+        let inferredPrice = gallons.flatMap { gallons in
+            totalCost.flatMap { inferredUnitPrice(gallons: gallons, totalCost: $0) }
+        }
+        let pricePerGallon = lineItem?.pricePerGallon
+            ?? reconciledAmounts?.pricePerGallon
+            ?? parsedPrice.flatMap { price in
+                guard let gallons, let totalCost,
+                      isConsistent(price: price, gallons: gallons, totalCost: totalCost)
+                else { return nil }
+                return price
+            }
+            ?? inferredPrice
+            ?? parsedPrice
         return FillUpTextParseResult(
-            gallons: lineItem?.gallons ?? parseGallons(from: invoiceText),
-            pricePerGallon: lineItem?.pricePerGallon ?? parsePricePerGallon(from: invoiceText),
-            totalCost: parseTotalCost(from: invoiceText),
+            gallons: gallons,
+            pricePerGallon: pricePerGallon,
+            totalCost: totalCost,
             odometerMiles: parseLargestMileage(from: odometerText),
             tripMiles: parseTripMileage(from: odometerText),
             fuelLevelRemaining: parseFuelLevel(from: fuelLevelText, fuelScaleMax: fuelScaleMax)
@@ -23,6 +46,8 @@ struct OCRTextParser {
 
     func parseGallons(from text: String) -> Double? {
         parseFuelLineItem(from: text)?.gallons ??
+        parseDecimalLiteral(afterKeywords: ["galones", "gallons", "cantidad", "cant. gal", "cant gal", "cant"], in: text, min: 1, max: 30)
+            ??
         parseDecimal(afterKeywords: ["galones", "gallons", "cantidad", "cant. gal", "cant gal", "cant", "despachado", "volumen"], in: text, min: 1, max: 30)
             ?? parseDecimal(beforeKeywords: ["galones", "gallons", "gals", "gal"], in: text, min: 1, max: 30)
             ?? bestDecimalCandidate(in: text, min: 1, max: 30)
@@ -53,18 +78,32 @@ struct OCRTextParser {
         parseDecimal(afterKeywords: ["odometro", "odometer", "odo", "millas", "mileage"], in: text, min: 1_000, max: 999_999)
             ??
         extractNumbers(from: text)
-            .filter { $0 > 1_000 && $0 < 999_999 }
+            .filter { candidate in
+                guard candidate < 999_999 else { return false }
+                if looksLikeInstrumentClusterOCR(text) {
+                    return candidate >= 10_000
+                }
+                return candidate > 1_000
+            }
             .sorted(by: >)
             .first
     }
 
     func parseTripMileage(from text: String) -> Double? {
-        parseDecimal(afterKeywords: ["trip meter", "tripmeter", "trip"], in: text, min: 0, max: 2_000)
-            ??
         parseInstrumentClusterTrip(from: text)
             ??
+        parseTripKeywordMileage(from: text)
+            ??
         extractNumbers(from: text)
-            .filter { $0 >= 0 && $0 < 2_000 && $0.truncatingRemainder(dividingBy: 1) != 0 }
+            .filter { candidate in
+                guard candidate < 2_000,
+                      candidate.truncatingRemainder(dividingBy: 1) != 0
+                else { return false }
+                if looksLikeInstrumentClusterOCR(text) {
+                    return candidate > 0
+                }
+                return candidate >= 0
+            }
             .sorted(by: >)
             .first
     }
@@ -114,6 +153,37 @@ struct OCRTextParser {
             }
         }
         return nil
+    }
+
+    private func parseDecimalLiteral(afterKeywords keywords: [String], in text: String, min: Double, max: Double) -> Double? {
+        let lowercased = text.lowercased()
+        let lines = lowercased.components(separatedBy: .newlines)
+
+        for keyword in keywords {
+            for line in lines where line.contains(keyword.lowercased()) {
+                if let value = extractDecimalLiterals(from: line).first(where: { $0 >= min && $0 <= max }) {
+                    return value
+                }
+            }
+        }
+
+        for keyword in keywords {
+            guard let range = lowercased.range(of: keyword.lowercased()) else { continue }
+            let suffix = String(lowercased[range.lowerBound...].prefix(60))
+            if let value = extractDecimalLiterals(from: suffix).first(where: { $0 >= min && $0 <= max }) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func extractDecimalLiterals(from text: String) -> [Double] {
+        let pattern = #"(?<!\d)\d{1,2}[.,]\d{1,4}(?!\d)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let nsText = text as NSString
+        return regex.matches(in: text, range: NSRange(location: 0, length: nsText.length)).compactMap { match in
+            Double(nsText.substring(with: match.range).replacingOccurrences(of: ",", with: "."))
+        }
     }
 
     private func parseFraction(afterKeywords keywords: [String], in text: String, min: Double, max: Double) -> Double? {
@@ -175,8 +245,57 @@ struct OCRTextParser {
         return nil
     }
 
+    private func parseTripKeywordMileage(from text: String) -> Double? {
+        let keywords = ["trip meter", "tripmeter", "trip"]
+        let lowercased = text.lowercased()
+        let lines = lowercased.components(separatedBy: .newlines)
+
+        for keyword in keywords {
+            for line in lines where line.contains(keyword) {
+                if let value = parseExplicitOrImpliedTrip(from: line) {
+                    return value
+                }
+            }
+        }
+
+        for keyword in keywords {
+            guard let range = lowercased.range(of: keyword) else { continue }
+            let suffix = String(lowercased[range.lowerBound...].prefix(30))
+            if let value = parseExplicitOrImpliedTrip(from: suffix) {
+                return value
+            }
+        }
+
+        return nil
+    }
+
     private func bestDecimalCandidate(in text: String, min: Double, max: Double) -> Double? {
         extractNumbers(from: text).first(where: { $0 >= min && $0 <= max })
+    }
+
+    private func parseExplicitOrImpliedTrip(from text: String) -> Double? {
+        let explicitNumbers = extractNumbers(from: text).filter { $0 >= 0 && $0 < 2_000 }
+        if let decimalCandidate = explicitNumbers.first(where: { $0.truncatingRemainder(dividingBy: 1) != 0 }) {
+            return decimalCandidate
+        }
+
+        guard let regex = try? NSRegularExpression(pattern: #"(?<!\d)(\d{3,4})(?![\d.,])"#) else {
+            return explicitNumbers.first
+        }
+
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        for match in matches {
+            guard match.numberOfRanges == 2 else { continue }
+            let raw = nsText.substring(with: match.range(at: 1))
+            guard let digits = Double(raw) else { continue }
+            let scaled = digits / 10
+            if scaled >= 0 && scaled < 2_000 {
+                return scaled
+            }
+        }
+
+        return explicitNumbers.first
     }
 
     private func parseFuelLineItem(from text: String) -> FuelLineItem? {
@@ -205,6 +324,28 @@ struct OCRTextParser {
             }
         }
         return nil
+    }
+
+    private func reconcileFuelAmounts(
+        in text: String,
+        gallons: Double
+    ) -> (pricePerGallon: Double, totalCost: Double)? {
+        let numbers = extractNumbers(from: text)
+        var best: (pricePerGallon: Double, totalCost: Double, error: Double)?
+
+        for price in numbers where price >= 10 && price <= 80 {
+            let expectedTotal = gallons * price
+            for total in numbers where total >= 20 && total <= 5_000 && total > price {
+                let error = abs(expectedTotal - total)
+                let tolerance = max(0.10, expectedTotal * 0.01)
+                guard error <= tolerance else { continue }
+                if best == nil || error < best!.error {
+                    best = (price, total, error)
+                }
+            }
+        }
+
+        return best.map { ($0.pricePerGallon, $0.totalCost) }
     }
 
     private func parseTemporarySocialSupportTotal(from text: String) -> Double? {
@@ -237,11 +378,14 @@ struct OCRTextParser {
         let lines = text.components(separatedBy: .newlines)
         for (index, line) in lines.enumerated() {
             let lowercased = line.lowercased()
-            guard lowercased.contains("total"),
+            guard containsTotalLabel(lowercased),
                   !isNonPaidTotalLine(lowercased)
             else { continue }
 
-            if let value = extractNumbers(from: line).last(where: { $0 >= 20 && $0 <= 5_000 }) {
+            if let totalLabelRange = lowercased.range(of: "total")
+                ?? lowercased.range(of: "lotal"),
+               let value = extractNumbers(from: String(lowercased[totalLabelRange.upperBound...]))
+                .last(where: { $0 >= 20 && $0 <= 5_000 }) {
                 return value
             }
 
@@ -255,8 +399,28 @@ struct OCRTextParser {
             if let value = lookaheadValues.last {
                 return value
             }
+
+            if let value = extractNumbers(from: line).last(where: { $0 >= 20 && $0 <= 5_000 }) {
+                return value
+            }
         }
         return nil
+    }
+
+    private func containsTotalLabel(_ lowercasedLine: String) -> Bool {
+        // Receipt OCR commonly reads the leading `T` in "Total" as a lower
+        // case `l`. Treat that narrow corruption as the same semantic label.
+        lowercasedLine.contains("total") || lowercasedLine.contains("lotal")
+    }
+
+    private func inferredUnitPrice(gallons: Double, totalCost: Double) -> Double? {
+        guard gallons > 0, totalCost > 0 else { return nil }
+        return (totalCost / gallons * 100).rounded() / 100
+    }
+
+    private func isConsistent(price: Double, gallons: Double, totalCost: Double) -> Bool {
+        let expectedTotal = price * gallons
+        return abs(expectedTotal - totalCost) <= max(0.10, expectedTotal * 0.01)
     }
 
     private func isNonPaidTotalLine(_ lowercasedLine: String) -> Bool {
@@ -270,10 +434,23 @@ struct OCRTextParser {
         excludedTerms.contains { text.contains($0) }
     }
 
+    private func looksLikeInstrumentClusterOCR(_ text: String) -> Bool {
+        let lowercased = text.lowercased()
+        return lowercased.contains("miles")
+            || lowercased.contains("mils")
+            || lowercased.contains("mileg")
+            || lowercased.contains("miteg")
+            || lowercased.contains("wiles")
+            || lowercased.contains("mph")
+    }
+
     private func parseInstrumentClusterOdometer(from text: String) -> Double? {
         let lines = text.components(separatedBy: .newlines)
         for line in lines {
-            guard let milesRange = line.range(of: #"miles?|mils?|millas?"#, options: [.regularExpression, .caseInsensitive]) else { continue }
+            guard let milesRange = line.range(
+                of: #"miles?|mils?|millas?|mileg|miteg|wiles?"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) else { continue }
             let prefix = String(line[..<milesRange.lowerBound])
             if let value = instrumentOdometerCandidate(from: prefix) {
                 return value
@@ -285,7 +462,10 @@ struct OCRTextParser {
     private func parseInstrumentClusterTrip(from text: String) -> Double? {
         let lines = text.components(separatedBy: .newlines)
         for line in lines {
-            guard let milesRange = line.range(of: #"miles?|mils?|millas?"#, options: [.regularExpression, .caseInsensitive]) else { continue }
+            guard let milesRange = line.range(
+                of: #"miles?|mils?|millas?|mileg|miteg|wiles?"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) else { continue }
             let suffix = String(line[milesRange.upperBound...])
             if let value = instrumentTripCandidate(from: suffix) {
                 return value
@@ -295,8 +475,20 @@ struct OCRTextParser {
     }
 
     private func instrumentOdometerCandidate(from text: String) -> Double? {
-        extractNumbers(from: correctedSevenSegmentText(text))
+        let corrected = correctedSevenSegmentText(text)
+        let largeCandidate = extractNumbers(from: corrected)
             .filter { $0 >= 10_000 && $0 <= 999_999 }
+            .max()
+        if let largeCandidate {
+            return largeCandidate
+        }
+
+        guard corrected.range(of: #"(?<!\d)0\d{3,4}(?!\d)"#, options: .regularExpression) != nil else {
+            return nil
+        }
+
+        return extractNumbers(from: corrected)
+            .filter { $0 >= 1_000 && $0 <= 9_999 }
             .max()
     }
 
@@ -305,6 +497,19 @@ struct OCRTextParser {
         if let decimal = extractNumbers(from: corrected)
             .first(where: { $0 >= 0 && $0 < 2_000 && $0.truncatingRemainder(dividingBy: 1) != 0 }) {
             return decimal
+        }
+
+        if let regex = try? NSRegularExpression(pattern: #"(?<!\d)(\d{4})(?!\d)"#) {
+            let nsText = corrected as NSString
+            for match in regex.matches(in: corrected, range: NSRange(location: 0, length: nsText.length)) {
+                guard match.numberOfRanges == 2,
+                      let raw = Double(nsText.substring(with: match.range(at: 1)))
+                else { continue }
+                let value = raw / 10
+                if value >= 0 && value < 2_000 {
+                    return value
+                }
+            }
         }
 
         let pattern = #"(?<!\d)0(\d{2,3})(?!\d)"#

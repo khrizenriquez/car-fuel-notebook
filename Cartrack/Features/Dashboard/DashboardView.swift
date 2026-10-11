@@ -1,3 +1,4 @@
+import Charts
 import SwiftData
 import SwiftUI
 
@@ -10,6 +11,7 @@ struct DashboardView: View {
     @State private var selectedVehicleID: UUID?
     @AppStorage("dashboard.monthlyMode") private var monthlyModeRawValue = MonthlyAllocationMode.finalFillMonth.rawValue
     @State private var isShowingAdjustment = false
+    @State private var isShowingReports = false
 
     private var monthlyMode: MonthlyAllocationMode {
         MonthlyAllocationMode(rawValue: monthlyModeRawValue) ?? .finalFillMonth
@@ -17,6 +19,10 @@ struct DashboardView: View {
 
     private var scopedVehicle: Vehicle? {
         vehicles.first(where: { $0.id == selectedVehicleID })
+    }
+
+    private var selectedDistanceUnit: OdometerUnit {
+        (scopedVehicle ?? vehicles.first)?.odometerUnit ?? .kilometers
     }
 
     private var summaries: [MonthlySummary] {
@@ -28,8 +34,19 @@ struct DashboardView: View {
         )
     }
 
+    private var weeklySummaries: [WeeklySummary] {
+        AnalyticsEngine.weeklySummaries(
+            fills: fillEvents,
+            vehicleID: selectedVehicleID
+        )
+    }
+
     private var currentMonthStart: Date {
         Date().startOfMonth()
+    }
+
+    private var currentWeekStart: Date {
+        Date().startOfWeek()
     }
 
     private var currentMonthSummary: MonthlySummary? {
@@ -62,6 +79,21 @@ struct DashboardView: View {
         )
     }
 
+    private var scopedTankCycles: [TankCycle] {
+        AnalyticsEngine.tankCycles(fills: fillEvents, vehicleID: selectedVehicleID ?? vehicles.first?.id)
+    }
+
+    private var scopedFuelReadings: [SnapshotEvent] {
+        snapshotEvents
+            .filter { selectedVehicleID == nil || $0.vehicle?.id == selectedVehicleID }
+            .sorted { $0.odometerKilometers < $1.odometerKilometers }
+    }
+
+    private var selectedCalibration: FuelGaugeCalibration? {
+        guard let vehicleID = selectedVehicleID ?? vehicles.first?.id else { return nil }
+        return AnalyticsEngine.fuelGaugeCalibration(fills: fillEvents, snapshots: snapshotEvents, vehicleID: vehicleID)
+    }
+
     private var inProgressCurrentMonthDistance: Double {
         guard let status = selectedCurrentTankStatus,
               let latestFillDate = status.latestFill?.date,
@@ -77,6 +109,25 @@ struct DashboardView: View {
 
     private var currentMonthProjection: MonthlyProjection? {
         AnalyticsEngine.monthlyProjection(from: currentMonthSummary)
+    }
+
+    private var currentWeekSummary: WeeklySummary? {
+        weeklySummaries.first(where: { Calendar.current.isDate($0.weekStart, equalTo: currentWeekStart, toGranularity: .weekOfYear) })
+    }
+
+    private var currentWeekPurchases: WeeklyPurchaseSummary {
+        AnalyticsEngine.weeklyPurchases(
+            fills: fillEvents,
+            vehicleID: selectedVehicleID,
+            weekStart: currentWeekStart
+        )
+    }
+
+    private var latestFillPricePerGallon: Double? {
+        fillEvents
+            .filter { selectedVehicleID == nil || $0.vehicle?.id == selectedVehicleID }
+            .max(by: { $0.date < $1.date })?
+            .pricePerGallon
     }
 
     var body: some View {
@@ -104,6 +155,8 @@ struct DashboardView: View {
 
                         summarySection
                         currentTankSection
+                        analyticsChartSection
+                        weeklyHistorySection
                         monthlyHistorySection
                     }
                     .padding()
@@ -111,6 +164,19 @@ struct DashboardView: View {
             }
         }
         .navigationTitle("Cartrack")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isShowingReports = true
+                } label: {
+                    Label("Reportes", systemImage: "doc.text")
+                }
+                .accessibilityIdentifier("dashboard.reports")
+            }
+        }
+        .navigationDestination(isPresented: $isShowingReports) {
+            ReportsView()
+        }
         .sheet(isPresented: $isShowingAdjustment) {
             if let vehicle = scopedVehicle ?? vehicles.first {
                 MonthlyAdjustmentEditor(
@@ -140,11 +206,11 @@ struct DashboardView: View {
             let kmPerGallon = currentMonthSummary?.kmPerGallon ?? 0
             let delta = monthOverMonthDelta()
             let spendSecondary = currentMonthPurchases.fillCount > 0
-                ? "\(currentMonthPurchases.fillCount) llenado\(currentMonthPurchases.fillCount == 1 ? "" : "s") • \(CartrackFormatters.decimal(currentMonthPurchases.gallons, suffix: "gal comprados"))"
+                ? "\(currentMonthPurchases.fillCount) llenado\(currentMonthPurchases.fillCount == 1 ? "" : "s") • \(CartrackFormatters.gallons(currentMonthPurchases.gallons, suffix: "gal comprados"))"
                 : currentMonthCaptures.totalCaptureCount > 0
                     ? "\(currentMonthCaptures.snapshotCount) snapshot\(currentMonthCaptures.snapshotCount == 1 ? "" : "s") este mes"
                     : delta.map { "Cambio vs mes anterior: \($0)" } ?? "Sin comparacion todavia"
-            let distanceSecondary = distanceSecondaryText(snapshotOnlyDistance: snapshotOnlyDistance)
+            let distanceSecondary = distanceSecondaryText(distanceKilometers: km, snapshotOnlyDistance: snapshotOnlyDistance)
 
             MetricCard(
                 title: "Gasto",
@@ -155,18 +221,49 @@ struct DashboardView: View {
 
             HStack {
                 MetricCard(
+                    title: "Semana combustible",
+                    primary: CartrackFormatters.gallons(currentWeekPurchases.gallons),
+                    secondary: fuelPurchaseSecondary(
+                        spend: currentWeekPurchases.spend,
+                        averagePricePerGallon: currentWeekPurchases.averagePricePerGallon,
+                        litersPerKilometer: currentWeekPurchases.litersPerKilometer(using: currentWeekSummary?.distanceKilometers ?? 0)
+                    ),
+                    tint: .pink
+                )
+                .accessibilityIdentifier("dashboard.weeklyFuel")
+
+                MetricCard(
+                    title: "Mes combustible",
+                    primary: CartrackFormatters.gallons(currentMonthPurchases.gallons),
+                    secondary: fuelPurchaseSecondary(
+                        spend: currentMonthPurchases.spend,
+                        averagePricePerGallon: currentMonthPurchases.averagePricePerGallon,
+                        litersPerKilometer: currentMonthPurchases.litersPerKilometer(using: currentMonthSummary?.totalDistanceKilometers ?? 0)
+                    ),
+                    tint: .red
+                )
+                .accessibilityIdentifier("dashboard.monthlyFuel")
+            }
+
+            HStack {
+                MetricCard(
                     title: "Distancia",
-                    primary: CartrackFormatters.decimal(km, suffix: "km"),
+                    primary: km > 0 ? CartrackFormatters.distancePrimary(km, unit: selectedDistanceUnit) : "Pendiente",
                     secondary: distanceSecondary,
                     tint: .blue
                 )
                 .accessibilityIdentifier("dashboard.distance")
                 MetricCard(
                     title: "Rendimiento",
-                    primary: CartrackFormatters.decimal(kmPerGallon, suffix: "km/gal"),
-                    secondary: "Costo/km: \(CartrackFormatters.currency(currentMonthSummary?.costPerKilometer ?? 0))",
+                    primary: currentMonthSummary == nil ? "Pendiente" : CartrackFormatters.decimal(kmPerGallon, suffix: "km/gal"),
+                    secondary: performanceSecondary(
+                        litersPerKilometer: currentMonthPurchases.litersPerKilometer(using: currentMonthSummary?.totalDistanceKilometers ?? 0),
+                        costPerKilometer: currentMonthSummary?.costPerKilometer,
+                        latestPricePerGallon: latestFillPricePerGallon
+                    ),
                     tint: .orange
                 )
+                .accessibilityIdentifier("dashboard.performance")
             }
 
             MetricCard(
@@ -223,6 +320,10 @@ struct DashboardView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+
+                if let insight = status.insight {
+                    currentTankInsightView(insight)
+                }
             } else {
                 Text("Selecciona un vehiculo para ver su tanque actual.")
                     .foregroundStyle(.secondary)
@@ -236,7 +337,7 @@ struct DashboardView: View {
                 .font(.headline)
 
             if summaries.isEmpty {
-                Text("Aun no hay ciclos de tanque cerrados. Guarda al menos dos llenados para calcular rendimiento historico; mientras tanto, el gasto del mes y la ultima lectura se muestran arriba.")
+                Text("Aun no hay ciclos de tanque cerrados. Guarda al menos dos llenados marcados como tanque lleno para calcular rendimiento historico; mientras tanto, el gasto del mes y la ultima lectura se muestran arriba.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -260,23 +361,122 @@ struct DashboardView: View {
         }
     }
 
+    private var analyticsChartSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Tendencias")
+                .font(.headline)
+
+            if scopedTankCycles.isEmpty {
+                ContentUnavailableView(
+                    "Aún no hay tendencia",
+                    systemImage: "chart.line.uptrend.xyaxis",
+                    description: Text("Los gráficos aparecen tras dos llenados completos del mismo vehículo."))
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("dashboard.analytics.empty")
+            } else {
+                Chart(scopedTankCycles.suffix(8)) { cycle in
+                    LineMark(
+                        x: .value("Fecha", cycle.endDate),
+                        y: .value("Rendimiento", cycle.kmPerGallon)
+                    )
+                    .foregroundStyle(.orange)
+                    .interpolationMethod(.catmullRom)
+                    PointMark(
+                        x: .value("Fecha", cycle.endDate),
+                        y: .value("Rendimiento", cycle.kmPerGallon)
+                    )
+                    .foregroundStyle(.orange)
+                }
+                .chartYAxisLabel("km/gal")
+                .frame(height: 150)
+                .accessibilityLabel("Tendencia de rendimiento por tanque")
+                .accessibilityIdentifier("dashboard.analytics.efficiency")
+
+                if scopedFuelReadings.count >= 2 {
+                    Chart(scopedFuelReadings) { reading in
+                        LineMark(
+                            x: .value("Distancia", reading.odometerKilometers),
+                            y: .value("Nivel", reading.fuelLevelRemaining)
+                        )
+                        .foregroundStyle(.teal)
+                        PointMark(
+                            x: .value("Distancia", reading.odometerKilometers),
+                            y: .value("Nivel", reading.fuelLevelRemaining)
+                        )
+                        .foregroundStyle(.teal)
+                    }
+                    .chartYAxisLabel("Nivel")
+                    .chartXAxisLabel("Odómetro (km)")
+                    .frame(height: 150)
+                    .accessibilityLabel("Curva observada de combustible contra distancia")
+                    .accessibilityIdentifier("dashboard.analytics.fuelCurve")
+                }
+
+                if let selectedCalibration {
+                    Text(calibrationCopy(selectedCalibration))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("dashboard.analytics.calibration")
+                }
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
+    }
+
+    private var weeklyHistorySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Historico semanal")
+                .font(.headline)
+
+            if weeklySummaries.isEmpty {
+                Text("Aun no hay semanas con tanques cerrados para reportar. Los reportes semanales apareceran cuando existan cierres completos.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(weeklySummaries.prefix(6)) { summary in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(weekRangeText(for: summary.weekStart))
+                        .font(.subheadline.weight(.semibold))
+                    Text("Gasto: \(CartrackFormatters.currency(summary.spend))")
+                    Text("Distancia: \(CartrackFormatters.decimal(summary.distanceKilometers, suffix: "km"))")
+                    Text("Rendimiento: \(CartrackFormatters.decimal(summary.kmPerGallon, suffix: "km/gal"))")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.secondary.opacity(0.08))
+                )
+            }
+        }
+    }
+
     private func monthOverMonthDelta() -> String? {
         guard let currentMonthSummary, let previousMonthSummary, previousMonthSummary.spend > 0 else { return nil }
         let percent = ((currentMonthSummary.spend - previousMonthSummary.spend) / previousMonthSummary.spend) * 100
         return "\(CartrackFormatters.decimal(percent, suffix: "%"))"
     }
 
-    private func distanceSecondaryText(snapshotOnlyDistance: Double) -> String {
+    private func distanceSecondaryText(distanceKilometers: Double, snapshotOnlyDistance: Double) -> String {
+        let equivalent = distanceKilometers > 0
+            ? "\(CartrackFormatters.distanceSecondary(distanceKilometers, unit: selectedDistanceUnit)) • "
+            : ""
         if inProgressCurrentMonthDistance > 0 {
-            return "Incluye el tanque en curso"
+            return "\(equivalent)Incluye el tanque en curso"
         }
         if snapshotOnlyDistance > 0 {
-            return "Distancia reportada por el ultimo snapshot"
+            return "\(equivalent)Distancia reportada por el ultimo snapshot"
         }
         if currentMonthCaptures.snapshotCount > 0 {
             return "Snapshot registrado sin trip util"
         }
-        return "Incluye ajustes manuales del mes"
+        if distanceKilometers > 0 {
+            return "\(equivalent)Incluye ajustes manuales del mes"
+        }
+        return "Se calculara con trip o diferencia de odometro"
     }
 
     private func captureSummaryText() -> String {
@@ -293,11 +493,35 @@ struct DashboardView: View {
         return ([fillText, snapshotText] + [dateText].compactMap { $0 }).joined(separator: " • ")
     }
 
+    private func fuelPurchaseSecondary(
+        spend: Double,
+        averagePricePerGallon: Double?,
+        litersPerKilometer: Double?
+    ) -> String {
+        let priceText = averagePricePerGallon.map { "Promedio: \(CartrackFormatters.currency($0))/gal" } ?? "Promedio: N/A"
+        let litersText = litersPerKilometer.map { "L/km: \(CartrackFormatters.decimal($0))" } ?? "L/km: N/A"
+        return "\(CartrackFormatters.currency(spend)) • \(priceText) • \(litersText)"
+    }
+
+    private func performanceSecondary(
+        litersPerKilometer: Double?,
+        costPerKilometer: Double?,
+        latestPricePerGallon: Double?
+    ) -> String {
+        let litersText = litersPerKilometer.map { "L/km: \(CartrackFormatters.decimal($0))" } ?? "L/km: N/A"
+        let costText = costPerKilometer.map { "Costo/km: \(CartrackFormatters.currency($0))" } ?? "Costo/km: N/A"
+        let priceText = latestPricePerGallon.map { "Ultimo precio: \(CartrackFormatters.currency($0))/gal" } ?? "Ultimo precio: N/A"
+        return "\(litersText) • \(costText) • \(priceText)"
+    }
+
     private func currentTankPrimary(_ status: CurrentTankStatus) -> String {
-        if status.latestFill == nil, let kilometers = status.latestReadingKilometers {
-            return CartrackFormatters.decimal(kilometers, suffix: "km")
+        if status.distanceKilometers > 0 {
+            return CartrackFormatters.distancePrimary(status.distanceKilometers, unit: selectedDistanceUnit)
         }
-        return CartrackFormatters.decimal(status.distanceKilometers, suffix: "km")
+        if status.latestFill == nil, status.latestReadingKilometers != nil {
+            return "Pendiente"
+        }
+        return "Pendiente"
     }
 
     private func currentTankSecondary(_ status: CurrentTankStatus) -> String {
@@ -313,6 +537,77 @@ struct DashboardView: View {
         if status.latestFill == nil {
             return "Sin llenado base todavia • \(formattedDate)"
         }
-        return "Ultima lectura: \(formattedDate) • \(CartrackFormatters.decimal(kilometers, suffix: "km"))"
+        return "Ultima lectura: \(formattedDate) • \(CartrackFormatters.distancePair(kilometers, unit: selectedDistanceUnit))"
+    }
+
+    private func currentTankInsightView(_ insight: CurrentTankInsight) -> some View {
+        let copy = CurrentTankInsightFormatter.copy(
+            for: insight,
+            vehicleName: (scopedVehicle ?? vehicles.first)?.displayName
+        )
+        let comparison = copy.comparison
+        let estimate = copy.estimate
+        let accessibilitySummary = [copy.state, comparison, estimate]
+            .compactMap { $0 }
+            .joined(separator: "\n\n")
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Label("Interpretacion del tanque", systemImage: "gauge.with.dots.needle.67percent")
+                .font(.subheadline.weight(.semibold))
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Estado actual")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(copy.state)
+                    .accessibilityIdentifier("dashboard.tankInsight.state")
+            }
+
+            if let comparison {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Comparacion con la medicion anterior")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(comparison)
+                        .accessibilityIdentifier("dashboard.tankInsight.comparison")
+                }
+            }
+
+            if let estimate {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Estimacion real")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(estimate)
+                        .accessibilityIdentifier("dashboard.tankInsight.estimate")
+                }
+            }
+        }
+        .font(.footnote)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.teal.opacity(0.08))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilitySummary)
+        .accessibilityIdentifier("dashboard.tankInsight")
+    }
+
+    private func weekRangeText(for weekStart: Date) -> String {
+        let end = Calendar.current.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart
+        return "\(weekStart.formatted(date: .abbreviated, time: .omitted)) - \(end.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    private func calibrationCopy(_ calibration: FuelGaugeCalibration) -> String {
+        switch calibration.sufficiency {
+        case .sufficient:
+            return "Curva del medidor calibrada con \(calibration.sampleCount) lecturas confirmadas."
+        case .limited:
+            return "Curva preliminar: \(calibration.sampleCount) lecturas; sigue registrando el nivel para estrechar la autonomía."
+        case .insufficient:
+            return "Aún no hay lecturas suficientes para calibrar la curva del medidor."
+        }
     }
 }

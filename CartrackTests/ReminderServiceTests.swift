@@ -64,6 +64,29 @@ final class ReminderServiceTests: XCTestCase {
         assertTimeInterval(center.addedRequests.first?.timeInterval, equals: 3_600)
     }
 
+    func testReminderUsesTheActiveLanguageWithoutChangingStoredPreferences() async {
+        let spanishCenter = FakeReminderNotificationCenter()
+        let spanish = ReminderService(center: spanishCenter, localeProvider: { Locale(identifier: "es_GT") })
+        await spanish.refreshInactivityReminder(isEnabled: true, afterHours: 24)
+        XCTAssertEqual(
+            spanishCenter.addedRequests.first?.body,
+            "Hace tiempo que no registras una lectura. Toma una foto del tablero o factura para mantener tu historial."
+        )
+
+        let englishCenter = FakeReminderNotificationCenter()
+        let english = ReminderService(center: englishCenter, localeProvider: { Locale(identifier: "en_US") })
+        await english.refreshInactivityReminder(isEnabled: true, afterHours: 24)
+        XCTAssertEqual(
+            englishCenter.addedRequests.first?.body,
+            "You have not logged a reading recently. Take a dashboard or receipt photo to keep your history current."
+        )
+    }
+
+    func testAppCopySelectsSpanishAndEnglishFromTheRequestedLocale() {
+        XCTAssertEqual(AppCopy.text("Capturar", "Capture", locale: Locale(identifier: "es_GT")), "Capturar")
+        XCTAssertEqual(AppCopy.text("Capturar", "Capture", locale: Locale(identifier: "en_US")), "Capture")
+    }
+
     private func makeIsolatedUserDefaults(
         file: StaticString = #filePath,
         line: UInt = #line
@@ -95,6 +118,7 @@ private final class FakeReminderNotificationCenter: ReminderNotificationCenter {
     struct AddedRequest {
         let identifier: String
         let timeInterval: TimeInterval?
+        let body: String
     }
 
     private(set) var authorizationOptions: [UNAuthorizationOptions] = []
@@ -112,6 +136,6 @@ private final class FakeReminderNotificationCenter: ReminderNotificationCenter {
 
     func add(_ request: UNNotificationRequest) async throws {
         let trigger = request.trigger as? UNTimeIntervalNotificationTrigger
-        addedRequests.append(AddedRequest(identifier: request.identifier, timeInterval: trigger?.timeInterval))
+        addedRequests.append(AddedRequest(identifier: request.identifier, timeInterval: trigger?.timeInterval, body: request.content.body))
     }
 }

@@ -21,3 +21,27 @@ Use sanitized OCR text fixtures to improve parser coverage without committing pr
 6. Run `Scripts/verify_local.sh` before committing.
 
 Fixtures should represent real OCR shapes, including noisy labels, comma decimals, spaced odometer thousands, mixed Spanish/English labels, and fractional fuel spaces such as `6 1/2`.
+
+## Private Real-Image Pack
+
+Real photographs stay in the ignored `Invoices/Examples`, `Odometer/Examples`, and `FuelLevel/Examples` directories. Their ignored source of truth is:
+
+```text
+CartrackTests/Fixtures/private-image-scenarios.json
+```
+
+Copy `private-image-scenarios.example.json` when setting up another Mac. Every available private image must be referenced by one scenario or explicitly excluded with a reason. Expected values and tolerances belong in the manifest, not in duplicated XCTest arrays.
+
+Run the strict integration gate with:
+
+```bash
+Scripts/verify_private_image_scenarios.sh
+```
+
+Prepare the exact dedicated Photos simulator without modifying other devices:
+
+```bash
+Scripts/prepare_private_fixture_simulator.sh --reset
+```
+
+The preparer validates the exact name and UDID `Cartrack Private Fixtures` before erase/import. Production OCR must generalize across recompressed and resized variants and may not return fixture-specific answers by file hash or pixel signature.

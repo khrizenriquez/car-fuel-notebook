@@ -38,32 +38,32 @@ final class ModelCoreTests: XCTestCase {
 
     func testEventLocationPolicyPrefersCurrentCompleteCoordinate() {
         let coordinate = EventLocationPolicy.resolvedCoordinate(
-            currentLatitude: 14.6349,
-            currentLongitude: -90.5069,
-            existingLatitude: 14.5000,
-            existingLongitude: -90.4000
+            currentLatitude: 37.3349,
+            currentLongitude: -122.0090,
+            existingLatitude: 37.2800,
+            existingLongitude: -122.1200
         )
 
-        XCTAssertEqual(coordinate, EventCoordinate(latitude: 14.6349, longitude: -90.5069))
+        XCTAssertEqual(coordinate, EventCoordinate(latitude: 37.3349, longitude: -122.0090))
     }
 
     func testEventLocationPolicyPreservesExistingCoordinateWhenCurrentIsMissing() {
         let coordinate = EventLocationPolicy.resolvedCoordinate(
             currentLatitude: nil,
             currentLongitude: nil,
-            existingLatitude: 14.5000,
-            existingLongitude: -90.4000
+            existingLatitude: 37.2800,
+            existingLongitude: -122.1200
         )
 
-        XCTAssertEqual(coordinate, EventCoordinate(latitude: 14.5000, longitude: -90.4000))
+        XCTAssertEqual(coordinate, EventCoordinate(latitude: 37.2800, longitude: -122.1200))
     }
 
     func testEventLocationPolicyRejectsIncompleteCoordinatePairs() {
         let coordinate = EventLocationPolicy.resolvedCoordinate(
-            currentLatitude: 14.6349,
+            currentLatitude: 37.3349,
             currentLongitude: nil,
             existingLatitude: nil,
-            existingLongitude: -90.4000
+            existingLongitude: -122.1200
         )
 
         XCTAssertNil(coordinate)

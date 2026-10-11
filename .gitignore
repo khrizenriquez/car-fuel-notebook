@@ -24,9 +24,10 @@ xcuserdata/
 Application Support/
 Documents/
 Captures/
-Invoices/
-Odometer/
-FuelLevel/
+Invoices/*
+Odometer/*
+FuelLevel/*
+CartrackTests/Fixtures/private-image-scenarios.json
 
 # Secrets should never be needed for v1, but keep common local files out.
 .env

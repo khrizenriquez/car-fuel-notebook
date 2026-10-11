@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -10,6 +11,13 @@ struct SettingsView: View {
     @State private var selectedResetVehicleID: UUID?
     @State private var isShowingResetConfirmation = false
     @State private var resetError: String?
+    @State private var lastBackupURL: URL?
+    @State private var backupStatusMessage: String?
+    @State private var backupError: String?
+    @State private var isShowingBackupImporter = false
+    @State private var pendingImportURL: URL?
+    @State private var includeBackupImages = true
+    @State private var lastDiagnosticURL: URL?
 
     private var selectedResetVehicle: Vehicle? {
         vehicles.first(where: { $0.id == selectedResetVehicleID }) ?? vehicles.first
@@ -17,26 +25,75 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Persistencia") {
-                Text("La base de datos local y las imagenes deben sobrevivir actualizaciones normales de la app.")
+            Section(AppCopy.text("Persistencia", "Storage")) {
+                Text(AppCopy.text("La base de datos local y las imágenes deben sobrevivir actualizaciones normales de la app.", "The local database and images survive normal app updates."))
                     .foregroundStyle(.secondary)
-                Text("El borrado de datos solo ocurre si tu lo confirmas aqui y no elimina vehiculos.")
+                Text(AppCopy.text("El borrado de datos solo ocurre si tú lo confirmas aquí y no elimina vehículos.", "Data is deleted only after you confirm it here, and vehicles are preserved."))
                     .foregroundStyle(.secondary)
+                Text(AppCopy.text("El respaldo incluye vehículos, llenados, registros de uso y ajustes mensuales.", "Backups include vehicles, fill-ups, usage snapshots, and monthly adjustments."))
+                    .foregroundStyle(.secondary)
+
+                Toggle(AppCopy.text("Incluir fotos locales verificadas", "Include verified local photos"), isOn: $includeBackupImages)
+                    .accessibilityIdentifier("settings.backup.includeImages")
+                Text(includeBackupImages
+                     ? AppCopy.text("Las fotos se conservan dentro del paquete local; nunca se suben a la nube.", "Photos remain inside the local package; they are never uploaded to the cloud.")
+                     : AppCopy.text("Se exportan datos estructurados y metadatos, pero no se copian fotos.", "Structured data and metadata are exported, but photos are not copied."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Button(AppCopy.text("Exportar respaldo", "Export backup")) {
+                    exportBackup()
+                }
+                .accessibilityIdentifier("settings.backup.export")
+
+                Button(AppCopy.text("Importar respaldo", "Import backup")) {
+                    isShowingBackupImporter = true
+                }
+                .accessibilityIdentifier("settings.backup.import")
+
+                if let backupStatusMessage {
+                    Text(backupStatusMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("settings.backup.status")
+                }
+
+                if let lastBackupURL {
+                    ShareLink(item: lastBackupURL) {
+                        Label(AppCopy.text("Compartir último respaldo", "Share latest backup"), systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityIdentifier("settings.backup.share")
+                }
+
+                Button(AppCopy.text("Exportar diagnóstico redactado", "Export redacted diagnostic")) {
+                    exportDiagnostics()
+                }
+                .accessibilityHint(AppCopy.text("Incluye sólo códigos de error, acciones sugeridas y fechas; nunca fotos, rutas, OCR ni datos del vehículo.", "Includes only error codes, recommended actions, and dates; never photos, paths, OCR, or vehicle data."))
+                .accessibilityIdentifier("settings.diagnostics.export")
+
+                if let lastDiagnosticURL {
+                    ShareLink(item: lastDiagnosticURL) {
+                        Label(AppCopy.text("Compartir diagnóstico redactado", "Share redacted diagnostic"), systemImage: "stethoscope")
+                    }
+                    .accessibilityIdentifier("settings.diagnostics.share")
+                }
             }
 
-            Section("Recordatorios") {
-                Toggle("Activar recordatorio por inactividad", isOn: $reminderEnabled)
+            Section(AppCopy.reminder) {
+                Toggle(AppCopy.text("Activar recordatorio por inactividad", "Enable inactivity reminder"), isOn: $reminderEnabled)
                 VStack(alignment: .leading) {
                     HStack {
-                        Text("Horas sin actividad")
+                        Text(AppCopy.text("Horas sin actividad", "Hours without activity"))
                         Spacer()
                         Text(CartrackFormatters.decimal(reminderHours))
                     }
                     Slider(value: $reminderHours, in: 12...168, step: 12)
                 }
-                Button("Solicitar permisos de notificacion") {
+                Button(AppCopy.notificationPermission) {
                     Task { await ReminderService.shared.requestAuthorization() }
                 }
+                .accessibilityHint(AppCopy.notificationHint)
+                .accessibilityIdentifier("settings.reminder.permission")
             }
 
             Section("Datos del vehiculo") {
@@ -69,7 +126,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .navigationTitle("Ajustes")
+        .navigationTitle(AppCopy.settings)
         .confirmationDialog(resetConfirmationTitle, isPresented: $isShowingResetConfirmation) {
             Button("Borrar datos", role: .destructive, action: resetSelectedVehicleData)
                 .accessibilityIdentifier("settings.reset.confirm")
@@ -77,10 +134,42 @@ struct SettingsView: View {
         } message: {
             Text("El vehiculo se conservara. Esta accion no toca otros vehiculos.")
         }
+        .confirmationDialog(
+            "Importar respaldo y reemplazar datos locales?",
+            isPresented: Binding(
+                get: { pendingImportURL != nil },
+                set: { if !$0 { pendingImportURL = nil } }
+            )
+        ) {
+            Button("Importar y reemplazar", role: .destructive, action: importPendingBackup)
+                .accessibilityIdentifier("settings.backup.import.confirm")
+            Button("Cancelar", role: .cancel) {
+                pendingImportURL = nil
+            }
+        } message: {
+            Text("Esta accion reemplaza los datos locales actuales por el contenido del respaldo seleccionado.")
+        }
         .alert("No se pudo resetear", isPresented: Binding(get: { resetError != nil }, set: { _ in resetError = nil })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(resetError ?? "")
+        }
+        .alert("No se pudo importar o exportar el respaldo", isPresented: Binding(get: { backupError != nil }, set: { _ in backupError = nil })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(backupError ?? "")
+        }
+        .fileImporter(
+            isPresented: $isShowingBackupImporter,
+            allowedContentTypes: [.folder, .json],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                pendingImportURL = urls.first
+            case .failure(let error):
+                backupError = LocalDiagnosticsService.recovery(for: error, operation: "backup.select").message
+            }
         }
         .onChange(of: reminderEnabled) { _, enabled in
             Task {
@@ -126,7 +215,47 @@ struct SettingsView: View {
             try ResetService.resetData(for: vehicle, context: modelContext)
             ReminderService.shared.cancelInactivityReminder()
         } catch {
-            resetError = error.localizedDescription
+            resetError = LocalDiagnosticsService.recovery(for: error, operation: "vehicle.reset").message
+        }
+    }
+
+    private func exportBackup() {
+        do {
+            let url = try BackupTransferService.exportBackup(from: modelContext,
+                                                             includeImages: includeBackupImages)
+            lastBackupURL = url
+            backupStatusMessage = "Respaldo listo: \(url.lastPathComponent)"
+        } catch {
+            backupError = LocalDiagnosticsService.recovery(for: error, operation: "backup.export").message
+        }
+    }
+
+    private func importPendingBackup() {
+        guard let pendingImportURL else { return }
+
+        let didAccess = pendingImportURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                pendingImportURL.stopAccessingSecurityScopedResource()
+            }
+            self.pendingImportURL = nil
+        }
+
+        do {
+            let summary = try BackupTransferService.importBackup(from: pendingImportURL, into: modelContext)
+            backupStatusMessage = "Respaldo importado: \(summary.vehicleCount) vehiculos, \(summary.fillCount) llenados, \(summary.snapshotCount) snapshots y \(summary.imageCount) imagenes."
+        } catch {
+            backupError = LocalDiagnosticsService.recovery(for: error, operation: "backup.import").message
+        }
+    }
+
+    private func exportDiagnostics() {
+        do {
+            let url = try LocalDiagnosticsService.export()
+            lastDiagnosticURL = url
+            backupStatusMessage = AppCopy.text("Diagnóstico redactado listo: \(url.lastPathComponent)", "Redacted diagnostic ready: \(url.lastPathComponent)")
+        } catch {
+            backupError = LocalDiagnosticsService.recovery(for: error, operation: "diagnostics.export").message
         }
     }
 }

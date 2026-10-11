@@ -99,6 +99,48 @@ final class OCRTextParserCoreTests: XCTestCase {
         XCTAssertEqualOptional(result.tripMiles, 73.0, accuracy: 0.001)
     }
 
+    func testParserReadsFourDigitTripWhenSevenSegmentOCRDropsDecimalPoint() {
+        let result = parser.parseSnapshot(
+            odometerText: "108768 miles 606S",
+            fuelLevelText: "",
+            fuelScaleMax: 8
+        )
+
+        XCTAssertEqualOptional(result.odometerMiles, 108_768, accuracy: 0.001)
+        XCTAssertEqualOptional(result.tripMiles, 606.5, accuracy: 0.001)
+    }
+
+    func testParserReadsCommonVisionCorruptionsOfMilesLabel() {
+        for label in ["mileg", "miteg", "wiles"] {
+            let result = parser.parseSnapshot(
+                odometerText: "108768 \(label) 606.5",
+                fuelLevelText: "",
+                fuelScaleMax: 8
+            )
+
+            XCTAssertEqualOptional(result.odometerMiles, 108_768, accuracy: 0.001)
+            XCTAssertEqualOptional(result.tripMiles, 606.5, accuracy: 0.001)
+        }
+    }
+
+    func testParserRejectsUnreliableInstrumentClusterMileageInsteadOfInventingSmallOdometer() {
+        let noisyClusterOCR = """
+        1094
+        miles
+        C00DD0
+        MPH
+        """
+
+        let result = parser.parseSnapshot(
+            odometerText: noisyClusterOCR,
+            fuelLevelText: "",
+            fuelScaleMax: 8
+        )
+
+        XCTAssertNil(result.odometerMiles)
+        XCTAssertNil(result.tripMiles)
+    }
+
     func testFuelLevelParserDoesNotUseAnalogGaugeNoiseWithoutContext() {
         let analogGaugeOCR = """
         RAKE
@@ -168,6 +210,53 @@ final class OCRTextParserCoreTests: XCTestCase {
         XCTAssertEqualOptional(result.odometerMiles, 123456, accuracy: 0.001)
         XCTAssertEqualOptional(result.tripMiles, 0, accuracy: 0.001)
         XCTAssertEqualOptional(result.fuelLevelRemaining, 8, accuracy: 0.001)
+    }
+
+    func testParserReconcilesSplitFuelAmountsUsingReceiptArithmetic() {
+        let invoice = """
+        TEXACO
+        Cantidad Precio Total Q
+        3.791
+        39.57 Total Q
+        IVA
+        Total
+        Credomatic
+        150.00
+        Transaccion 18
+        """
+
+        let result = parser.parseFillUp(
+            invoiceText: invoice,
+            odometerText: "",
+            fuelLevelText: "",
+            fuelScaleMax: 8
+        )
+
+        XCTAssertEqualOptional(result.gallons, 3.791, accuracy: 0.0001)
+        XCTAssertEqualOptional(result.pricePerGallon, 39.57, accuracy: 0.001)
+        XCTAssertEqualOptional(result.totalCost, 150.00, accuracy: 0.001)
+    }
+
+    func testParserInfersUnitPriceWhenReceiptOCRMissesLeadingDigit() {
+        let invoice = """
+        TEXACO
+        Cantidad
+        3.791
+        Precia Q
+        9 57 lotal Q
+        150 00
+        """
+
+        let result = parser.parseFillUp(
+            invoiceText: invoice,
+            odometerText: "",
+            fuelLevelText: "",
+            fuelScaleMax: 8
+        )
+
+        XCTAssertEqualOptional(result.gallons, 3.791, accuracy: 0.0001)
+        XCTAssertEqualOptional(result.totalCost, 150.00, accuracy: 0.001)
+        XCTAssertEqualOptional(result.pricePerGallon, 39.57, accuracy: 0.001)
     }
 
     func testParserPrefersTemporarySocialSupportTotalAsFullSpend() {

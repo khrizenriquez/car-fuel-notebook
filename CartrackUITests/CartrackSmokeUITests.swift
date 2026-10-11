@@ -16,6 +16,33 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["capture.snapshot"].exists)
     }
 
+    func testP0CaptureWorkflowUsesEnglishAndExplicitPermissionActions() throws {
+        let app = launchApp(extraArguments: ["--seed-multivehicle"], language: "en")
+
+        XCTAssertTrue(app.tabBars.buttons["Dashboard"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Capture"].tap()
+        XCTAssertTrue(app.buttons["capture.fillup"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["capture.fillup"].label, "Log fill-up")
+
+        app.buttons["capture.fillup"].tap()
+        XCTAssertTrue(waitForStaticText(containing: "Evidence", in: app))
+        XCTAssertEqual(app.buttons["fill.location"].label, "Use current location")
+        XCTAssertEqual(app.buttons["fill.invoiceImage.camera"].label, "Camera: Receipt")
+        XCTAssertTrue(scrollToExistingElement(app.buttons["fill.next.inline"], in: app))
+    }
+
+    func testP0CaptureControlsRemainReachableAtAccessibilityTextSize() throws {
+        let app = launchApp(
+            extraArguments: ["--seed-multivehicle", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        )
+
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.snapshot"].tap()
+        XCTAssertTrue(app.buttons["snapshot.location"].waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToExistingElement(app.buttons["snapshot.odometerImage.camera"], in: app))
+        XCTAssertTrue(scrollToExistingElement(app.buttons["snapshot.next.inline"], in: app))
+    }
+
     func testSaveFillUpAndSnapshotThenShowInHistory() throws {
         let app = launchApp()
 
@@ -62,6 +89,11 @@ final class CartrackSmokeUITests: XCTestCase {
         app.tabBars.buttons["Capturar"].tap()
         app.buttons["capture.snapshot"].tap()
         app.buttons["snapshot.next"].tap()
+        let retake = app.buttons["capture.retake.odometerKilometers"]
+        XCTAssertTrue(retake.waitForExistence(timeout: 10))
+        retake.tap()
+        XCTAssertTrue(app.buttons["snapshot.odometerImage.photos"].exists)
+        app.buttons["snapshot.next"].tap()
         type("3.4", into: app.textFields["snapshot.trip"])
         app.buttons["snapshot.next"].tap()
         app.buttons["snapshot.save"].tap()
@@ -76,35 +108,69 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["capture.snapshot"].waitForExistence(timeout: 5))
     }
 
-    func testEditFillUpThenResetSelectedVehicleData() throws {
+    func testManualSnapshotDraftCanBeResumedAndConfirmedOnce() throws {
         let app = launchApp()
-
         createVehicle(in: app)
-        saveFillUpAndSnapshot(in: app)
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.snapshot"].tap()
+        app.buttons["snapshot.next"].tap()
+        type("123456", into: app.textFields["snapshot.odometer"])
+        type("12.3", into: app.textFields["snapshot.trip"])
+        app.navigationBars.buttons["Capturar"].tap()
 
+        let resume = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@", "capture.resume."
+        )).firstMatch
+        XCTAssertTrue(resume.waitForExistence(timeout: 10))
+        resume.tap()
+        let odometer = app.textFields["snapshot.odometer"]
+        XCTAssertTrue(odometer.waitForExistence(timeout: 20))
+        XCTAssertEqual(stringValue(of: odometer), "123,456")
+        XCTAssertEqual(stringValue(of: app.textFields["snapshot.trip"]), "12.3")
+        app.buttons["snapshot.next"].tap()
+        app.buttons["snapshot.save"].tap()
+        XCTAssertTrue(app.buttons["capture.snapshot"].waitForExistence(timeout: 10))
+        XCTAssertFalse(resume.exists)
         app.tabBars.buttons["Historial"].tap()
-        app.buttons["history.fillup.row"].tap()
-
-        clearAndType("420", into: app.textFields["fill.total"])
-        clearAndType("12", into: app.textFields["fill.gallons"])
-        app.buttons["fill.next"].tap()
-        app.buttons["fill.save"].tap()
-
-        let editedFillRow = app.buttons["history.fillup.row"]
-        XCTAssertTrue(editedFillRow.waitForExistence(timeout: 5))
-        XCTAssertTrue(editedFillRow.label.contains("420.00"))
-
-        app.tabBars.buttons["Ajustes"].tap()
-        app.buttons["settings.reset"].tap()
-        app.buttons["settings.reset.confirm"].firstMatch.tap()
-
-        app.tabBars.buttons["Vehiculos"].tap()
-        XCTAssertTrue(app.staticTexts["Roadster BMW Z4 2003"].waitForExistence(timeout: 5))
-
-        app.tabBars.buttons["Historial"].tap()
-        XCTAssertFalse(app.buttons["history.fillup.row"].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.buttons["history.snapshot.row"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Snapshot"].waitForExistence(timeout: 10))
     }
+
+	    func testEditFillUpThenResetSelectedVehicleData() throws {
+	        let app = launchApp(extraArguments: ["--seed-multivehicle"])
+	        let bmw = "Roadster BMW Z4 2003"
+	        let toyota = "Commuter Toyota Yaris 2020"
+
+	        app.tabBars.buttons["Historial"].tap()
+	        selectVehicle(bmw, in: app, pickerIdentifier: "vehicle.filter.picker")
+	        let fillRow = app.buttons.matching(identifier: "history.fillup.row").firstMatch
+	        XCTAssertTrue(fillRow.waitForExistence(timeout: 5))
+	        fillRow.tap()
+
+	        clearAndType("455", into: app.textFields["fill.total"])
+	        clearAndType("13", into: app.textFields["fill.gallons"])
+	        app.buttons["fill.next"].tap()
+	        app.buttons["fill.save"].tap()
+
+	        let editedFillRow = app.buttons.matching(identifier: "history.fillup.row").firstMatch
+	        XCTAssertTrue(editedFillRow.waitForExistence(timeout: 5))
+	        XCTAssertTrue(editedFillRow.label.contains("455.00"))
+
+	        app.tabBars.buttons["Ajustes"].tap()
+	        let resetButton = app.buttons["settings.reset"]
+	        scrollToElement(resetButton, in: app)
+	        XCTAssertTrue(resetButton.waitForExistence(timeout: 2))
+	        resetButton.tap()
+	        app.buttons["settings.reset.confirm"].firstMatch.tap()
+
+	        app.tabBars.buttons["Vehiculos"].tap()
+	        XCTAssertTrue(app.staticTexts[bmw].waitForExistence(timeout: 5))
+	        XCTAssertTrue(app.staticTexts[toyota].exists)
+
+	        app.tabBars.buttons["Historial"].tap()
+	        selectVehicle(bmw, in: app, pickerIdentifier: "vehicle.filter.picker")
+	        XCTAssertFalse(app.buttons["history.fillup.row"].waitForExistence(timeout: 2))
+	        XCTAssertFalse(app.buttons["history.snapshot.row"].waitForExistence(timeout: 2))
+	    }
 
     func testCreateAndDeleteMonthlyAdjustment() throws {
         let app = launchApp()
@@ -117,13 +183,32 @@ final class CartrackSmokeUITests: XCTestCase {
         type("25", into: app.textFields["adjustment.kilometers"])
         app.buttons["adjustment.save"].tap()
 
-        XCTAssertTrue(app.staticTexts["25 km"].waitForExistence(timeout: 5))
+        let distanceTexts = app.staticTexts.matching(identifier: "dashboard.distance")
+        XCTAssertTrue(
+            distanceTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "15.5 mi"))
+                .firstMatch
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            distanceTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "25 km"))
+                .firstMatch
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            distanceTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Incluye ajustes manuales del mes"))
+                .firstMatch
+                .exists
+        )
 
         app.buttons["dashboard.adjustment.open"].tap()
         app.buttons["adjustment.delete"].tap()
         app.buttons["adjustment.delete.confirm"].firstMatch.tap()
 
-        XCTAssertTrue(app.staticTexts["0 km"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            distanceTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pendiente"))
+                .firstMatch
+                .waitForExistence(timeout: 5)
+        )
     }
 
     func testMultiVehicleFilteringAcrossDashboardCaptureAndHistory() throws {
@@ -148,11 +233,253 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts[bmw].exists)
     }
 
-    private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
+    func testVehicleConfigurationUpdatesCaptureUnits() throws {
+        let app = launchApp()
+
+        app.tabBars.buttons["Vehiculos"].tap()
+        app.buttons["vehicle.add"].tap()
+
+        type("Roadster", into: app.textFields["vehicle.name"])
+        type("BMW", into: app.textFields["vehicle.make"])
+        type("Z4", into: app.textFields["vehicle.model"])
+        type("2003", into: app.textFields["vehicle.year"])
+        type("2.5i", into: app.textFields["vehicle.engine"])
+        type("P123ABC", into: app.textFields["vehicle.plate"])
+        selectOption("Kilometros", in: app, pickerIdentifier: "vehicle.odometerUnit")
+        clearAndType("16", into: app.textFields["vehicle.tankCapacity"])
+        clearAndType("30", into: app.textFields["vehicle.referenceKmPerGal"])
+        app.buttons["vehicle.save"].tap()
+
+        XCTAssertTrue(app.staticTexts["Roadster BMW Z4 2003"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForStaticText(containing: "Kilometros", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "16", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "30", in: app))
+
+        tapVehicleRow(named: "Roadster BMW Z4 2003", in: app)
+        XCTAssertEqual(stringValue(of: app.textFields["vehicle.engine"]), "2.5i")
+        XCTAssertEqual(stringValue(of: app.textFields["vehicle.plate"]), "P123ABC")
+        XCTAssertTrue(stringValue(of: app.textFields["vehicle.tankCapacity"]).contains("16"))
+        app.swipeUp()
+        XCTAssertTrue(stringValue(of: app.textFields["vehicle.referenceKmPerGal"]).contains("30"))
+        app.buttons["Cancelar"].tap()
+
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.fillup"].tap()
+        app.buttons["fill.next"].tap()
+        XCTAssertTrue(app.textFields["fill.odometer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(stringValue(of: app.textFields["fill.odometer"]).localizedCaseInsensitiveContains("kilometros"))
+        XCTAssertTrue(stringValue(of: app.textFields["fill.trip"]).localizedCaseInsensitiveContains("kilometros"))
+
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.snapshot"].tap()
+        app.buttons["snapshot.next"].tap()
+        XCTAssertTrue(app.textFields["snapshot.odometer"].waitForExistence(timeout: 5))
+        XCTAssertTrue(stringValue(of: app.textFields["snapshot.odometer"]).localizedCaseInsensitiveContains("kilometros"))
+        XCTAssertTrue(stringValue(of: app.textFields["snapshot.trip"]).localizedCaseInsensitiveContains("kilometros"))
+    }
+
+    func testReportsTabSwitchesGranularityAndExportsFiles() throws {
+        let app = launchApp(extraArguments: ["--seed-multivehicle"])
+
+        app.tabBars.buttons["Dashboard"].tap()
+        app.buttons["dashboard.reports"].tap()
+        XCTAssertTrue(app.buttons["reports.export.csv"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForStaticText(containing: "Detalle semanal", in: app))
+
+        selectVehicle("Commuter Toyota Yaris 2020", in: app, pickerIdentifier: "vehicle.filter.picker")
+        app.buttons["Mensual"].tap()
+        app.buttons["reports.export.csv"].tap()
+
+        let exportStatus = app.staticTexts["reports.export.status"]
+        XCTAssertTrue(exportStatus.waitForExistence(timeout: 5))
+        XCTAssertTrue(exportStatus.label.contains("CSV listo"))
+
+        app.buttons["reports.export.pdf"].tap()
+        XCTAssertTrue(exportStatus.waitForExistence(timeout: 5))
+        XCTAssertTrue(exportStatus.label.contains("PDF listo"))
+    }
+
+    func testDashboardShowsWeeklyAndMonthlyFuelMetrics() throws {
+        let app = launchApp(extraArguments: ["--seed-multivehicle"])
+
+        app.tabBars.buttons["Dashboard"].tap()
+
+        XCTAssertTrue(app.staticTexts["SEMANA COMBUSTIBLE"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["MES COMBUSTIBLE"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["RENDIMIENTO"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForStaticText(containing: "gal", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "km/gal", in: app))
+    }
+
+    func testDashboardShowsAnalyticsTrendsWhenCyclesExist() throws {
+        let app = launchApp(extraArguments: ["--seed-multivehicle"])
+
+        app.tabBars.buttons["Dashboard"].tap()
+        let efficiency = app.descendants(matching: .any)["dashboard.analytics.efficiency"]
+        XCTAssertTrue(scrollToExistingElement(efficiency, in: app, maxSwipes: 8))
+        XCTAssertTrue(efficiency.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["dashboard.analytics.calibration"].exists)
+    }
+
+    func testBackupActionsAndRefuelMapAreVisible() throws {
+        let app = launchApp(extraArguments: ["--seed-multivehicle"])
+
+        app.tabBars.buttons["Ajustes"].tap()
+        XCTAssertTrue(app.buttons["settings.backup.export"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["settings.backup.import"].exists)
+
+        app.tabBars.buttons["Historial"].tap()
+        XCTAssertTrue(app.buttons["history.refuelMap"].waitForExistence(timeout: 5))
+        app.buttons["history.refuelMap"].tap()
+
+        XCTAssertTrue(app.navigationBars["Puntos de recarga"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["refuel.map"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Demo Station West"].waitForExistence(timeout: 5))
+    }
+
+    func testReadmeScreensShowKeyFlows() throws {
+        let app = launchApp(extraArguments: ["--seed-multivehicle"])
+
+        app.tabBars.buttons["Dashboard"].tap()
+        XCTAssertTrue(app.staticTexts["SEMANA COMBUSTIBLE"].waitForExistence(timeout: 5))
+        saveScreenshot(named: "dashboard-overview")
+
+        app.tabBars.buttons["Capturar"].tap()
+        XCTAssertTrue(app.buttons["capture.fillup"].waitForExistence(timeout: 5))
+        saveScreenshot(named: "capture-home")
+
+        app.tabBars.buttons["Historial"].tap()
+        XCTAssertTrue(app.buttons["history.refuelMap"].waitForExistence(timeout: 5))
+        saveScreenshot(named: "history-log")
+        app.buttons["history.refuelMap"].tap()
+        XCTAssertTrue(app.navigationBars["Puntos de recarga"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["refuel.map"].waitForExistence(timeout: 5))
+        saveScreenshot(named: "refuel-map")
+
+        app.tabBars.buttons["Ajustes"].tap()
+        XCTAssertTrue(app.buttons["settings.backup.export"].waitForExistence(timeout: 5))
+        saveScreenshot(named: "settings-backup")
+    }
+
+    func testLatestZ4SnapshotDashboardOutput() throws {
+        let app = launchApp(extraArguments: ["--seed-latest-z4-snapshot"])
+
+        app.tabBars.buttons["Dashboard"].tap()
+
+        XCTAssertTrue(waitForStaticText(containing: "Mes actual", in: app))
+        saveScreenshot(named: "latest-z4-dashboard-top")
+
+        XCTAssertTrue(waitForStaticText(containing: "150.00", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "3.791", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "251", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "403.9", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "1 espacio", in: app) || waitForStaticText(containing: "1 espacios", in: app))
+        XCTAssertTrue(waitForStaticText(containing: "39.57", in: app))
+
+        let insight = app.descendants(matching: .any)["dashboard.tankInsight"]
+        XCTAssertTrue(scrollToExistingElement(insight, in: app, maxSwipes: 8))
+        XCTAssertTrue(insight.waitForExistence(timeout: 5))
+
+        let normalizedInsight = insight.label.replacingOccurrences(of: "\u{00A0}", with: "")
+        print("LATEST_Z4_DASHBOARD_INSIGHT\n\(insight.label)")
+
+        XCTAssertTrue(insight.label.contains("251.0"))
+        XCTAssertTrue(insight.label.contains("403.9"))
+        XCTAssertTrue(insight.label.contains("109,413"))
+        XCTAssertTrue(insight.label.contains("232.9"))
+        XCTAssertTrue(insight.label.contains("18.1"))
+        XCTAssertTrue(insight.label.contains("29.1"))
+        XCTAssertTrue(insight.label.contains("45-55 km"))
+        XCTAssertTrue(normalizedInsight.contains("Q150.00 / 403.9 km = Q0.37/km"))
+        saveScreenshot(named: "latest-z4-dashboard-insight")
+    }
+
+
+    func testPrivatePhotoSnapshotPrefillsAndSavesExpectedReading() throws {
+        guard ProcessInfo.processInfo.environment["CARTRACK_RUN_PRIVATE_PHOTOS_UI"] == "1" else {
+            throw XCTSkip("The private Photos simulator was not requested.")
+        }
+
+        let privateManifest = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("CartrackTests/Fixtures/private-image-scenarios.json")
+        guard FileManager.default.fileExists(atPath: privateManifest.path) else {
+            throw XCTSkip("Private Photos fixture pack is not enabled.")
+        }
+
+        let app = launchApp()
+        createVehicle(in: app)
+        saveSnapshot(in: app, odometer: "108728", trip: "566.6")
+        saveSnapshot(in: app, odometer: "108749", trip: "587.3")
+
+        app.tabBars.buttons["Capturar"].tap()
+        app.buttons["capture.snapshot"].tap()
+
+        let photosButton = app.buttons["snapshot.odometerImage.photos"]
+        XCTAssertTrue(photosButton.waitForExistence(timeout: 5))
+        photosButton.tap()
+
+        let firstPhoto = app.images.matching(identifier: "PXGGridLayout-Info").firstMatch
+        XCTAssertTrue(
+            firstPhoto.waitForExistence(timeout: 10),
+            "The Photos picker must expose the imported odometer fixture."
+        )
+        let photoFrame = firstPhoto.frame
+        XCTAssertFalse(photoFrame.isEmpty)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+            .withOffset(CGVector(dx: photoFrame.midX, dy: photoFrame.midY))
+            .tap()
+
+        XCTAssertTrue(
+            app.images["snapshot.odometerImage.preview"].waitForExistence(timeout: 10)
+        )
+        app.buttons["snapshot.next"].tap()
+
+        let odometer = app.textFields["snapshot.odometer"]
+        let trip = app.textFields["snapshot.trip"]
+        XCTAssertTrue(odometer.waitForExistence(timeout: 90))
+        XCTAssertTrue(trip.exists)
+        XCTAssertEqual(stringValue(of: odometer), "108,768")
+        XCTAssertEqual(stringValue(of: trip), "606.5")
+        XCTAssertTrue(app.staticTexts["Media · revisar"].exists)
+
+        app.buttons["snapshot.next"].tap()
+        app.buttons["snapshot.save"].tap()
+
+        XCTAssertTrue(app.buttons["capture.snapshot"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Historial"].tap()
+        XCTAssertTrue(app.staticTexts["Snapshot"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForStaticText(containing: "108,768", in: app, timeout: 10))
+    }
+
+    private func launchApp(extraArguments: [String] = [], language: String = "es") -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["--uitesting"] + extraArguments
+        let locale = language == "es" ? "es_GT" : "en_US"
+        app.launchArguments = ["--uitesting", "-AppleLanguages", "(\(language))", "-AppleLocale", locale] + extraArguments
         app.launch()
         return app
+    }
+
+    private func saveScreenshot(named name: String) {
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        guard let outputDirectory = ProcessInfo.processInfo.environment["CARTRACK_SCREENSHOT_DIR"] else {
+            return
+        }
+
+        let url = URL(fileURLWithPath: outputDirectory, isDirectory: true)
+            .appendingPathComponent("\(name).png")
+        try? FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: outputDirectory, isDirectory: true),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try? screenshot.pngRepresentation.write(to: url)
     }
 
     private func createVehicle(in app: XCUIApplication) {
@@ -175,6 +502,28 @@ final class CartrackSmokeUITests: XCTestCase {
         app.buttons["vehicle.save"].tap()
 
         XCTAssertTrue(app.staticTexts["Roadster BMW Z4 2003"].waitForExistence(timeout: 5))
+    }
+
+    private func scrollToElement(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 4) {
+        for _ in 0..<maxSwipes where !element.exists || !element.isHittable {
+            app.swipeUp()
+        }
+    }
+
+    private func scrollToExistingElement(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 6) -> Bool {
+        for _ in 0...maxSwipes {
+            if element.waitForExistence(timeout: 1) {
+                return true
+            }
+            app.swipeUp()
+        }
+        return element.exists
+    }
+
+    private func scrollToText(containing text: String, in app: XCUIApplication, maxSwipes: Int = 6) {
+        for _ in 0..<maxSwipes where !waitForStaticText(containing: text, in: app, timeout: 1) {
+            app.swipeUp()
+        }
     }
 
     private func saveFillUpAndSnapshot(in app: XCUIApplication) {
@@ -206,14 +555,24 @@ final class CartrackSmokeUITests: XCTestCase {
     }
 
     private func saveSnapshotOnly(in app: XCUIApplication) {
+        saveSnapshot(in: app, odometer: "123456", trip: "73.0")
+    }
+
+    private func saveSnapshot(
+        in app: XCUIApplication,
+        odometer: String,
+        trip: String
+    ) {
         app.tabBars.buttons["Capturar"].tap()
         app.buttons["capture.snapshot"].tap()
 
         app.buttons["snapshot.next"].tap()
-        type("123456", into: app.textFields["snapshot.odometer"])
-        type("73.0", into: app.textFields["snapshot.trip"])
+        type(odometer, into: app.textFields["snapshot.odometer"])
+        type(trip, into: app.textFields["snapshot.trip"])
         app.buttons["snapshot.next"].tap()
         app.buttons["snapshot.save"].tap()
+
+        XCTAssertTrue(app.buttons["capture.snapshot"].waitForExistence(timeout: 10))
     }
 
     private func type(_ text: String, into field: XCUIElement) {
@@ -247,8 +606,40 @@ final class CartrackSmokeUITests: XCTestCase {
         textOption.tap()
     }
 
-    private func waitForStaticText(containing text: String, in app: XCUIApplication) -> Bool {
+    private func selectOption(_ optionName: String, in app: XCUIApplication, pickerIdentifier: String) {
+        let picker = app.buttons[pickerIdentifier].firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), "Missing picker: \(pickerIdentifier)")
+        picker.tap()
+
+        let buttonOption = app.buttons[optionName].firstMatch
+        if buttonOption.waitForExistence(timeout: 2) {
+            buttonOption.tap()
+            return
+        }
+
+        let textOption = app.staticTexts[optionName].firstMatch
+        XCTAssertTrue(textOption.waitForExistence(timeout: 5), "Missing option: \(optionName)")
+        textOption.tap()
+    }
+
+    private func tapVehicleRow(named vehicleName: String, in app: XCUIApplication) {
+        let button = app.buttons[vehicleName].firstMatch
+        if button.waitForExistence(timeout: 2) {
+            button.tap()
+            return
+        }
+
+        let text = app.staticTexts[vehicleName].firstMatch
+        XCTAssertTrue(text.waitForExistence(timeout: 5), "Missing vehicle row: \(vehicleName)")
+        text.tap()
+    }
+
+    private func stringValue(of element: XCUIElement) -> String {
+        (element.value as? String) ?? ""
+    }
+
+    private func waitForStaticText(containing text: String, in app: XCUIApplication, timeout: TimeInterval = 5) -> Bool {
         let predicate = NSPredicate(format: "label CONTAINS %@", text)
-        return app.staticTexts.containing(predicate).firstMatch.waitForExistence(timeout: 5)
+        return app.staticTexts.containing(predicate).firstMatch.waitForExistence(timeout: timeout)
     }
 }

@@ -10,20 +10,20 @@ private enum FillUpWizardStep: Int {
 
     var title: String {
         switch self {
-        case .evidence: "Evidencias"
-        case .review: "Revision"
-        case .confirm: "Confirmar"
+        case .evidence: AppCopy.text("Evidencias", "Evidence")
+        case .review: AppCopy.text("Revisión", "Review")
+        case .confirm: AppCopy.text("Confirmar", "Confirm")
         }
     }
 
     var subtitle: String {
         switch self {
         case .evidence:
-            "Agrega las fotos de factura, odometro y nivel de tanque."
+            AppCopy.text("Agrega las fotos de factura, odómetro y nivel de tanque.", "Add receipt, odometer, and fuel-level photos.")
         case .review:
-            "Revisa lo que el OCR pudo prellenar y corrige cualquier valor."
+            AppCopy.text("Revisa lo que el OCR pudo prellenar y corrige cualquier valor.", "Review what OCR prefilled and correct any value.")
         case .confirm:
-            "Confirma el resumen antes de guardar el llenado."
+            AppCopy.text("Confirma el resumen antes de guardar el llenado.", "Confirm the summary before saving the fill-up.")
         }
     }
 }
@@ -33,11 +33,14 @@ struct FillUpFormView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Vehicle.createdAt) private var vehicles: [Vehicle]
     @Query(sort: \ImageAsset.createdAt, order: .reverse) private var imageAssets: [ImageAsset]
+    @Query(sort: \SnapshotEvent.date, order: .reverse) private var snapshotEvents: [SnapshotEvent]
+    @Query(sort: \FuelFillEvent.date, order: .reverse) private var fillEvents: [FuelFillEvent]
 
     private let ocrService = OCRService()
     @StateObject private var locationService = LocationService()
 
     let event: FuelFillEvent?
+    let resumeSessionID: UUID?
 
     @State private var selectedVehicleID: UUID?
     @State private var date = Date()
@@ -46,8 +49,10 @@ struct FillUpFormView: View {
     @State private var gallons = ""
     @State private var pricePerGallon = ""
     @State private var totalCost = ""
+    @State private var isFullTank = true
     @State private var stationName = ""
     @State private var notes = ""
+    @State private var odometerOverrideReason = ""
     @State private var fuelLevelRemaining = FuelLevelScale.defaultMax
     @State private var invoiceOCRText = ""
     @State private var odometerOCRText = ""
@@ -64,17 +69,26 @@ struct FillUpFormView: View {
     @State private var isAnalyzing = false
     @State private var errorMessage: String?
     @State private var wizardStep: FillUpWizardStep = .evidence
+    @State private var captureSessionID: UUID?
+    @State private var captureSessionRevision: Int64?
+    @State private var captureDraft: CaptureDraft?
+    @State private var captureFieldResults: [FieldResult] = []
+    @State private var captureImageIssues: [CaptureImageKind: [CaptureImageIssue]] = [:]
+    @State private var fuelLevelReviewed = false
+    @State private var draftAutosaveTask: Task<Void, Never>?
+    @State private var isSaving = false
 
-    init(event: FuelFillEvent? = nil) {
+    init(event: FuelFillEvent? = nil, resumeSessionID: UUID? = nil) {
         self.event = event
+        self.resumeSessionID = resumeSessionID
     }
 
     private var selectedVehicle: Vehicle? {
         vehicles.first(where: { $0.id == selectedVehicleID })
     }
 
-    private var isUITesting: Bool {
-        ProcessInfo.processInfo.arguments.contains("--uitesting")
+    private var odometerUnit: OdometerUnit {
+        selectedVehicle?.odometerUnit ?? .miles
     }
 
     private var tripWarning: String? {
@@ -87,11 +101,11 @@ struct FillUpFormView: View {
             wizardProgressSection
             wizardContent
         }
-        .navigationTitle(event == nil ? "Nuevo llenado" : "Editar llenado")
+        .navigationTitle(event == nil ? AppCopy.text("Nuevo llenado", "New fill-up") : AppCopy.text("Editar llenado", "Edit fill-up"))
         .toolbar {
             if wizardStep == .evidence {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                    Button(isAnalyzing ? AppCopy.analyzing : AppCopy.next) {
                         Task { await continueFromEvidence() }
                     }
                     .disabled(isAnalyzing || selectedVehicle == nil)
@@ -99,31 +113,32 @@ struct FillUpFormView: View {
                 }
             } else if wizardStep == .review {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Siguiente") {
+                    Button(AppCopy.next) {
                         wizardStep = .confirm
                     }
                     .accessibilityIdentifier("fill.next")
                 }
             } else if wizardStep == .confirm {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Guardar", action: save)
+                    Button(AppCopy.save, action: save)
+                        .disabled(isSaving)
                         .accessibilityIdentifier("fill.save")
                 }
             }
         }
-        .alert("No se pudo guardar", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
+        .alert("No se pudo completar", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "")
         }
         .task {
             loadExistingData()
-            if !isUITesting {
-                await ReminderService.shared.requestAuthorization()
-                locationService.requestAccessIfNeeded()
-                locationService.refreshLocation()
+            if let resumeSessionID, event == nil {
+                await resumeCaptureSession(resumeSessionID)
             }
         }
+        .onChange(of: draftSignature) { _, _ in scheduleDraftAutosave() }
+        .onDisappear { scheduleDraftAutosave(immediate: true) }
     }
 
     private var wizardProgressSection: some View {
@@ -146,7 +161,7 @@ struct FillUpFormView: View {
             vehicleSection
             evidenceSections
             Section {
-                Button(isAnalyzing ? "Analizando..." : "Siguiente") {
+                Button(isAnalyzing ? AppCopy.analyzing : AppCopy.next) {
                     Task { await continueFromEvidence() }
                 }
                 .disabled(isAnalyzing || selectedVehicle == nil)
@@ -154,19 +169,23 @@ struct FillUpFormView: View {
             }
         case .review:
             dataSection
+            CaptureConfidenceSection(fields: captureFieldResults,
+                                     imageIssues: captureImageIssues,
+                                     isManuallyResolved: manuallyResolved,
+                                     retake: { _ in wizardStep = .evidence })
             fuelLevelReviewSection
             tripWarningSection
             ocrSection
             Section {
                 HStack {
-                    Button("Atras") {
+                    Button(AppCopy.back) {
                         wizardStep = .evidence
                     }
                     .accessibilityIdentifier("fill.back")
 
                     Spacer()
 
-                    Button("Siguiente") {
+                    Button(AppCopy.next) {
                         wizardStep = .confirm
                     }
                     .buttonStyle(.borderedProminent)
@@ -178,14 +197,15 @@ struct FillUpFormView: View {
             tripWarningSection
             Section {
                 HStack {
-                    Button("Atras") {
+                    Button(AppCopy.back) {
                         wizardStep = .review
                     }
                     .accessibilityIdentifier("fill.back")
 
                     Spacer()
 
-                    Button("Guardar", action: save)
+                    Button(AppCopy.save, action: save)
+                        .disabled(isSaving)
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("fill.save.inline")
                 }
@@ -194,33 +214,43 @@ struct FillUpFormView: View {
     }
 
     private var vehicleSection: some View {
-        Section("Vehiculo") {
-            Picker("Vehiculo", selection: $selectedVehicleID) {
+        Section(AppCopy.vehicle) {
+            Picker(AppCopy.vehicle, selection: $selectedVehicleID) {
                 ForEach(vehicles, id: \.id) { vehicle in
                     Text(vehicle.displayName).tag(Optional(vehicle.id))
                 }
             }
             .accessibilityIdentifier("fill.vehicle.picker")
+
+            Button(AppCopy.location) {
+                locationService.requestAccessIfNeeded()
+                locationService.refreshLocation()
+            }
+            .accessibilityHint(AppCopy.locationHint)
+            .accessibilityIdentifier("fill.location")
         }
     }
 
     @ViewBuilder
     private var evidenceSections: some View {
         ImageCaptureField(
-            title: "Factura",
-            caption: "Factura del llenado para leer galones, precio y total.",
+            title: AppCopy.text("Factura", "Receipt"),
+            caption: AppCopy.text("Factura del llenado para leer galones, precio y total.", "Fill-up receipt used to read gallons, price, and total."),
+            accessibilityPrefix: "fill.invoiceImage",
             existingPath: $existingInvoicePath,
             image: $invoiceImage
         )
         ImageCaptureField(
-            title: "Odometro",
-            caption: "Foto del odometro o cluster donde se vea el trip.",
+            title: AppCopy.text("Odómetro", "Odometer"),
+            caption: AppCopy.text("Foto del odómetro o tablero donde se vea el trip.", "Photo of the odometer or instrument cluster showing the trip."),
+            accessibilityPrefix: "fill.odometerImage",
             existingPath: $existingOdometerPath,
             image: $odometerImage
         )
         ImageCaptureField(
-            title: "Nivel de tanque",
-            caption: "Foto separada del nivel de combustible. Si es una aguja analogica, confirma los espacios manualmente en el siguiente paso.",
+            title: AppCopy.text("Nivel de tanque", "Fuel level"),
+            caption: AppCopy.text("Foto separada del nivel de combustible. Si es una aguja analógica, confirma los espacios manualmente en el siguiente paso.", "Separate fuel-level photo. For an analog needle, confirm the remaining segments manually in the next step."),
+            accessibilityPrefix: "fill.fuelImage",
             existingPath: $existingFuelLevelPath,
             image: $fuelLevelImage
         )
@@ -229,12 +259,14 @@ struct FillUpFormView: View {
     private var dataSection: some View {
         Section("Datos") {
             DatePicker("Fecha", selection: $date, displayedComponents: [.date, .hourAndMinute])
-            TextField("Odometro en millas", text: $odometerMiles)
+            TextField("Odometro en \(odometerUnit.inputLabel)", text: $odometerMiles)
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("fill.odometer")
-            TextField("Trip en millas", text: $tripMiles)
+            TextField("Trip en \(odometerUnit.inputLabel)", text: $tripMiles)
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("fill.trip")
+            TextField("Motivo de corrección del odómetro (solo si retrocede)", text: $odometerOverrideReason, axis: .vertical)
+                .accessibilityIdentifier("fill.odometerOverrideReason")
             TextField("Galones", text: $gallons)
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("fill.gallons")
@@ -244,6 +276,8 @@ struct FillUpFormView: View {
             TextField("Total pagado", text: $totalCost)
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("fill.total")
+            Toggle("Tanque lleno", isOn: $isFullTank)
+                .accessibilityIdentifier("fill.fullTank")
             TextField("Gasolinera o nota corta", text: $stationName)
                 .accessibilityIdentifier("fill.station")
             TextField("Notas", text: $notes, axis: .vertical)
@@ -263,6 +297,10 @@ struct FillUpFormView: View {
                 accessibilityPrefix: "fill",
                 value: $fuelLevelRemaining
             )
+            if needsFuelLevelConfirmation {
+                Toggle("Confirmé visualmente el nivel del medidor", isOn: $fuelLevelReviewed)
+                    .accessibilityIdentifier("fill.fuelLevel.confirmed")
+            }
         }
     }
 
@@ -302,11 +340,12 @@ struct FillUpFormView: View {
     private var confirmationSection: some View {
         Section("Resumen") {
             LabeledContent("Vehiculo", value: selectedVehicle?.displayName ?? "Pendiente")
-            LabeledContent("Odometro", value: display(odometerMiles, suffix: "mi"))
-            LabeledContent("Trip", value: display(tripMiles, suffix: "mi"))
-            LabeledContent("Galones", value: display(gallons, suffix: "gal"))
-            LabeledContent("Precio/galon", value: display(pricePerGallon, prefix: "Q"))
-            LabeledContent("Total", value: display(totalCost, prefix: "Q"))
+            LabeledContent("Odometro", value: display(odometerMiles, suffix: odometerUnit.rawValue))
+            LabeledContent("Trip", value: display(tripMiles, suffix: odometerUnit.rawValue))
+            LabeledContent("Galones", value: displayDecimal(gallons, suffix: "gal", formatter: CartrackFormatters.gallons))
+            LabeledContent("Precio/galon", value: displayDecimal(pricePerGallon, prefix: "Q"))
+            LabeledContent("Total", value: displayDecimal(totalCost, prefix: "Q"))
+            LabeledContent("Cierre de tanque", value: isFullTank ? "Tanque lleno" : "Carga parcial")
             Button("Editar montos de factura") {
                 wizardStep = .review
             }
@@ -319,14 +358,45 @@ struct FillUpFormView: View {
     }
 
     @MainActor
-    private func analyzeImages() async {
-        guard let vehicle = selectedVehicle else { return }
+    private func analyzeImages(persistCurrentValues: Bool = true) async -> Bool {
+        guard let vehicle = selectedVehicle else { return false }
         isAnalyzing = true
+        defer { isAnalyzing = false }
+        if event == nil {
+            do {
+                if persistCurrentValues, captureSessionID != nil {
+                    draftAutosaveTask?.cancel()
+                    guard await persistCurrentDraft() else { return false }
+                }
+                let workflow = FuelCaptureWorkflow(container: modelContext.container)
+                let outcome = try await workflow.analyze(
+                    input: fuelCaptureInput(for: vehicle), sessionID: captureSessionID
+                )
+                captureSessionID = outcome.session.id
+                captureSessionRevision = outcome.session.revision
+                captureDraft = outcome.session.draft
+                invoiceImage = outcome.images[.invoice]
+                odometerImage = outcome.images[.odometer]
+                fuelLevelImage = outcome.images[.fuelLevel]
+                if needsFuelLevelConfirmation { fuelLevelReviewed = false }
+                captureFieldResults = outcome.fields
+                captureImageIssues = outcome.imageIssues
+                invoiceOCRText = outcome.recognizedText.invoiceText
+                odometerOCRText = outcome.recognizedText.odometerText
+                fuelLevelOCRText = outcome.recognizedText.fuelLevelText
+                applyCaptureDraft(outcome.session.draft)
+                return true
+            } catch {
+                errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.fillup.analyze").message
+                return false
+            }
+        }
         let result = await ocrService.analyzeFillUp(
             invoiceImage: invoiceImage,
             odometerImage: odometerImage,
             fuelLevelImage: fuelLevelImage,
-            fuelScaleMax: vehicle.fuelScaleMax
+            fuelScaleMax: vehicle.fuelScaleMax,
+            previousClusterReading: previousClusterReading(for: vehicle)
         )
         invoiceOCRText = result.invoiceText
         odometerOCRText = result.odometerText
@@ -334,69 +404,251 @@ struct FillUpFormView: View {
         gallons = gallons.isEmpty ? result.gallons.map { String($0) } ?? gallons : gallons
         pricePerGallon = pricePerGallon.isEmpty ? result.pricePerGallon.map { String($0) } ?? pricePerGallon : pricePerGallon
         totalCost = totalCost.isEmpty ? result.totalCost.map { String($0) } ?? totalCost : totalCost
-        odometerMiles = odometerMiles.isEmpty ? result.odometerMiles.map { String($0) } ?? odometerMiles : odometerMiles
-        tripMiles = tripMiles.isEmpty ? result.tripMiles.map { String($0) } ?? tripMiles : tripMiles
+        odometerMiles = odometerMiles.isEmpty ? result.odometerMiles.map(formatOCRDistanceInput) ?? odometerMiles : odometerMiles
+        tripMiles = tripMiles.isEmpty ? result.tripMiles.map(formatOCRDistanceInput) ?? tripMiles : tripMiles
         if let value = result.fuelLevelRemaining {
             fuelLevelRemaining = value
         }
-        isAnalyzing = false
+        return true
+    }
+
+    private func fuelCaptureInput(for vehicle: Vehicle) -> FuelCaptureInput {
+        var images: [CaptureImageKind: UIImage] = [:]
+        if let invoiceImage { images[.invoice] = invoiceImage }
+        if let odometerImage { images[.odometer] = odometerImage }
+        if let fuelLevelImage { images[.fuelLevel] = fuelLevelImage }
+        let previousSnapshot = snapshotEvents
+            .filter { $0.vehicle?.id == vehicle.id && $0.date < date }
+            .max(by: { $0.date < $1.date })
+        let previousFill = fillEvents
+            .filter { $0.vehicle?.id == vehicle.id && $0.date < date }
+            .max(by: { $0.date < $1.date })
+        let previousOdometer = [previousSnapshot.map { ($0.date, $0.odometerKilometers) },
+                                previousFill.map { ($0.date, $0.odometerKilometers) }]
+            .compactMap { $0 }
+            .max(by: { $0.0 < $1.0 })?.1
+        return FuelCaptureInput(
+            vehicleID: vehicle.id, occurredAt: date, odometerUnit: vehicle.odometerUnit,
+            tankCapacityGallons: Decimal(string: String(vehicle.tankCapacityGallons)) ?? 14,
+            fuelScaleMax: Decimal(string: String(vehicle.fuelScaleMax)) ?? 8,
+            fuelScaleStep: Decimal(string: String(vehicle.fuelScaleStep)) ?? 0.25,
+            previousOdometerKilometers: previousOdometer.flatMap { Decimal(string: String($0)) },
+            lastFillOdometerKilometers: previousFill.flatMap { Decimal(string: String($0.odometerKilometers)) },
+            previousClusterReading: previousClusterReading(for: vehicle), images: images
+        )
+    }
+
+    private func applyCaptureDraft(_ draft: CaptureDraft) {
+        odometerOverrideReason = draft.odometerOverrideReason ?? ""
+        func text(_ value: Decimal?) -> String? { value.map { NSDecimalNumber(decimal: $0).stringValue } }
+        if odometerMiles.isEmpty || !draft.isManuallyEdited(.odometerKilometers) {
+            odometerMiles = draft.odometerKilometers.map {
+                formatOCRDistanceInput(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: $0).doubleValue))
+            } ?? ""
+        }
+        if tripMiles.isEmpty || !draft.isManuallyEdited(.tripKilometers) {
+            tripMiles = draft.tripKilometers.map {
+                formatOCRDistanceInput(UnitConversion.kilometersToMiles(NSDecimalNumber(decimal: $0).doubleValue))
+            } ?? ""
+        }
+        if gallons.isEmpty || !draft.isManuallyEdited(.volumeGallons) { gallons = text(draft.volumeGallons) ?? "" }
+        if pricePerGallon.isEmpty || !draft.isManuallyEdited(.unitPrice) {
+            pricePerGallon = text(draft.unitPrice) ?? ""
+        }
+        if totalCost.isEmpty || !draft.isManuallyEdited(.totalCost) { totalCost = text(draft.totalCost) ?? "" }
+        if let level = draft.fuelLevelRemaining {
+            fuelLevelRemaining = NSDecimalNumber(decimal: level).doubleValue
+        }
+    }
+
+    @MainActor
+    private func resumeCaptureSession(_ sessionID: UUID) async {
+        do {
+            let repository = SwiftDataCaptureSessionRepository(container: modelContext.container)
+            guard let session = try await repository.find(id: sessionID),
+                  session.kind == .fillUp,
+                  let vehicleID = session.vehicleID,
+                  vehicles.contains(where: { $0.id == vehicleID }) else {
+                throw CaptureSessionError.notFound
+            }
+            selectedVehicleID = vehicleID
+            date = session.draft.occurredAt ?? session.createdAt
+            captureSessionID = sessionID
+            captureDraft = session.draft
+            if await analyzeImages(persistCurrentValues: false) { wizardStep = .review }
+        } catch {
+            errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.fillup.analyze").message
+        }
+    }
+
+    private func previousClusterReading(for vehicle: Vehicle) -> InstrumentClusterReading? {
+        let snapshots = snapshotEvents.compactMap { snapshot -> (Date, InstrumentClusterReading)? in
+            guard snapshot.vehicle?.id == vehicle.id,
+                  snapshot.date < date,
+                  let trip = snapshot.tripMilesOriginal
+                    ?? snapshot.tripKilometers.map(UnitConversion.kilometersToMiles)
+            else { return nil }
+            let odometer = snapshot.odometerMilesOriginal
+                ?? UnitConversion.kilometersToMiles(snapshot.odometerKilometers)
+            return (
+                snapshot.date,
+                InstrumentClusterReading(odometerMiles: odometer, tripMiles: trip)
+            )
+        }
+        let fills = fillEvents.compactMap { fill -> (Date, InstrumentClusterReading)? in
+            guard fill.id != event?.id,
+                  fill.vehicle?.id == vehicle.id,
+                  fill.date < date,
+                  let trip = fill.tripMilesOriginal
+                    ?? fill.tripKilometers.map(UnitConversion.kilometersToMiles)
+            else { return nil }
+            let odometer = fill.odometerMilesOriginal
+                ?? UnitConversion.kilometersToMiles(fill.odometerKilometers)
+            return (
+                fill.date,
+                InstrumentClusterReading(odometerMiles: odometer, tripMiles: trip)
+            )
+        }
+        return (snapshots + fills).max(by: { $0.0 < $1.0 })?.1
     }
 
     @MainActor
     private func continueFromEvidence() async {
-        await analyzeImages()
-        wizardStep = .review
+        if await analyzeImages() { wizardStep = .review }
     }
 
     private func save() {
+        guard !isSaving else { return }
+        isSaving = true
+        Task {
+            defer { isSaving = false }
+            draftAutosaveTask?.cancel()
+            if event == nil, !(await persistCurrentDraft()) { return }
+            performSave()
+        }
+    }
+
+    private func performSave() {
+        if event == nil, hasUnresolvedCriticalField || needsFuelLevelConfirmation && !fuelLevelReviewed {
+            wizardStep = .review
+            errorMessage = "Revisa los campos en conflicto y confirma manualmente el nivel del medidor."
+            return
+        }
         guard let vehicle = selectedVehicle else {
             errorMessage = "Selecciona un vehiculo."
             return
         }
         guard let odometerMilesValue = odometerMiles.asDouble,
-              let gallonsValue = gallons.asDouble,
-              let pricePerGallonValue = pricePerGallon.asDouble,
-              let totalCostValue = totalCost.asDouble else {
+              let gallonsValue = gallons.asDecimalDouble,
+              let pricePerGallonValue = pricePerGallon.asDecimalDouble,
+              let totalCostValue = totalCost.asDecimalDouble else {
             errorMessage = "Completa odometro, galones, precio y total con valores numericos."
             return
         }
 
-        let fillEvent = event ?? FuelFillEvent(vehicle: vehicle)
-        fillEvent.vehicle = vehicle
-        fillEvent.date = date
-        fillEvent.odometerMilesOriginal = odometerMilesValue
-        fillEvent.odometerKilometers = UnitConversion.milesToKilometers(odometerMilesValue)
-        fillEvent.tripMilesOriginal = tripMiles.asDouble
-        fillEvent.tripKilometers = tripMiles.asDouble.map(UnitConversion.milesToKilometers)
-        fillEvent.gallons = gallonsValue
-        fillEvent.pricePerGallon = pricePerGallonValue
-        fillEvent.totalCost = totalCostValue
-        fillEvent.stationName = stationName.trimmed
-        fillEvent.fuelLevelRemaining = FuelLevelScale.normalize(
+        let odometerKilometersValue = normalizedKilometers(forInputDistance: odometerMilesValue, unit: vehicle.odometerUnit)
+        let odometerMilesOriginalValue = normalizedMiles(forInputDistance: odometerMilesValue, unit: vehicle.odometerUnit)
+        let tripMilesOriginalValue = tripMiles.asDouble.map { normalizedMiles(forInputDistance: $0, unit: vehicle.odometerUnit) }
+        let tripKilometersValue = tripMiles.asDouble.map { normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit) }
+        let integrityID = event?.id ?? UUID()
+        let integrityInput = EventIntegrityInput(
+            reading: EventIntegrityReading(
+                id: integrityID, occurredAt: date,
+                odometerKilometers: Decimal(string: String(odometerKilometersValue)) ?? 0,
+                tripKilometers: tripKilometersValue.flatMap { Decimal(string: String($0)) }
+            ),
+            fuelLevelRemaining: Decimal(string: String(fuelLevelRemaining)) ?? -1,
+            fuelScaleMax: Decimal(string: String(vehicle.fuelScaleMax)) ?? 0,
+            fuelScaleStep: Decimal(string: String(vehicle.fuelScaleStep)) ?? 0,
+            financial: .init(gallons: Decimal(string: String(gallonsValue)) ?? 0,
+                             unitPrice: Decimal(string: String(pricePerGallonValue)) ?? 0,
+                             totalCost: Decimal(string: String(totalCostValue)) ?? 0),
+            overrideReason: odometerOverrideReason
+        )
+
+        let normalizedFuelLevel = FuelLevelScale.normalize(
             fuelLevelRemaining,
             maxValue: vehicle.fuelScaleMax,
             step: vehicle.fuelScaleStep
         )
-        fillEvent.notes = notes.trimmed
-        fillEvent.invoiceOCRText = invoiceOCRText
-        fillEvent.odometerOCRText = odometerOCRText
-        fillEvent.fuelLevelOCRText = fuelLevelOCRText
         let coordinate = EventLocationPolicy.resolvedCoordinate(
             currentLatitude: locationService.currentCoordinate?.latitude,
             currentLongitude: locationService.currentCoordinate?.longitude,
             existingLatitude: event?.latitude,
             existingLongitude: event?.longitude
         )
-        fillEvent.latitude = coordinate?.latitude
-        fillEvent.longitude = coordinate?.longitude
-        fillEvent.updatedAt = .now
-
-        if event == nil {
-            modelContext.insert(fillEvent)
+        func populate(_ fillEvent: FuelFillEvent, vehicle: Vehicle) {
+            fillEvent.vehicle = vehicle
+            fillEvent.date = date
+            fillEvent.odometerMilesOriginal = odometerMilesOriginalValue
+            fillEvent.odometerKilometers = odometerKilometersValue
+            fillEvent.tripMilesOriginal = tripMilesOriginalValue
+            fillEvent.tripKilometers = tripKilometersValue
+            fillEvent.gallons = gallonsValue
+            fillEvent.pricePerGallon = pricePerGallonValue
+            fillEvent.totalCost = totalCostValue
+            fillEvent.isFullTank = isFullTank
+            fillEvent.stationName = stationName.trimmed
+            fillEvent.fuelLevelRemaining = normalizedFuelLevel
+            fillEvent.notes = notes.trimmed
+            fillEvent.invoiceOCRText = invoiceOCRText
+            fillEvent.odometerOCRText = odometerOCRText
+            fillEvent.fuelLevelOCRText = fuelLevelOCRText
+            fillEvent.latitude = coordinate?.latitude
+            fillEvent.longitude = coordinate?.longitude
+            fillEvent.updatedAt = .now
         }
 
+        var imagePlan: ImageReplacementPlan?
         do {
-            try EventImageSynchronizer.replaceAssets(
+            if event == nil {
+                guard let captureSessionID, let captureSessionRevision else {
+                    errorMessage = "Analiza o crea la sesión antes de guardar el llenado."
+                    return
+                }
+                var finalDraft = captureDraft ?? CaptureDraft()
+                finalDraft.occurredAt = date
+                finalDraft.odometerKilometers = Decimal(string: String(odometerKilometersValue))
+                finalDraft.tripKilometers = tripKilometersValue.flatMap { Decimal(string: String($0)) }
+                finalDraft.fuelLevelRemaining = Decimal(string: String(normalizedFuelLevel))
+                finalDraft.volumeGallons = Decimal(string: String(gallonsValue))
+                finalDraft.unitPrice = Decimal(string: String(pricePerGallonValue))
+                finalDraft.totalCost = Decimal(string: String(totalCostValue))
+                finalDraft.isFullTank = isFullTank
+                finalDraft.stationName = stationName.trimmed
+                finalDraft.notes = notes.trimmed
+                finalDraft.odometerOverrideReason = odometerOverrideReason.trimmed
+                _ = try CaptureConfirmationService.confirm(
+                    container: modelContext.container, sessionID: captureSessionID,
+                    expectedRevision: captureSessionRevision, vehicleID: vehicle.id,
+                    kind: .fillUp, finalDraft: finalDraft,
+                    images: [.invoice: invoiceImage, .odometer: odometerImage,
+                             .fuelLevel: fuelLevelImage], integrityInput: integrityInput
+                ) { storedVehicle, context in
+                    let fillEvent = FuelFillEvent(id: integrityID, vehicle: storedVehicle)
+                    populate(fillEvent, vehicle: storedVehicle)
+                    context.insert(fillEvent)
+                    try SyncMetadataMaintainer.recordChange(
+                        ownerID: fillEvent.id, kind: "fuelEntry",
+                        createdAt: fillEvent.createdAt, updatedAt: fillEvent.updatedAt,
+                        in: context
+                    )
+                    return fillEvent.id
+                }
+                Task { await ReminderService.shared.captureLogged() }
+                self.captureSessionID = nil
+                dismiss()
+                return
+            }
+            guard let fillEvent = event else { return }
+            let integrityResult = try EventIntegrityService.validate(integrityInput,
+                                                                      vehicleID: vehicle.id,
+                                                                      in: modelContext)
+            populate(fillEvent, vehicle: vehicle)
+            EventIntegrityService.recordOverride(integrityResult, input: integrityInput,
+                                                 eventID: fillEvent.id, sessionID: nil,
+                                                 in: modelContext)
+            imagePlan = try EventImageSynchronizer.prepareReplacement(
                 for: fillEvent,
                 images: [
                     .invoice: invoiceImage,
@@ -406,24 +658,120 @@ struct FillUpFormView: View {
                 removedKinds: removedKinds(),
                 context: modelContext
             )
+            try SyncMetadataMaintainer.recordChange(ownerID: fillEvent.id, kind: "fuelEntry",
+                                                    createdAt: fillEvent.createdAt,
+                                                    updatedAt: fillEvent.updatedAt,
+                                                    in: modelContext)
             try modelContext.save()
+            imagePlan?.finish(in: modelContext)
             Task {
                 await ReminderService.shared.captureLogged()
             }
             dismiss()
         } catch {
-            errorMessage = error.localizedDescription
+            modelContext.rollback()
+            imagePlan?.rollback()
+            errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.fillup.save").message
+        }
+    }
+
+    private var draftSignature: String {
+        [selectedVehicleID?.uuidString ?? "", String(date.timeIntervalSince1970),
+         odometerMiles, tripMiles, gallons, pricePerGallon, totalCost,
+         String(isFullTank), stationName, notes, String(fuelLevelRemaining),
+         odometerOverrideReason,
+         String(fuelLevelReviewed)].joined(separator: "|")
+    }
+
+    private func scheduleDraftAutosave(immediate: Bool = false) {
+        draftAutosaveTask?.cancel()
+        guard event == nil, captureSessionID != nil,
+              wizardStep == .review || wizardStep == .confirm else { return }
+        draftAutosaveTask = Task {
+            if !immediate { try? await Task.sleep(for: .milliseconds(250)) }
+            guard !Task.isCancelled else { return }
+            _ = await persistCurrentDraft()
+        }
+    }
+
+    @MainActor
+    private func persistCurrentDraft() async -> Bool {
+        guard let sessionID = captureSessionID, let vehicle = selectedVehicle else { return false }
+        do {
+            let repository = SwiftDataCaptureSessionRepository(container: modelContext.container)
+            guard let current = try await repository.find(id: sessionID),
+                  current.state == .review, current.vehicleID == vehicle.id else {
+                throw CaptureSessionError.invalidTransition
+            }
+            var draft = current.draft
+            draft.occurredAt = date
+            draft.setManualNumber(odometerMiles.asDouble.flatMap {
+                Decimal(string: String(normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit)))
+            }, for: .odometerKilometers)
+            draft.setManualNumber(tripMiles.asDouble.flatMap {
+                Decimal(string: String(normalizedKilometers(forInputDistance: $0, unit: vehicle.odometerUnit)))
+            }, for: .tripKilometers)
+            if !needsFuelLevelConfirmation || fuelLevelReviewed {
+                draft.setManualNumber(Decimal(string: String(fuelLevelRemaining)), for: .fuelLevelRemaining)
+            }
+            draft.setManualNumber(gallons.asDecimalDouble.flatMap { Decimal(string: String($0)) },
+                                  for: .volumeGallons)
+            draft.setManualNumber(pricePerGallon.asDecimalDouble.flatMap { Decimal(string: String($0)) },
+                                  for: .unitPrice)
+            draft.setManualNumber(totalCost.asDecimalDouble.flatMap { Decimal(string: String($0)) },
+                                  for: .totalCost)
+            draft.isFullTank = isFullTank
+            draft.stationName = stationName.trimmed
+            draft.notes = notes.trimmed
+            draft.odometerOverrideReason = odometerOverrideReason.trimmed
+            let saved = try await repository.updateDraft(id: sessionID,
+                                                         expectedRevision: current.revision,
+                                                         draft: draft)
+            captureSessionRevision = saved.revision
+            captureDraft = saved.draft
+            return true
+        } catch {
+            errorMessage = LocalDiagnosticsService.recovery(for: error, operation: "capture.fillup.draft").message
+            return false
+        }
+    }
+
+    private var needsFuelLevelConfirmation: Bool {
+        guard fuelLevelImage != nil,
+              let status = captureFieldResults.first(where: { $0.field == .fuelLevelRemaining }) else {
+            return false
+        }
+        return status.band == .low || status.band == .critical
+    }
+
+    private var hasUnresolvedCriticalField: Bool {
+        captureFieldResults.contains { result in
+            result.band == .critical && !manuallyResolved(result.field)
+        }
+    }
+
+    private func manuallyResolved(_ field: CaptureField) -> Bool {
+        switch field {
+        case .odometerKilometers: odometerMiles.asDouble != nil
+        case .tripKilometers: true // Trip is optional for a fill-up.
+        case .fuelLevelRemaining: fuelLevelReviewed
+        case .volumeGallons: gallons.asDecimalDouble != nil
+        case .unitPrice: pricePerGallon.asDecimalDouble != nil
+        case .totalCost: totalCost.asDecimalDouble != nil
+        case .stationName: !stationName.trimmed.isEmpty
+        case .occurredAt: true
         }
     }
 
     private func loadExistingData() {
         selectedVehicleID = event?.vehicle?.id ?? vehicles.first?.id
         date = event?.date ?? .now
-        odometerMiles = event?.odometerMilesOriginal.map { String($0) } ?? ""
-        tripMiles = event?.tripMilesOriginal.map { String($0) } ?? ""
+        odometerMiles = event.flatMap { storedDistanceInput(odometerKilometers: $0.odometerKilometers, odometerMilesOriginal: $0.odometerMilesOriginal, vehicle: $0.vehicle) } ?? ""
+        tripMiles = event.flatMap { storedDistanceInput(odometerKilometers: $0.tripKilometers, odometerMilesOriginal: $0.tripMilesOriginal, vehicle: $0.vehicle) } ?? ""
         gallons = event.map { String($0.gallons) } ?? ""
         pricePerGallon = event.map { String($0.pricePerGallon) } ?? ""
         totalCost = event.map { String($0.totalCost) } ?? ""
+        isFullTank = event?.isFullTank ?? true
         stationName = event?.stationName ?? ""
         notes = event?.notes ?? ""
         fuelLevelRemaining = event?.fuelLevelRemaining ?? FuelLevelScale.defaultMax
@@ -459,5 +807,51 @@ struct FillUpFormView: View {
         guard let parsed = value.asDouble else { return "Pendiente" }
         let formatted = CartrackFormatters.decimal(parsed)
         return "\(prefix)\(formatted)\(suffix.isEmpty ? "" : " \(suffix)")"
+    }
+
+    private func displayDecimal(
+        _ value: String,
+        prefix: String = "",
+        suffix: String = "",
+        formatter: (Double, String) -> String = CartrackFormatters.decimal
+    ) -> String {
+        guard let parsed = value.asDecimalDouble else { return "Pendiente" }
+        let formatted = formatter(parsed, suffix)
+        return "\(prefix)\(formatted)"
+    }
+
+    private func formatOCRDistanceInput(_ miles: Double) -> String {
+        let inputValue = odometerUnit == .miles ? miles : UnitConversion.milesToKilometers(miles)
+        return CartrackFormatters.decimal(inputValue)
+    }
+
+    private func normalizedKilometers(forInputDistance value: Double, unit: OdometerUnit) -> Double {
+        switch unit {
+        case .miles: UnitConversion.milesToKilometers(value)
+        case .kilometers: value
+        }
+    }
+
+    private func normalizedMiles(forInputDistance value: Double, unit: OdometerUnit) -> Double {
+        switch unit {
+        case .miles: value
+        case .kilometers: UnitConversion.kilometersToMiles(value)
+        }
+    }
+
+    private func storedDistanceInput(
+        odometerKilometers: Double?,
+        odometerMilesOriginal: Double?,
+        vehicle: Vehicle?
+    ) -> String {
+        guard let vehicle else { return "" }
+        let value: Double?
+        switch vehicle.odometerUnit {
+        case .miles:
+            value = odometerMilesOriginal ?? odometerKilometers.map(UnitConversion.kilometersToMiles)
+        case .kilometers:
+            value = odometerKilometers
+        }
+        return value.map { CartrackFormatters.decimal($0) } ?? ""
     }
 }

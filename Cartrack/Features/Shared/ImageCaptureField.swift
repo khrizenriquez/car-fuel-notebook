@@ -5,6 +5,7 @@ import UIKit
 struct ImageCaptureField: View {
     let title: String
     let caption: String
+    let accessibilityPrefix: String
     @Binding var existingPath: String?
     @Binding var image: UIImage?
 
@@ -20,21 +21,29 @@ struct ImageCaptureField: View {
                 .foregroundStyle(.secondary)
 
             HStack {
-                Button("Camara") {
+                Button(AppCopy.camera) {
                     isShowingPicker = true
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityLabel("\(AppCopy.camera): \(title)")
+                .accessibilityHint(AppCopy.photoActionHint(for: title))
+                .accessibilityIdentifier("\(accessibilityPrefix).camera")
 
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                    Text("Fotos")
+                    Text(AppCopy.photos)
                 }
                 .buttonStyle(.bordered)
+                .accessibilityLabel("\(AppCopy.photos): \(title)")
+                .accessibilityHint(AppCopy.photoActionHint(for: title))
+                .accessibilityIdentifier("\(accessibilityPrefix).photos")
 
                 if image != nil || existingPath != nil {
-                    Button("Quitar", role: .destructive) {
+                    Button(AppCopy.remove, role: .destructive) {
                         image = nil
                         existingPath = nil
                     }
+                    .accessibilityLabel("\(AppCopy.remove): \(title)")
+                    .accessibilityIdentifier("\(accessibilityPrefix).remove")
                 }
             }
         }
@@ -70,6 +79,8 @@ struct ImageCaptureField: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
+                .accessibilityLabel(AppCopy.photoPreview(for: title, hasImage: true))
+                .accessibilityIdentifier("\(accessibilityPrefix).preview")
         } else if let existingPath, let uiImage = ImageStorageService.shared.loadImage(at: existingPath) {
             Image(uiImage: uiImage)
                 .resizable()
@@ -77,6 +88,8 @@ struct ImageCaptureField: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
+                .accessibilityLabel(AppCopy.photoPreview(for: title, hasImage: true))
+                .accessibilityIdentifier("\(accessibilityPrefix).preview")
         } else {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color.secondary.opacity(0.12))
@@ -86,10 +99,12 @@ struct ImageCaptureField: View {
                         Image(systemName: "photo")
                             .font(.title2)
                             .foregroundStyle(.secondary)
-                        Text("Sin imagen")
+                        Text(AppCopy.noImage)
                             .foregroundStyle(.secondary)
                     }
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(AppCopy.photoPreview(for: title, hasImage: false))
         }
     }
 }
