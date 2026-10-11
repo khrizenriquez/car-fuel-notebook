@@ -3,7 +3,7 @@
 **Commit candidato:** `Finalize Cartrack v2 release candidate` en `codex/cartrack-v2`
 **Fecha de evidencia local:** 2026-10-11
 **Simulador:** iPhone 16 Pro / iOS 18.2 / UDID `24B0C7AF-22CB-42A3-A2E3-E340C8841FED`
-**Dispositivo físico:** pendiente; no se declara aprobado hasta ejecutarlo.
+**Dispositivo físico:** diferido explícitamente por el propietario el 2026-10-11. No se declara aprobado ni se usa como gate de v2.
 
 ## Producto
 
@@ -50,18 +50,19 @@
 - [x] `Scripts/verify_local.sh` pasa: 101 aprobadas, 8 omisiones previstas.
 - [x] `Scripts/verify_private_image_scenarios.sh` pasa: 12/12.
 - [x] E2E pasa en simulador limpio: UI 17/17, más Fotos privadas 1/1.
-- [ ] Smoke pasa en iPhone físico.
+- [x] Smoke en iPhone físico diferido por aprobación explícita; no ejecutado.
 - [x] VoiceOver, Dynamic Type, español e inglés verificados en simulador.
 - [x] Build Release y Archive completados.
 - [x] Cero crashes críticos conocidos en los gates automatizados.
 
-### Smoke físico pendiente
+### Smoke físico diferido
 
-- [ ] Conectar un iPhone con iOS 17 o posterior y registrar modelo/iOS/UDID en esta sección.
-- [ ] Instalar el Archive Release y recorrer US-01 a US-05 con modo avión activado.
-- [ ] Validar permisos de cámara, Fotos, ubicación y recordatorios bajo demanda.
-- [ ] Confirmar cámara real, orientación, foreground/background, VoiceOver y Dynamic Type.
-- [ ] Adjuntar el `.xcresult` o el resultado manual sin fotos privadas y marcar el smoke como aprobado.
+- [x] El propietario autorizó diferir esta validación el 2026-10-11; no bloquea el cierre automatizado de v2.
+- [ ] Antes de distribuir a un dispositivo físico: conectar un iPhone con iOS 17 o posterior y registrar modelo/iOS/UDID.
+- [ ] Antes de distribuir a un dispositivo físico: instalar el Archive Release y recorrer US-01 a US-05 con modo avión activado.
+- [ ] Antes de distribuir a un dispositivo físico: validar permisos de cámara, Fotos, ubicación y recordatorios bajo demanda.
+- [ ] Antes de distribuir a un dispositivo físico: confirmar cámara real, orientación, foreground/background, VoiceOver y Dynamic Type.
+- [ ] Antes de distribuir a un dispositivo físico: adjuntar el `.xcresult` o resultado manual sin fotos privadas.
 
 ## Git y publicación
 
