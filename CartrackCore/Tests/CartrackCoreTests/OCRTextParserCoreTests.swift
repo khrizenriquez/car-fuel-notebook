@@ -237,6 +237,28 @@ final class OCRTextParserCoreTests: XCTestCase {
         XCTAssertEqualOptional(result.totalCost, 150.00, accuracy: 0.001)
     }
 
+    func testParserInfersUnitPriceWhenReceiptOCRMissesLeadingDigit() {
+        let invoice = """
+        TEXACO
+        Cantidad
+        3.791
+        Precia Q
+        9 57 lotal Q
+        150 00
+        """
+
+        let result = parser.parseFillUp(
+            invoiceText: invoice,
+            odometerText: "",
+            fuelLevelText: "",
+            fuelScaleMax: 8
+        )
+
+        XCTAssertEqualOptional(result.gallons, 3.791, accuracy: 0.0001)
+        XCTAssertEqualOptional(result.totalCost, 150.00, accuracy: 0.001)
+        XCTAssertEqualOptional(result.pricePerGallon, 39.57, accuracy: 0.001)
+    }
+
     func testParserPrefersTemporarySocialSupportTotalAsFullSpend() {
         let invoice = """
         DATOS DEL EMISOR

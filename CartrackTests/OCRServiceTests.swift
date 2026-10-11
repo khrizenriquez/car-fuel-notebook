@@ -3,6 +3,28 @@ import XCTest
 @testable import Cartrack
 
 final class OCRServiceTests: XCTestCase {
+    func testParserInfersUnitPriceWhenReceiptOCRMissesLeadingDigit() {
+        let invoice = """
+        TEXACO
+        Cantidad
+        3.791
+        Precia Q
+        9 57 lotal Q
+        150 00
+        """
+
+        let result = OCRTextParser().parseFillUp(
+            invoiceText: invoice,
+            odometerText: "",
+            fuelLevelText: "",
+            fuelScaleMax: 8
+        )
+
+        XCTAssertEqual(result.gallons ?? 0, 3.791, accuracy: 0.0001)
+        XCTAssertEqual(result.totalCost ?? 0, 150, accuracy: 0.001)
+        XCTAssertEqual(result.pricePerGallon ?? 0, 39.57, accuracy: 0.001)
+    }
+
     func testAnalyzeFillUpUsesInjectedRecognizerAndParser() async {
         let invoiceImage = makeImage(color: .red)
         let odometerImage = makeImage(color: .green)
@@ -107,6 +129,31 @@ final class OCRServiceTests: XCTestCase {
 
         XCTAssertEqual(result.odometerMiles ?? 0, 108_768, accuracy: 0.001)
         XCTAssertEqual(result.tripMiles ?? 0, 606.5, accuracy: 0.001)
+    }
+
+    func testAnalyzeSnapshotPrefersUntruncatedRepeatedVisionPair() async {
+        let odometerImage = makeImage(color: .systemMint)
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(odometerImage): """
+                77299 miles 19.4
+                107729 miles 19.4
+                107729 miles 19.4
+                107729 miles 19.4
+                MPH
+                """,
+            ]),
+            clusterReader: StubClusterReader(readings: [:])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: odometerImage,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax
+        )
+
+        XCTAssertEqual(result.odometerMiles ?? 0, 107_729, accuracy: 0.001)
+        XCTAssertEqual(result.tripMiles ?? 0, 19.4, accuracy: 0.001)
     }
 
     func testAnalyzeSnapshotReturnsManualFallbackForUnresolvedClusterConflict() async {
@@ -244,6 +291,52 @@ final class OCRServiceTests: XCTestCase {
 
         XCTAssertEqual(result.odometerMiles ?? 0, 108_796, accuracy: 0.001)
         XCTAssertEqual(result.tripMiles ?? 0, 634.1, accuracy: 0.001)
+    }
+
+    func testAnalyzeSnapshotPrefersDirectTripEvidenceOverRecoveryCrop() async {
+        let image = makeImage(color: .systemPink)
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(image): "B8T9 miles SS73\n5873\ntripRecovery 5813\nMPH",
+            ]),
+            clusterReader: StubClusterReader(readings: [:])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: image,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax,
+            previousClusterReading: InstrumentClusterReading(
+                odometerMiles: 108_728,
+                tripMiles: 566.6
+            )
+        )
+
+        XCTAssertEqual(result.odometerMiles ?? 0, 108_749, accuracy: 0.001)
+        XCTAssertEqual(result.tripMiles ?? 0, 587.3, accuracy: 0.001)
+    }
+
+    func testAnalyzeSnapshotLeavesTinyContextualChangeForManualReview() async {
+        let image = makeImage(color: .systemGray)
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(image): "108729 miles 567.2\nMPH",
+            ]),
+            clusterReader: StubClusterReader(readings: [:])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: image,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax,
+            previousClusterReading: InstrumentClusterReading(
+                odometerMiles: 108_728,
+                tripMiles: 566.6
+            )
+        )
+
+        XCTAssertNil(result.odometerMiles)
+        XCTAssertNil(result.tripMiles)
     }
 
     func testAnalyzeSnapshotDoesNotInferOdometerFromDistantTripOnlyEvidence() async {

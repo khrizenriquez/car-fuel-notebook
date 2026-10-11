@@ -7,15 +7,29 @@ struct OCRTextParser {
         let reconciledAmounts = gallons.flatMap {
             reconcileFuelAmounts(in: invoiceText, gallons: $0)
         }
+        let totalCost = parseTemporarySocialSupportTotal(from: invoiceText)
+            ?? lineItem?.totalCost
+            ?? reconciledAmounts?.totalCost
+            ?? parseExplicitTotalLine(from: invoiceText)
+            ?? parseTotalCost(from: invoiceText)
+        let parsedPrice = parsePricePerGallon(from: invoiceText)
+        let inferredPrice = gallons.flatMap { gallons in
+            totalCost.flatMap { inferredUnitPrice(gallons: gallons, totalCost: $0) }
+        }
+        let pricePerGallon = lineItem?.pricePerGallon
+            ?? reconciledAmounts?.pricePerGallon
+            ?? parsedPrice.flatMap { price in
+                guard let gallons, let totalCost,
+                      isConsistent(price: price, gallons: gallons, totalCost: totalCost)
+                else { return nil }
+                return price
+            }
+            ?? inferredPrice
+            ?? parsedPrice
         return FillUpTextParseResult(
             gallons: gallons,
-            pricePerGallon: lineItem?.pricePerGallon
-                ?? reconciledAmounts?.pricePerGallon
-                ?? parsePricePerGallon(from: invoiceText),
-            totalCost: parseTemporarySocialSupportTotal(from: invoiceText)
-                ?? lineItem?.totalCost
-                ?? reconciledAmounts?.totalCost
-                ?? parseTotalCost(from: invoiceText),
+            pricePerGallon: pricePerGallon,
+            totalCost: totalCost,
             odometerMiles: parseLargestMileage(from: odometerText),
             tripMiles: parseTripMileage(from: odometerText),
             fuelLevelRemaining: parseFuelLevel(from: fuelLevelText, fuelScaleMax: fuelScaleMax)
@@ -364,11 +378,14 @@ struct OCRTextParser {
         let lines = text.components(separatedBy: .newlines)
         for (index, line) in lines.enumerated() {
             let lowercased = line.lowercased()
-            guard lowercased.contains("total"),
+            guard containsTotalLabel(lowercased),
                   !isNonPaidTotalLine(lowercased)
             else { continue }
 
-            if let value = extractNumbers(from: line).last(where: { $0 >= 20 && $0 <= 5_000 }) {
+            if let totalLabelRange = lowercased.range(of: "total")
+                ?? lowercased.range(of: "lotal"),
+               let value = extractNumbers(from: String(lowercased[totalLabelRange.upperBound...]))
+                .last(where: { $0 >= 20 && $0 <= 5_000 }) {
                 return value
             }
 
@@ -382,8 +399,28 @@ struct OCRTextParser {
             if let value = lookaheadValues.last {
                 return value
             }
+
+            if let value = extractNumbers(from: line).last(where: { $0 >= 20 && $0 <= 5_000 }) {
+                return value
+            }
         }
         return nil
+    }
+
+    private func containsTotalLabel(_ lowercasedLine: String) -> Bool {
+        // Receipt OCR commonly reads the leading `T` in "Total" as a lower
+        // case `l`. Treat that narrow corruption as the same semantic label.
+        lowercasedLine.contains("total") || lowercasedLine.contains("lotal")
+    }
+
+    private func inferredUnitPrice(gallons: Double, totalCost: Double) -> Double? {
+        guard gallons > 0, totalCost > 0 else { return nil }
+        return (totalCost / gallons * 100).rounded() / 100
+    }
+
+    private func isConsistent(price: Double, gallons: Double, totalCost: Double) -> Bool {
+        let expectedTotal = price * gallons
+        return abs(expectedTotal - totalCost) <= max(0.10, expectedTotal * 0.01)
     }
 
     private func isNonPaidTotalLine(_ lowercasedLine: String) -> Bool {

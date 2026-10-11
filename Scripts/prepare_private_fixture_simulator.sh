@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 SIMULATOR_NAME="Cartrack Private Fixtures"
+SIMULATOR_UDID="${CARTRACK_PRIVATE_SIMULATOR_UDID:-}"
 MANIFEST="CartrackTests/Fixtures/private-image-scenarios.json"
 RESET="false"
 
@@ -20,11 +21,12 @@ fi
   exit 1
 }
 
-device_json="$(xcrun simctl list devices available -j)"
-runtime_json="$(xcrun simctl list runtimes available -j)"
-device_type_json="$(xcrun simctl list devicetypes -j)"
+if [[ -z "$SIMULATOR_UDID" ]]; then
+  device_json="$(xcrun simctl list devices available -j)"
+  runtime_json="$(xcrun simctl list runtimes available -j)"
+  device_type_json="$(xcrun simctl list devicetypes -j)"
 
-resolve_result="$(
+  resolve_result="$(
   SIMCTL_DEVICES="$device_json" \
   SIMCTL_RUNTIMES="$runtime_json" \
   SIMCTL_DEVICE_TYPES="$device_type_json" \
@@ -89,12 +91,15 @@ print(f"create\t{selected_type['identifier']}\t{runtime['identifier']}")
 PY
 )"
 
-IFS=$'\t' read -r state value runtime_identifier <<<"$resolve_result"
+  IFS=$'\t' read -r state value runtime_identifier <<<"$resolve_result"
 
-if [[ "$state" == "create" ]]; then
-  udid="$(xcrun simctl create "$SIMULATOR_NAME" "$value" "$runtime_identifier")"
+  if [[ "$state" == "create" ]]; then
+    udid="$(xcrun simctl create "$SIMULATOR_NAME" "$value" "$runtime_identifier")"
+  else
+    udid="$value"
+  fi
 else
-  udid="$value"
+  udid="$SIMULATOR_UDID"
 fi
 
 validation_json="$(xcrun simctl list devices -j)"
@@ -114,8 +119,13 @@ sys.exit(1)
 PY
 )"
 
-if [[ "$validated_name" != "$SIMULATOR_NAME" ]]; then
+if [[ -z "$SIMULATOR_UDID" && "$validated_name" != "$SIMULATOR_NAME" ]]; then
   echo "Refusing to modify unexpected simulator '$validated_name' ($udid)." >&2
+  exit 6
+fi
+
+if [[ -n "$SIMULATOR_UDID" && -z "$validated_name" ]]; then
+  echo "Refusing to modify unknown simulator ($udid)." >&2
   exit 6
 fi
 

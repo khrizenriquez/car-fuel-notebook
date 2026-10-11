@@ -154,10 +154,11 @@
   - Gate: NFR-004/005/006 documentados con mediciones.
   - Evidencia: `CaptureImagePipelineTests` mide once muestras después de warm-up con imágenes sintéticas de 1600×1200 y conserva el reporte como adjunto `.xcresult`. En iPhone 16 Pro / iOS 18.2 (Debug), preparación local: 1 foto p50 0.369 s, p95 0.404 s, pico +48.8 MB; 2 fotos p50 0.821 s, p95 0.856 s, pico +58.9 MB; 3 fotos p50 1.232 s, p95 1.369 s, pico +59.0 MB. El gate exige p95 ≤5 s y pico incremental ≤160 MB. El límite verificado de 10 fotos por semana × 450 KB × 52 es 234 MB/año local (≤250 MB); `SyncPayloadBudget` mantiene el JSON estructurado proyectado <5 MB/año sin imágenes ni rutas. El benchmark sintético verifica la preparación reproducible; el corpus OCR privado sigue siendo una señal separada de precisión de T23/dispositivo físico.
 
-- [ ] **T23 — Completar recorridos E2E y controles de privacidad**
+- [x] **T23 — Completar recorridos E2E y controles de privacidad**
   - Commit: `Add end to end v2 release scenarios`
   - Alcance: US-01 a US-07, red desactivada, simulador limpio y fixtures privados.
   - Gate: E2E completo; cero tráfico y cero evidencia privada rastreada.
+  - Evidencia: en el único simulador autorizado iPhone 16 Pro / iOS 18.2, la suite UI limpia pasó 17/17 y omitió únicamente el caso privado que requiere una fototeca preparada; ese recorrido de Fotos privadas pasó de forma aislada 1/1. La matriz privada de Vision/OCR pasó 12/12, incluidos tablero nocturno, diurno, recomprimido, fallback seguro y factura real. `PersistenceIntegrationTests` pasó 15/15 para exportación, validación, restauración y rollback. `check_v2_privacy.sh` pasó: no hay cliente de red ni configuración cloud v2, el manifiesto privado está ignorado y no hay fotos/PDF privados rastreados. Cada ejecución usó el mismo simulador, que quedó apagado al final.
 
 - [ ] **T24 — Cerrar candidato de lanzamiento v2**
   - Commit: `Finalize Cartrack v2 release candidate`
@@ -173,6 +174,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T22 completado; sigue T23 (recorridos E2E y privacidad).
+- Implementación v2: T23 completado; sigue T24 (candidato de lanzamiento y dispositivo físico).
 - Bloqueo actual: ninguno.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

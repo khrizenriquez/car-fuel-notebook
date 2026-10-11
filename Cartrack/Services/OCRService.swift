@@ -8,6 +8,12 @@ protocol OCRTextRecognizing: Sendable {
     func recognizeInstrumentClusterText(from image: UIImage?) async -> String
 }
 
+extension OCRTextRecognizing {
+    func recognizeInvoiceText(from image: UIImage?) async -> String {
+        await recognizeText(from: image)
+    }
+}
+
 struct VisionOCRTextRecognizer: OCRTextRecognizing {
     private static let ciContext = CIContext()
 
@@ -35,6 +41,17 @@ struct VisionOCRTextRecognizer: OCRTextRecognizing {
         }
 
         return ([standardText] + enhancedTexts + labeledDisplayTexts)
+            .map(\.trimmed)
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+    }
+
+    func recognizeInvoiceText(from image: UIImage?) async -> String {
+        guard let cgImage = image?.normalizedCGImageForOCR() else { return "" }
+        let texts = await ([cgImage] + invoiceVariants(from: cgImage)).asyncMap { variant in
+            await recognize(cgImage: variant)
+        }
+        return texts
             .map(\.trimmed)
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
@@ -101,6 +118,32 @@ struct VisionOCRTextRecognizer: OCRTextRecognizing {
             }
     }
 
+    private func invoiceVariants(from cgImage: CGImage) -> [CGImage] {
+        let amountRegions: [CGRect] = [
+            // A receipt's quantity, price, and total are commonly grouped in
+            // its lower-middle section.  These bounded crops improve blurry
+            // captures without assuming a station, template, or filename.
+            CGRect(x: 0.15, y: 0.43, width: 0.70, height: 0.30),
+            CGRect(x: 0.18, y: 0.52, width: 0.64, height: 0.24),
+        ]
+        let enhancedWholeImage = enhanced(
+            cgImage,
+            exposure: 0.25,
+            contrast: 2.1,
+            grayscale: true,
+            inverted: false
+        )
+        let enhancedCrops = amountRegions
+            .compactMap { crop(cgImage, normalizedRect: $0) }
+            .flatMap { crop in
+                [
+                    crop,
+                    enhanced(crop, exposure: 0.35, contrast: 2.4, grayscale: true, inverted: false),
+                ].compactMap { $0 }
+            }
+        return ([enhancedWholeImage].compactMap { $0 } + enhancedCrops)
+    }
+
     private func crop(_ cgImage: CGImage, normalizedRect: CGRect) -> CGImage? {
         let rect = CGRect(
             x: CGFloat(cgImage.width) * normalizedRect.minX,
@@ -129,6 +172,11 @@ struct VisionOCRTextRecognizer: OCRTextRecognizing {
 
     private func instrumentClusterLabeledFieldVariants(from cgImage: CGImage) -> [LabeledClusterCrop] {
         let labeledRects: [(label: String, rect: CGRect)] = [
+            // Wide daylight dashboard photos place the red display below the
+            // speedometer centre; field crops keep the seven-segment digits
+            // large enough for Vision without relying on a file signature.
+            ("odometer", CGRect(x: 0.16, y: 0.50, width: 0.25, height: 0.13)),
+            ("trip", CGRect(x: 0.52, y: 0.50, width: 0.20, height: 0.13)),
             ("odometer", CGRect(x: 0.20, y: 0.44, width: 0.30, height: 0.12)),
             ("trip", CGRect(x: 0.61, y: 0.45, width: 0.19, height: 0.11)),
             ("odometer", CGRect(x: 0.32, y: 0.42, width: 0.21, height: 0.11)),
@@ -221,7 +269,7 @@ final class OCRService: @unchecked Sendable {
         fuelScaleMax: Double,
         previousClusterReading: InstrumentClusterReading? = nil
     ) async -> FillUpPrefill {
-        async let invoiceText = recognizer.recognizeText(from: invoiceImage)
+        async let invoiceText = recognizer.recognizeInvoiceText(from: invoiceImage)
         async let odometerText = recognizer.recognizeInstrumentClusterText(from: odometerImage)
         async let fuelLevelText = recognizer.recognizeText(from: fuelLevelImage)
 
@@ -240,6 +288,13 @@ final class OCRService: @unchecked Sendable {
             visionReading: visionClusterReading,
             dedicatedReading: dedicatedClusterReading
         )
+        let requiresManualTinyAdvance = previousClusterReading.map {
+            requiresManualTinyClusterAdvance(
+                resolvedReading: resolvedClusterReading,
+                previous: $0,
+                dedicatedReading: dedicatedClusterReading
+            )
+        } ?? false
         let odometer = mergeInstrumentClusterText(
             recognizedText: recognizedOdometer,
             acceptedReading: acceptedDedicatedReading(
@@ -267,6 +322,7 @@ final class OCRService: @unchecked Sendable {
                     resolvedReading: resolvedClusterReading
                 )
             )
+            || requiresManualTinyAdvance
 
         return FillUpPrefill(
             invoiceText: invoice,
@@ -304,6 +360,13 @@ final class OCRService: @unchecked Sendable {
             visionReading: visionClusterReading,
             dedicatedReading: dedicatedClusterReading
         )
+        let requiresManualTinyAdvance = previousClusterReading.map {
+            requiresManualTinyClusterAdvance(
+                resolvedReading: resolvedClusterReading,
+                previous: $0,
+                dedicatedReading: dedicatedClusterReading
+            )
+        } ?? false
         let odometer = mergeInstrumentClusterText(
             recognizedText: recognizedOdometer,
             acceptedReading: acceptedDedicatedReading(
@@ -330,6 +393,7 @@ final class OCRService: @unchecked Sendable {
                     resolvedReading: resolvedClusterReading
                 )
             )
+            || requiresManualTinyAdvance
 
         return SnapshotPrefill(
             odometerText: odometer,
@@ -432,6 +496,23 @@ final class OCRService: @unchecked Sendable {
         return !readingsMatch(visionReading, dedicatedReading) && resolvedReading == nil
     }
 
+    private func requiresManualTinyClusterAdvance(
+        resolvedReading: InstrumentClusterReading?,
+        previous: InstrumentClusterReading,
+        dedicatedReading: InstrumentClusterReading?
+    ) -> Bool {
+        guard dedicatedReading == nil,
+              let resolvedReading,
+              resolvedReading.odometerMiles >= previous.odometerMiles,
+              resolvedReading.tripMiles >= previous.tripMiles
+        else {
+            return false
+        }
+        let odometerDelta = resolvedReading.odometerMiles - previous.odometerMiles
+        let tripDelta = resolvedReading.tripMiles - previous.tripMiles
+        return max(odometerDelta, tripDelta) > 0 && max(odometerDelta, tripDelta) < 5
+    }
+
     private func readingsMatch(
         _ lhs: InstrumentClusterReading,
         _ rhs: InstrumentClusterReading
@@ -466,13 +547,24 @@ final class OCRService: @unchecked Sendable {
             )
         }
 
-        for candidate in candidates {
-            let support = candidates.filter { readingsMatch($0, candidate) }.count
-            if support >= 2 {
-                return candidate
-            }
+        let repeatedCandidates = candidates.filter { candidate in
+            candidates.filter { readingsMatch($0, candidate) }.count >= 2
         }
-        return nil
+        guard let widestOdometer = repeatedCandidates
+            .map({ String(Int($0.odometerMiles)).count })
+            .max()
+        else {
+            return nil
+        }
+
+        // Vision can drop the leading digit of a six-digit odometer in a
+        // subset of its passes. Prefer the repeated candidate with the most
+        // digits, but preserve the historical OCR order for candidates of the
+        // same width: their support count does not measure confidence because
+        // overlapping crops are correlated evidence.
+        return repeatedCandidates.first {
+            String(Int($0.odometerMiles)).count == widestOdometer
+        }
     }
 
     private func contextualClusterReading(
@@ -534,12 +626,22 @@ final class OCRService: @unchecked Sendable {
             }
         }
         if let best {
+            let odometerDelta = best.reading.odometerMiles - previous.odometerMiles
+            let tripDelta = best.reading.tripMiles - previous.tripMiles
+            // A single noisy digit can turn the previous reading into a
+            // superficially consistent next reading.  With no independent
+            // display confirmation, leave sub-five-mile changes for review
+            // instead of silently advancing the odometer.
+            guard max(odometerDelta, tripDelta) >= 5 else { return nil }
             return best.reading
         }
 
+        let directExactTripCandidates = tripCandidates.filter { $0.edits == 0 }
+        let recoveryExactTripCandidates = recoveryTripCandidates.filter { $0.edits == 0 }
         guard !odometerCandidates.contains(where: { $0.edits == 0 }),
-              let exactTrip = recoveryTripCandidates
-                .filter({ $0.edits == 0 })
+              let exactTrip = (directExactTripCandidates.isEmpty
+                               ? recoveryExactTripCandidates
+                               : directExactTripCandidates)
                 .sorted(by: {
                     if $0.support != $1.support {
                         return $0.support > $1.support

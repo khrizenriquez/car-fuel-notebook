@@ -50,6 +50,7 @@ xcrun simctl shutdown "${ocr_udid}" >/dev/null 2>&1 || true
 ui_destination="$(
   CARTRACK_PRIVATE_SCENARIO_ID="z4-2026-07-24-2255" \
   CARTRACK_PRIVATE_MEDIA_ROLE="odometerImage" \
+  CARTRACK_PRIVATE_SIMULATOR_UDID="${CARTRACK_PRIVATE_SIMULATOR_UDID:-}" \
   ./Scripts/prepare_private_fixture_simulator.sh --reset | tail -n 1
 )"
 ui_udid="${ui_destination#*id=}"

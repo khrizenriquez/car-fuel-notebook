@@ -117,7 +117,7 @@ final class LocalExampleImageOCRTests: XCTestCase {
         let outcome = try await workflow.analyze(input: input)
         XCTAssertEqual(outcome.session.state, .review)
         XCTAssertEqual(outcome.session.draft.photoIDs.count, 3)
-        let financeDiagnostics = "recognized=(\(String(describing: outcome.recognizedText.gallons)),\(String(describing: outcome.recognizedText.pricePerGallon)),\(String(describing: outcome.recognizedText.totalCost))); fields=\(outcome.fields.filter { [.volumeGallons, .unitPrice, .totalCost].contains($0.field) }.map { "\($0.field.rawValue):\($0.band.rawValue):\($0.validationCodes)" }); issues=\(outcome.imageIssues)"
+        let financeDiagnostics = "recognized=(\(String(describing: outcome.recognizedText.gallons)),\(String(describing: outcome.recognizedText.pricePerGallon)),\(String(describing: outcome.recognizedText.totalCost))); fields=\(outcome.fields.filter { [.volumeGallons, .unitPrice, .totalCost].contains($0.field) }.map { "\($0.field.rawValue):\($0.band.rawValue):\($0.validationCodes)" }); issues=\(outcome.imageIssues); invoice=\(outcome.recognizedText.invoiceText)"
         if let gallons = expected.gallons {
             let actual = try XCTUnwrap(outcome.session.draft.volumeGallons, financeDiagnostics)
             XCTAssertEqual(NSDecimalNumber(decimal: actual).doubleValue, gallons,

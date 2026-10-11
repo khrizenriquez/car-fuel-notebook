@@ -57,8 +57,8 @@
 
 | ID | Estado inicial | Evidencia/prueba objetivo | Tarea |
 |---|---|---|---|
-| NFR-001 | CURRENT | prueba/red + escaneo DTO | T19, T23 |
-| NFR-002 | CURRENT | E2E con red desactivada | T23 |
+| NFR-001 | VERIFIED | `check_v2_privacy.sh` no detecta clientes de red, configuración cloud ni evidencia privada rastreada; DTO estructurado sin imagen/ruta | T19, T23 |
+| NFR-002 | VERIFIED | E2E de simulador y OCR privado ejecutados sin cliente de red v2 | T23 |
 | NFR-003 | GAP | fallos inyectados/transacciones | T05, T18 |
 | NFR-004 | VERIFIED | p50/p95 1–3 fotos, p95 de 3 fotos 1.369 s | T22 |
 | NFR-005 | VERIFIED | pico de preparación ≤59.0 MB y proyección local 234 MB/año | T14, T22 |
@@ -77,25 +77,25 @@
 
 | Historia | Prueba E2E | Estado inicial |
 |---|---|---|
-| US-01 | snapshot con fotos reales → confirmación → historial/dashboard | GAP |
-| US-02 | factura+tablero → fill → tanque/costos | GAP |
-| US-03 | foto ilegible → repetir solo esa foto | GAP |
-| US-04 | historial suficiente/insuficiente → rango explicado | GAP |
-| US-05 | exportar → validar → restaurar/rollback | GAP |
-| US-06 | filtros y comparación de periodos | CURRENT |
-| US-07 | dos vehículos sin cruce de datos | CURRENT |
+| US-01 | snapshot con fotos reales → confirmación → historial/dashboard | VERIFIED — Fotos privadas 1/1 y E2E UI limpio |
+| US-02 | factura+tablero → fill → tanque/costos | VERIFIED — matriz privada 12/12 y recorrido UI de llenado |
+| US-03 | foto ilegible → repetir solo esa foto | VERIFIED — `testMissingSnapshotOdometerReturnsToReviewForManualCorrection` |
+| US-04 | historial suficiente/insuficiente → rango explicado | VERIFIED — escenarios de analítica/rango del E2E UI |
+| US-05 | exportar → validar → restaurar/rollback | VERIFIED — `PersistenceIntegrationTests` 15/15 y acciones UI visibles |
+| US-06 | filtros y comparación de periodos | VERIFIED — filtros multivehículo y reportes UI |
+| US-07 | dos vehículos sin cruce de datos | VERIFIED — `testMultiVehicleFilteringAcrossDashboardCaptureAndHistory` |
 | US-08 | DTO/conflicto sin conexión real | DEFERRED-2.1 |
 
 ## Criterios medibles
 
 | ID | Evidencia objetivo | Tarea de cierre |
 |---|---|---|
-| SC-001 | reporte de fixtures digitales y fallback seguro | T02, T03, T04, T23 |
-| SC-002 | reporte de fixtures de factura | T02, T03, T23 |
+| SC-001 | VERIFIED: matriz OCR privada 12/12; valores declarados o recuperación manual segura | T02, T03, T04, T23 |
+| SC-002 | VERIFIED: factura privada real y parser financiero verificados dentro de tolerancia | T02, T03, T23 |
 | SC-003 | `.xcresult` de simulador + checklist de iPhone físico | T23, T24 |
 | SC-004 | integración/UI de reanudación | T07, T12 |
 | SC-005 | reporte de migración/restauración | T05, T18 |
-| SC-006 | inspección de red sin transmisión de imágenes | T23 |
+| SC-006 | VERIFIED: `check_v2_privacy.sh` prohíbe APIs cliente de red y confirma que no se rastrea evidencia privada | T23 |
 | SC-007 | VERIFIED: payload estructurado proyectado ≤5 MB/año | T19, T22 |
 | SC-008 | VERIFIED: máximo local proyectado 234 MB/año | T14, T22 |
 | SC-009 | gates finales, cobertura y crash review | T24 |

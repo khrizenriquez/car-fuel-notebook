@@ -130,6 +130,17 @@ archivo final contiene únicamente `formatVersion`, fecha, código estable, oper
 permitida y acción sugerida; una operación que contiene una placa se sustituye por
 `local.operation` y ni la placa ni la ruta aparecen en el artefacto.
 
+**Evidencia T23:** en iPhone 16 Pro / iOS 18.2 de simulador, la suite UI limpia
+terminó 17 aprobadas, 1 omitida intencionalmente y 0 fallos. El caso omitido es el
+único que requiere una fototeca privada; se ejecutó aparte con esa fototeca y pasó
+1/1. La matriz privada de Vision/OCR pasó 12/12, incluyendo tablero nocturno,
+diurno, recomprimido, fallback seguro y una factura real. `PersistenceIntegrationTests`
+pasó 15/15, incluida exportación, validación, restauración y rollback. Antes de
+registrar esta evidencia, `check_v2_privacy.sh` confirmó que v2 no contiene APIs de
+cliente de red ni configuración cloud, y que las fotos/PDF privados y su manifiesto
+no están rastreados. Todas las ejecuciones usaron el mismo simulador, apagado al
+finalizar; la comprobación física sigue en T24.
+
 | Gate | Cuándo | Evidencia |
 |---|---|---|
 | pruebas focalizadas | cada commit | log local |

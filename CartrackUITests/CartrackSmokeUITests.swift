@@ -332,7 +332,8 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["history.refuelMap"].waitForExistence(timeout: 5))
         app.buttons["history.refuelMap"].tap()
 
-        XCTAssertTrue(app.staticTexts["Recargas registradas"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Puntos de recarga"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["refuel.map"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Demo Station West"].waitForExistence(timeout: 5))
     }
 
@@ -351,7 +352,8 @@ final class CartrackSmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["history.refuelMap"].waitForExistence(timeout: 5))
         saveScreenshot(named: "history-log")
         app.buttons["history.refuelMap"].tap()
-        XCTAssertTrue(app.staticTexts["Recargas registradas"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Puntos de recarga"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["refuel.map"].waitForExistence(timeout: 5))
         saveScreenshot(named: "refuel-map")
 
         app.tabBars.buttons["Ajustes"].tap()
