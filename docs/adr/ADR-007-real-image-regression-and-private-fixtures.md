@@ -34,6 +34,7 @@ Production OCR may use general display detection, segmentation, candidate reconc
 Private images and their real manifest remain ignored by Git. CI runs sanitized tests without the private pack. Local strict mode fails when the pack is absent or incomplete.
 
 The simulator preparation script may erase only the exact, validated UDID of `Cartrack Private Fixtures`. It must reject missing, ambiguous, or partially matched devices.
+Public verification accepts the same exact existing UDID through `CARTRACK_SIMULATOR_UDID`; no release script may create a second simulator as a side effect.
 
 ## Rejected Alternatives
 
@@ -61,6 +62,7 @@ The implementation provides:
 - `Scripts/verify_private_image_scenarios.sh` for the strict private suite;
 - `CARTRACK_REQUIRE_PRIVATE_FIXTURES=1` to include the private gate from local verification;
 - an ADR-aware publish preflight that rejects tracked private evidence;
+- a privacy gate that rejects network clients, cloud configuration, or tracked private evidence;
 - a readiness audit containing the last observed public and private results.
 
 The real-image regression phase is complete only when both public and private gates pass and the production target contains no exact-fixture response table.

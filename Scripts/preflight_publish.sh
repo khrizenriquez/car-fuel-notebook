@@ -68,6 +68,7 @@ require_file ".github/workflows/ios-ci.yml"
 require_file "Scripts/verify_local.sh"
 require_file "Scripts/verify_private_image_scenarios.sh"
 require_file "Scripts/prepare_private_fixture_simulator.sh"
+require_file "Scripts/check_v2_privacy.sh"
 require_file "Scripts/check_core_coverage.sh"
 require_file "Scripts/check_remote_ci.sh"
 require_file "Scripts/publish_private.sh"
@@ -105,6 +106,9 @@ if [[ -n "$tracked_private_evidence" ]]; then
   echo "$tracked_private_evidence"
   fail "Potential private evidence image/PDF is tracked. Remove it before publishing."
 fi
+
+info "Running v2 privacy gate"
+./Scripts/check_v2_privacy.sh
 
 info "Checking production OCR for exact-fixture response tables"
 if rg -n 'knownFixtureReading|knownInvoiceText|fixtureSignature' Cartrack CartrackCore; then

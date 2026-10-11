@@ -141,6 +141,14 @@ cliente de red ni configuración cloud, y que las fotos/PDF privados y su manifi
 no están rastreados. Todas las ejecuciones usaron el mismo simulador, apagado al
 finalizar; la comprobación física sigue en T24.
 
+**Evidencia T24 (local):** `Scripts/verify_local.sh`, fijado al mismo UDID de
+iPhone 16 Pro, pasó con 101 pruebas y 8 omisiones previstas por fixtures privados
+ausentes en la suite pública. `Scripts/check_core_coverage.sh 90` pasó como parte
+del gate. El Archive Release para `iphoneos` completó correctamente; la app es
+exclusivamente iPhone y declara pantalla completa para no prometer multitarea de
+iPad. El smoke físico y la confirmación de CI remoto siguen siendo gates manuales
+de T24/T25, no evidencia implícita del simulador.
+
 | Gate | Cuándo | Evidencia |
 |---|---|---|
 | pruebas focalizadas | cada commit | log local |

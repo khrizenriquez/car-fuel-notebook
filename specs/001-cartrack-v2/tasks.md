@@ -164,6 +164,7 @@
   - Commit: `Finalize Cartrack v2 release candidate`
   - Alcance: actualizar matriz/checklist/README/ADRs, resolver todos los gaps P0/P1 y registrar dispositivo físico.
   - Gate: todos los gates locales y privados, Archive Release y worktree limpio después del commit.
+  - Evidencia local: matriz sin GAP P0/P1; `verify_local.sh` pasó 101/101 pruebas ejecutadas con 8 omisiones públicas previstas; Archive Release para `iphoneos` pasó y `preflight_publish.sh --allow-dirty --require-remote` pasó. La documentación fija el UDID de un simulador existente y añade el gate de privacidad al preflight. Pendiente: ejecutar y registrar el smoke en un iPhone físico conectado antes de marcar la tarea como completa.
 
 - [ ] **T25 — Publicar rama y preparar pull request**
   - Commit: `Prepare Cartrack v2 pull request`
@@ -174,6 +175,6 @@
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: T23 completado; sigue T24 (candidato de lanzamiento y dispositivo físico).
-- Bloqueo actual: ninguno.
+- Implementación v2: candidato local de T24 preparado; falta evidencia de iPhone físico.
+- Bloqueo actual: smoke manual en un iPhone físico; los gates locales, OCR privado, Archive y privacidad están en verde.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

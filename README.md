@@ -185,7 +185,9 @@ Repository publishing and local privacy expectations are documented in [SECURITY
 - iOS Simulator support.
 - Swift 6 compatible toolchain.
 
-`Scripts/select_ios_simulator.sh` prefers an `iPhone Air` simulator when available.
+`Scripts/select_ios_simulator.sh` chooses a compatible simulator when no destination
+is specified. To keep a release run on one already-created device, set
+`CARTRACK_SIMULATOR_UDID` to its exact UDID; the scripts never create a simulator.
 
 ## Local Verification
 
@@ -198,7 +200,7 @@ Scripts/check_core_coverage.sh 90
 Run the full local verification suite:
 
 ```bash
-Scripts/verify_local.sh
+CARTRACK_SIMULATOR_UDID=<existing-simulator-udid> Scripts/verify_local.sh
 ```
 
 Run the publish preflight:
@@ -222,7 +224,7 @@ It does not require signing certificates, cloud services, or repository secrets 
 
 Before pushing:
 
-1. Run `Scripts/verify_local.sh`.
+1. Run `CARTRACK_SIMULATOR_UDID=<existing-simulator-udid> Scripts/verify_local.sh`.
 2. Run `Scripts/preflight_publish.sh --require-remote`.
 3. Make sure no real invoices, odometer photos, or exported backups are tracked.
 4. Keep only sanitized OCR text fixtures in version control.
