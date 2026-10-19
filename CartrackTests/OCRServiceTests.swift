@@ -339,6 +339,39 @@ final class OCRServiceTests: XCTestCase {
         XCTAssertNil(result.tripMiles)
     }
 
+    func testAnalyzeSnapshotAcceptsTinyAdvanceWithRepeatedExactPairEvidence() async {
+        let image = makeImage(color: .systemBrown)
+        let recognizedText = [
+            "108337 miles 175.4",
+            "108337 miles 175.4",
+            "108337 miles 175.4",
+        ].joined(separator: "\n")
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(image): recognizedText,
+            ]),
+            clusterReader: StubClusterReader(readings: [
+                ObjectIdentifier(image): InstrumentClusterReading(
+                    odometerMiles: 108_337,
+                    tripMiles: 135.4
+                ),
+            ])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: image,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax,
+            previousClusterReading: InstrumentClusterReading(
+                odometerMiles: 108_335,
+                tripMiles: 173.7
+            )
+        )
+
+        XCTAssertEqual(result.odometerMiles, 108_337)
+        XCTAssertEqual(result.tripMiles, 175.4)
+    }
+
     func testAnalyzeSnapshotDoesNotInferOdometerFromDistantTripOnlyEvidence() async {
         let image = makeImage(color: .systemPurple)
         let service = OCRService(

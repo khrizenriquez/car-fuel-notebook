@@ -53,6 +53,8 @@ jobs:
             -project Cartrack.xcodeproj \
             -scheme Cartrack \
             -destination "${destination}" \
+            -parallel-testing-enabled NO \
+            -maximum-concurrent-test-simulator-destinations 1 \
             -enableCodeCoverage YES \
             CODE_SIGNING_ALLOWED=NO \
             test

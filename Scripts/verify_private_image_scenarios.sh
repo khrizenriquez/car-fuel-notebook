@@ -29,15 +29,44 @@ xcrun simctl boot "${ocr_udid}" >/dev/null 2>&1 || true
 xcrun simctl bootstatus "${ocr_udid}" -b
 xcrun simctl spawn "${ocr_udid}" launchctl setenv CARTRACK_REQUIRE_PRIVATE_FIXTURES 1
 
-CARTRACK_REQUIRE_PRIVATE_FIXTURES=1 xcodebuild \
-  -project Cartrack.xcodeproj \
-  -scheme Cartrack \
-  -destination "${destination}" \
-  -parallel-testing-enabled NO \
-  -only-testing:CartrackTests/PrivateImageScenarioManifestTests \
-  -only-testing:CartrackTests/LocalExampleImageOCRTests \
-  CODE_SIGNING_ALLOWED=NO \
-  test
+run_private_test() {
+  local test_identifier="$1"
+  CARTRACK_REQUIRE_PRIVATE_FIXTURES=1 \
+    CARTRACK_PRIVATE_SCENARIO_ID="${CARTRACK_PRIVATE_SCENARIO_ID:-}" \
+    xcodebuild \
+    -project Cartrack.xcodeproj \
+    -scheme Cartrack \
+    -destination "${destination}" \
+    -parallel-testing-enabled NO \
+    "-only-testing:${test_identifier}" \
+    CODE_SIGNING_ALLOWED=NO \
+    test
+}
+
+# Vision keeps image resources alive for the life of a test host. Running the
+# real-photo matrix scenario-by-scenario gives each high-resolution capture a
+# clean host, while still failing this script on the first incorrect output.
+xcrun simctl spawn "${ocr_udid}" launchctl unsetenv CARTRACK_PRIVATE_SCENARIO_ID >/dev/null 2>&1 || true
+run_private_test "CartrackTests/PrivateImageScenarioManifestTests"
+run_private_test "CartrackTests/LocalExampleImageOCRTests/testPrivateManifestCoversEveryAvailableImage"
+
+while IFS= read -r scenario_id; do
+  export CARTRACK_PRIVATE_SCENARIO_ID="${scenario_id}"
+  xcrun simctl spawn "${ocr_udid}" launchctl setenv CARTRACK_PRIVATE_SCENARIO_ID "${scenario_id}"
+  run_private_test "CartrackTests/LocalExampleImageOCRTests/testAllPrivateImageScenariosMatchExpectedOCR"
+  run_private_test "CartrackTests/LocalExampleImageOCRTests/testPrivateImagePreparationKeepsDeclaredEvidenceAndVariantsLocal"
+  case "${scenario_id}" in
+    z4-2026-07-23-1941|z4-2026-07-24-1351|z4-2026-07-24-2255)
+      run_private_test "CartrackTests/LocalExampleImageOCRTests/testPriorityDigitalScenariosDoNotDependOnExactFileSignature"
+      ;;
+  esac
+done < <(jq -r '.scenarios[] | select(.excluded | not) | .id' "${MANIFEST}")
+
+unset CARTRACK_PRIVATE_SCENARIO_ID
+xcrun simctl spawn "${ocr_udid}" launchctl unsetenv CARTRACK_PRIVATE_SCENARIO_ID >/dev/null 2>&1 || true
+run_private_test "CartrackTests/LocalExampleImageOCRTests/testPrivateOriginalOdometerRemainsLegibleAfterLocalOptimization"
+run_private_test "CartrackTests/LocalExampleImageOCRTests/testPrivateSnapshotWorkflowPrefillsFromRealPhotos"
+run_private_test "CartrackTests/LocalExampleImageOCRTests/testPrivateFillUpWorkflowPrefillsFromRealPhotos"
 
 if [[ "${CARTRACK_RUN_PRIVATE_PHOTOS_UI:-0}" != "1" ]]; then
   exit 0
