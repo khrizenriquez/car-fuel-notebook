@@ -17,7 +17,7 @@ concurrency:
 jobs:
   core:
     name: Core Coverage
-    runs-on: macos-26
+    runs-on: macos-15
     timeout-minutes: 20
 
     steps:
@@ -32,7 +32,7 @@ jobs:
 
   ios:
     name: iPhone App Tests
-    runs-on: macos-26
+    runs-on: macos-15
     timeout-minutes: 45
 
     steps:
