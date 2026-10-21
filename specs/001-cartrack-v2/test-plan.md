@@ -105,7 +105,7 @@ Se comparan IDs, conteos, relaciones, valores, timestamps y hashes antes/despué
 **Evidencia T22 (iPhone 16 Pro, simulador iOS 18.2, Debug):** once muestras de
 preparación local dieron: una foto p50 0.369 s/p95 0.404 s/+48.8 MB; dos fotos
 p50 0.821 s/p95 0.856 s/+58.9 MB; tres fotos p50 1.232 s/p95 1.369 s/+59.0 MB
-de pico incremental observado después de preparar cada imagen. En el simulador calibrado, el gate automatizado es p95 ≤5 s y aumento ≤160 MB. En GitHub Actions, el job declara un techo de regresión p95 ≤20 s mediante `CARTRACK_PERFORMANCE_P95_SECONDS`, porque su simulador compartido no es evidencia de rendimiento de producto; el reporte de las once muestras permanece adjunto. La evidencia
+de pico incremental observado después de preparar cada imagen. En el simulador calibrado, el gate automatizado es p95 ≤5 s y aumento ≤160 MB. En GitHub Actions, el job inyecta en el runtime del simulador un techo de regresión p95 ≤20 s mediante `CARTRACK_PERFORMANCE_P95_SECONDS`, porque su simulador compartido no es evidencia de rendimiento de producto; el reporte de las once muestras permanece adjunto. La evidencia
 optimizada se limita a 450 KB/foto, por lo que 10 fotos semanales proyectan 234 MB/año.
 `SyncPayloadBudget` serializa el DTO estructurado para mantenerlo bajo 5 MB/año.
 Estas mediciones prueban el pipeline local reproducible; el corpus OCR privado y el
