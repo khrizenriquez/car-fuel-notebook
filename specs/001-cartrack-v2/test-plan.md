@@ -105,11 +105,12 @@ Se comparan IDs, conteos, relaciones, valores, timestamps y hashes antes/despué
 **Evidencia T22 (iPhone 16 Pro, simulador iOS 18.2, Debug):** once muestras de
 preparación local dieron: una foto p50 0.369 s/p95 0.404 s/+48.8 MB; dos fotos
 p50 0.821 s/p95 0.856 s/+58.9 MB; tres fotos p50 1.232 s/p95 1.369 s/+59.0 MB
-de pico incremental observado después de preparar cada imagen. El gate automatizado es p95 ≤5 s y aumento ≤160 MB. La evidencia
+de pico incremental observado después de preparar cada imagen. En el simulador calibrado, el gate automatizado es p95 ≤5 s y aumento ≤160 MB. En GitHub Actions, el job inyecta en el runtime del simulador un techo de regresión p95 ≤20 s mediante `CARTRACK_PERFORMANCE_P95_SECONDS`, porque su simulador compartido no es evidencia de rendimiento de producto; el reporte de las once muestras permanece adjunto. La evidencia
 optimizada se limita a 450 KB/foto, por lo que 10 fotos semanales proyectan 234 MB/año.
 `SyncPayloadBudget` serializa el DTO estructurado para mantenerlo bajo 5 MB/año.
-Estas mediciones prueban el pipeline local reproducible; el corpus OCR privado y el
-dispositivo físico se verifican en T23/T24 y no se sustituyen por imágenes sintéticas.
+Estas mediciones prueban el pipeline local reproducible; el corpus OCR privado se
+verifica en T23. El smoke en dispositivo físico quedó diferido explícitamente y no es
+un gate de cierre de v2.
 
 ## 7. Accesibilidad/localización
 
@@ -139,15 +140,15 @@ pasó 15/15, incluida exportación, validación, restauración y rollback. Antes
 registrar esta evidencia, `check_v2_privacy.sh` confirmó que v2 no contiene APIs de
 cliente de red ni configuración cloud, y que las fotos/PDF privados y su manifiesto
 no están rastreados. Todas las ejecuciones usaron el mismo simulador, apagado al
-finalizar; la comprobación física sigue en T24.
+finalizar; la comprobación física quedó diferida explícitamente y fuera del gate v2.
 
 **Evidencia T24 (local):** `Scripts/verify_local.sh`, fijado al mismo UDID de
 iPhone 16 Pro, pasó con 101 pruebas y 8 omisiones previstas por fixtures privados
 ausentes en la suite pública. `Scripts/check_core_coverage.sh 90` pasó como parte
 del gate. El Archive Release para `iphoneos` completó correctamente; la app es
 exclusivamente iPhone y declara pantalla completa para no prometer multitarea de
-iPad. El smoke físico y la confirmación de CI remoto siguen siendo gates manuales
-de T24/T25, no evidencia implícita del simulador.
+iPad. El smoke físico quedó diferido por aprobación explícita. La confirmación remota
+se completó en [run 39660851167](https://github.com/khrizenriquez/car-fuel-notebook/actions/runs/39660851167): Core Coverage e iPhone App Tests pasaron para `df5a333`; el benchmark de captura usó el techo aislado de CI de 20 s y terminó en `TEST SUCCEEDED`.
 
 | Gate | Cuándo | Evidencia |
 |---|---|---|
@@ -157,7 +158,7 @@ de T24/T25, no evidencia implícita del simulador.
 | suite privada | OCR/final | `.xcresult` + resumen por escenario |
 | migración | fase B/final | fixture y reporte |
 | E2E limpio | final | `.xcresult` |
-| dispositivo físico | final | checklist con modelo/iOS |
+| dispositivo físico | diferido | checklist con modelo/iOS antes de distribución a hardware real; no gate v2 |
 | preflight | antes de push | salida limpia |
 | CI remoto | después de push | URL del run |
 

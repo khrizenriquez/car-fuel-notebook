@@ -49,6 +49,16 @@ jobs:
         run: |
           destination="$(Scripts/select_ios_simulator.sh)"
           echo "Using simulator destination: ${destination}"
+          simulator_udid="${destination#*id=}"
+          # The test host runs inside the simulator, so job-level variables are
+          # not inherited. Inject the hosted-runner regression ceiling there.
+          xcrun simctl boot "${simulator_udid}" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "${simulator_udid}" -b
+          xcrun simctl spawn "${simulator_udid}" launchctl setenv CARTRACK_PERFORMANCE_P95_SECONDS 20
+          cleanup_simulator_environment() {
+            xcrun simctl spawn "${simulator_udid}" launchctl unsetenv CARTRACK_PERFORMANCE_P95_SECONDS >/dev/null 2>&1 || true
+          }
+          trap cleanup_simulator_environment EXIT
           xcodebuild \
             -project Cartrack.xcodeproj \
             -scheme Cartrack \

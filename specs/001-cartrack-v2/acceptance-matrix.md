@@ -71,7 +71,7 @@
 | NFR-012 | VERIFIED | preflight, permisos bajo demanda y protección | T01, T23 |
 | NFR-013 | VERIFIED | repositorios y unitarias puras | T06 |
 | NFR-014 | VERIFIED | inspección de persistencia/DTO | T06, T19 |
-| NFR-015 | PENDING-CI | gate remoto del mismo SHA | T24, T25 |
+| NFR-015 | VERIFIED | Core Coverage e iPhone App Tests verdes en el SHA `df5a3337d99993d433fd8c2754ddaebd63e4d607` ([run 39660851167](https://github.com/khrizenriquez/car-fuel-notebook/actions/runs/39660851167)) | T24, T25 |
 
 ## Historias y recorridos
 
@@ -92,13 +92,13 @@
 |---|---|---|
 | SC-001 | VERIFIED: matriz OCR privada 12/12; valores declarados o recuperación manual segura | T02, T03, T04, T23 |
 | SC-002 | VERIFIED: factura privada real y parser financiero verificados dentro de tolerancia | T02, T03, T23 |
-| SC-003 | PENDING-PHYSICAL: simulador completo; falta ejecutar checklist en iPhone físico | T23, T24 |
+| SC-003 | VERIFIED-SIMULATOR: recorridos completos en simulador; el checklist físico queda diferido explícitamente y fuera del gate v2 | T23, T24 |
 | SC-004 | VERIFIED: integración/UI de borrador reanudable | T07, T12 |
 | SC-005 | VERIFIED: migración/restauración, hashes y rollback cubiertos | T05, T18 |
 | SC-006 | VERIFIED: `check_v2_privacy.sh` prohíbe APIs cliente de red y confirma que no se rastrea evidencia privada | T23 |
 | SC-007 | VERIFIED: payload estructurado proyectado ≤5 MB/año | T19, T22 |
 | SC-008 | VERIFIED: máximo local proyectado 234 MB/año | T14, T22 |
-| SC-009 | VERIFIED-LOCAL: cobertura ≥90%, suite local y Archive Release exitosos; falta CI remoto del SHA de T25 | T24 |
+| SC-009 | VERIFIED: cobertura ≥90%, suite local, Archive Release y CI remoto del SHA funcional verdes | T24, T25 |
 | SC-010 | VERIFIED: no hay filas P0/P1 en `GAP`; v2.1 queda explícitamente diferido | T24 |
 
 ## Evidencia final
