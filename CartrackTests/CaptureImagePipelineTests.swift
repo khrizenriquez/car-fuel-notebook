@@ -100,10 +100,12 @@ final class CaptureImagePipelineTests: XCTestCase {
         XCTAssertTrue(result.quality.issues.contains(.lowResolution))
     }
 
-    /// A reproducible simulator budget, deliberately below the five-second first-prefill NFR.
-    /// The full private OCR corpus remains covered separately because it cannot be committed.
+    /// The calibrated simulator enforces the five-second first-prefill NFR by default.
+    /// Hosted CI may declare a slower, explicit regression ceiling because Vision throughput
+    /// varies with the shared runner; the full private OCR corpus is covered separately.
     @MainActor
     func testPreparationPerformanceAndMemoryStayWithinV2Budget() throws {
+        let p95LimitSeconds = try performanceP95LimitSeconds()
         let images = [
             receiptImage(size: CGSize(width: 1_600, height: 1_200)),
             clusterImage(size: CGSize(width: 1_600, height: 1_200)),
@@ -132,11 +134,11 @@ final class CaptureImagePipelineTests: XCTestCase {
         }
 
         for measurement in measurements {
-            print(String(format: "T22 capture preparation: %d image(s), p50 %.3fs, p95 %.3fs, peak +%.1f MB",
+            print(String(format: "T22 capture preparation: %d image(s), p50 %.3fs, p95 %.3fs, peak +%.1f MB (limit %.1fs)",
                          measurement.count, measurement.p50, measurement.p95,
-                         Double(measurement.peakDeltaBytes) / 1_000_000))
-            XCTAssertLessThanOrEqual(measurement.p95, 5.0,
-                                     "The p95 must meet the five-second initial prefill objective.")
+                         Double(measurement.peakDeltaBytes) / 1_000_000, p95LimitSeconds))
+            XCTAssertLessThanOrEqual(measurement.p95, p95LimitSeconds,
+                                     "The p95 exceeded the declared simulator performance limit.")
             XCTAssertLessThanOrEqual(measurement.peakDeltaBytes, 160_000_000,
                                      "Preparation must not retain an unbounded image batch in memory.")
         }
@@ -198,6 +200,17 @@ final class CaptureImagePipelineTests: XCTestCase {
         guard !sorted.isEmpty else { return 0 }
         let index = min(sorted.count - 1, max(0, Int((Double(sorted.count - 1) * quantile).rounded(.up))))
         return sorted[index]
+    }
+
+    private func performanceP95LimitSeconds() throws -> Double {
+        guard let configuredLimit = ProcessInfo.processInfo.environment["CARTRACK_PERFORMANCE_P95_SECONDS"] else {
+            return 5.0
+        }
+        guard let limit = Double(configuredLimit), limit > 0 else {
+            throw NSError(domain: "CaptureImagePipelineTests", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "CARTRACK_PERFORMANCE_P95_SECONDS must be a positive number."])
+        }
+        return limit
     }
 
     private func residentMemoryBytes() -> UInt64 {

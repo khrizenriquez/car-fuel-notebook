@@ -17,7 +17,7 @@ concurrency:
 jobs:
   core:
     name: Core Coverage
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 20
 
     steps:
@@ -32,8 +32,13 @@ jobs:
 
   ios:
     name: iPhone App Tests
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
+    env:
+      # Hosted simulators have variable Vision throughput. This is a regression
+      # ceiling, while the five-second product target is measured on the
+      # calibrated simulator documented in the v2 test plan.
+      CARTRACK_PERFORMANCE_P95_SECONDS: "20"
 
     steps:
       - name: Checkout
