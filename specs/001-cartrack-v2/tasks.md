@@ -160,21 +160,21 @@
   - Gate: E2E completo; cero tráfico y cero evidencia privada rastreada.
   - Evidencia: en el único simulador autorizado iPhone 16 Pro / iOS 18.2, la suite UI limpia pasó 17/17 y omitió únicamente el caso privado que requiere una fototeca preparada; ese recorrido de Fotos privadas pasó de forma aislada 1/1. La matriz privada de Vision/OCR pasó 12/12, incluidos tablero nocturno, diurno, recomprimido, fallback seguro y factura real. `PersistenceIntegrationTests` pasó 15/15 para exportación, validación, restauración y rollback. `check_v2_privacy.sh` pasó: no hay cliente de red ni configuración cloud v2, el manifiesto privado está ignorado y no hay fotos/PDF privados rastreados. Cada ejecución usó el mismo simulador, que quedó apagado al final.
 
-- [ ] **T24 — Cerrar candidato de lanzamiento v2**
-  - Commit: `Finalize Cartrack v2 release candidate`
-  - Alcance: actualizar matriz/checklist/README/ADRs, resolver todos los gaps P0/P1 y registrar dispositivo físico.
-  - Gate: todos los gates locales y privados, Archive Release y worktree limpio después del commit.
-  - Evidencia local: matriz sin GAP P0/P1; `verify_local.sh` pasó 101/101 pruebas ejecutadas con 8 omisiones públicas previstas; Archive Release para `iphoneos` pasó y `preflight_publish.sh --allow-dirty --require-remote` pasó. La documentación fija el UDID de un simulador existente y añade el gate de privacidad al preflight. El propietario autorizó explícitamente diferir el smoke en iPhone físico el 2026-10-11; queda fuera del gate de v2 y no se declara ejecutado. Pendiente: CI remoto verde para los commits posteriores al merge.
+- [x] **T24 — Cerrar candidato de lanzamiento v2**
+  - Commit: `Finalize Cartrack v2 release candidate` y `Inject CI performance limit into simulator` (`df5a333`).
+  - Alcance: matriz/checklist/README/ADRs actualizados; sin GAP P0/P1; validación exclusivamente con simulador según instrucción del propietario.
+  - Gate: gates locales y privados, Archive Release, preflight y worktree limpio; smoke físico diferido explícitamente y fuera del gate v2.
+  - Evidencia: matriz sin GAP P0/P1; `verify_local.sh` pasó 101 pruebas ejecutadas con 8 omisiones públicas previstas; Archive Release para `iphoneos` y `preflight_publish.sh --require-remote` pasaron. El diagnóstico remoto del `65` identificó `CaptureImagePipelineTests.testPreparationPerformanceAndMemoryStayWithinV2Budget()`: el host compartido excedía el presupuesto calibrado de 5 s. El código mantiene 5 s como límite local y CI inyecta de forma aislada 20 s dentro del runtime del simulador. En el SHA `df5a333`, [run 39660851167](https://github.com/khrizenriquez/car-fuel-notebook/actions/runs/39660851167) completó Core Coverage e iPhone App Tests en verde; el benchmark remoto registró p95 de 8.278/15.644/16.541 s (1/2/3 imágenes, límite 20 s) y la suite terminó en `TEST SUCCEEDED`.
 
-- [ ] **T25 — Publicar rama y preparar pull request**
-  - Commit: `Prepare Cartrack v2 pull request`
-  - Alcance: solo metadatos finales de evidencia si son necesarios; no cambios funcionales. Subir rama y verificar CI del mismo SHA.
-  - Gate: CI remoto verde. Crear PR hacia `main`; si no es posible, entregar URL de comparación e instrucciones manuales.
+- [x] **T25 — Publicar rama y preparar pull request**
+  - Commit: `Prepare Cartrack v2 pull request` y cierre documental de evidencia.
+  - Alcance: sólo configuración de CI de pruebas y metadatos de evidencia; sin cambios de producto. Rama publicada y PR hacia `main` preparado.
+  - Gate: CI remoto verde: [run 39660851167](https://github.com/khrizenriquez/car-fuel-notebook/actions/runs/39660851167) para `df5a333`; PR [#4](https://github.com/khrizenriquez/car-fuel-notebook/pull/4).
 
 ## Estado global
 
 - Especificación: completa.
 - Baseline v1 / fase 0: completado.
-- Implementación v2: candidato local de T24 preparado; smoke físico diferido por autorización explícita.
-- Pendiente actual: CI remoto verde para los commits posteriores al merge; los gates locales, OCR privado, Archive y privacidad están en verde.
+- Implementación v2: cerrada con evidencia de simulador; smoke físico diferido por autorización explícita.
+- Pendiente actual: ningún gate v2. La validación física permanece documentada como trabajo diferido antes de distribuir a hardware real.
 - Fuente de verdad del progreso: este archivo y el historial de `codex/cartrack-v2`.

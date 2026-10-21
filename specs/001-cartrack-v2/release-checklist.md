@@ -1,7 +1,7 @@
 # Checklist de lanzamiento — Cartrack v2
 
-**Commit candidato:** `Finalize Cartrack v2 release candidate` en `codex/cartrack-v2`
-**Fecha de evidencia local:** 2026-10-11
+**Commit funcional validado:** `df5a3337d99993d433fd8c2754ddaebd63e4d607` en `codex/ci-green-release`
+**Fecha de evidencia local/remota:** 2026-10-21
 **Simulador:** iPhone 16 Pro / iOS 18.2 / UDID `24B0C7AF-22CB-42A3-A2E3-E340C8841FED`
 **Dispositivo físico:** diferido explícitamente por el propietario el 2026-10-11. No se declara aprobado ni se usa como gate de v2.
 
@@ -68,8 +68,8 @@
 
 - [x] Cada tarea completada corresponde a un commit.
 - [x] Historial de rama revisable y sin secretos.
-- [ ] Worktree limpio después del commit candidato.
-- [ ] `Scripts/preflight_publish.sh --require-remote` pasa después del commit candidato.
-- [x] Rama `codex/cartrack-v2` publicada.
-- [ ] CI remoto verde sobre el mismo commit.
-- [ ] PR creado o instrucciones manuales entregadas.
+- [x] Worktree limpio después del commit candidato funcional.
+- [x] `Scripts/preflight_publish.sh --require-remote` pasa después del commit candidato funcional.
+- [x] Rama `codex/ci-green-release` publicada.
+- [x] CI remoto verde sobre el mismo SHA funcional: [run 39660851167](https://github.com/khrizenriquez/car-fuel-notebook/actions/runs/39660851167).
+- [x] PR creado: [#4](https://github.com/khrizenriquez/car-fuel-notebook/pull/4).
