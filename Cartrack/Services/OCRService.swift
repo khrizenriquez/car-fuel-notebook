@@ -645,9 +645,12 @@ final class OCRService: @unchecked Sendable {
         // An unlabelled four-digit fragment is weak evidence by itself: it
         // can be a speedometer tick or a corrupted old trip. Require it to
         // recur before inferring an odometer solely from that fragment.
-        let directExactTripCandidates = tripCandidates.filter {
-            $0.edits == 0 && $0.support >= 2
-        }
+        let directExactTripCandidates = groupedDigitCandidates(
+            rawCandidates.directTrip.flatMap {
+                expandedDigitCandidates(rawDigits: $0, decimalPlaces: 1)
+            }
+        )
+        .filter { $0.edits == 0 }
         let recoveryExactTripCandidates = recoveryTripCandidates.filter { $0.edits == 0 }
         guard !odometerCandidates.contains(where: { $0.edits == 0 }),
               let exactTrip = (directExactTripCandidates.isEmpty
@@ -689,17 +692,24 @@ final class OCRService: @unchecked Sendable {
 
     private func clusterDigitCandidates(
         in recognizedText: String
-    ) -> (odometer: [String], trip: [String]) {
+    ) -> (odometer: [String], trip: [String], directTrip: [String]) {
         // Repeated values from independent Vision passes are meaningful when a
         // reading advances only a few miles. Preserve their frequency so the
         // contextual resolver can distinguish them from a single bad read.
         var odometer: [String] = []
         var trip: [String] = []
+        var directTrip: [String] = []
         let labelPattern = #"miles?|mils?|millas?|mileg|miteg|wiles?"#
 
         for line in recognizedText.components(separatedBy: .newlines) {
             if line.lowercased().hasPrefix("triprecovery ") {
                 continue
+            }
+            for token in line.components(separatedBy: .whitespaces).filter({ !$0.isEmpty }) {
+                let compact = token.replacingOccurrences(of: ".", with: "")
+                if compact.count == 4, compact.allSatisfy(\.isNumber) {
+                    directTrip.append(compact)
+                }
             }
             if let labelRange = line.range(
                 of: labelPattern,
@@ -732,7 +742,7 @@ final class OCRService: @unchecked Sendable {
             }
         }
 
-        return (odometer, trip)
+        return (odometer, trip, directTrip)
     }
 
     private func normalizedClusterDigits(_ text: String) -> String {
