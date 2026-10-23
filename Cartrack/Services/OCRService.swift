@@ -599,7 +599,6 @@ final class OCRService: @unchecked Sendable {
             $0.value >= previous.tripMiles
                 && $0.value - previous.tripMiles <= 50
         }
-
         var best: (reading: InstrumentClusterReading, score: Double)?
         for odometer in odometerCandidates {
             for trip in tripCandidates {
@@ -643,7 +642,12 @@ final class OCRService: @unchecked Sendable {
             return best.reading
         }
 
-        let directExactTripCandidates = tripCandidates.filter { $0.edits == 0 }
+        // An unlabelled four-digit fragment is weak evidence by itself: it
+        // can be a speedometer tick or a corrupted old trip. Require it to
+        // recur before inferring an odometer solely from that fragment.
+        let directExactTripCandidates = tripCandidates.filter {
+            $0.edits == 0 && $0.support >= 2
+        }
         let recoveryExactTripCandidates = recoveryTripCandidates.filter { $0.edits == 0 }
         guard !odometerCandidates.contains(where: { $0.edits == 0 }),
               let exactTrip = (directExactTripCandidates.isEmpty

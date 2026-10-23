@@ -456,6 +456,29 @@ final class OCRServiceTests: XCTestCase {
         XCTAssertNil(result.tripMiles)
     }
 
+    func testAnalyzeSnapshotDoesNotInferFromSingleUnlabelledTripFragment() async {
+        let image = makeImage(color: .systemOrange)
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(image): "08 T49 mles\nSB13\ntripRecovery 0879\nMPH",
+            ]),
+            clusterReader: StubClusterReader(readings: [:])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: image,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax,
+            previousClusterReading: InstrumentClusterReading(
+                odometerMiles: 108_728,
+                tripMiles: 566.6
+            )
+        )
+
+        XCTAssertNil(result.odometerMiles)
+        XCTAssertNil(result.tripMiles)
+    }
+
     func testAnalyzeSnapshotRejectsContextualPairThatRequiresTooManyCorrections() async {
         let image = makeImage(color: .systemTeal)
         let noisyText = (["108888 miles 3000"] + (0..<20).map { "MPH noise \($0)" })
