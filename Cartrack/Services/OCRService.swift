@@ -599,7 +599,6 @@ final class OCRService: @unchecked Sendable {
             $0.value >= previous.tripMiles
                 && $0.value - previous.tripMiles <= 50
         }
-
         var best: (reading: InstrumentClusterReading, score: Double)?
         for odometer in odometerCandidates {
             for trip in tripCandidates {
@@ -643,7 +642,12 @@ final class OCRService: @unchecked Sendable {
             return best.reading
         }
 
-        let directExactTripCandidates = tripCandidates.filter { $0.edits == 0 }
+        // An unlabelled four-digit fragment is weak evidence by itself: it
+        // can be a speedometer tick or a corrupted old trip. Require it to
+        // recur before inferring an odometer solely from that fragment.
+        let directExactTripCandidates = tripCandidates.filter {
+            $0.edits == 0 && $0.support >= 2
+        }
         let recoveryExactTripCandidates = recoveryTripCandidates.filter { $0.edits == 0 }
         guard !odometerCandidates.contains(where: { $0.edits == 0 }),
               let exactTrip = (directExactTripCandidates.isEmpty
@@ -685,9 +689,12 @@ final class OCRService: @unchecked Sendable {
 
     private func clusterDigitCandidates(
         in recognizedText: String
-    ) -> (odometer: Set<String>, trip: Set<String>) {
-        var odometer: Set<String> = []
-        var trip: Set<String> = []
+    ) -> (odometer: [String], trip: [String]) {
+        // Repeated values from independent Vision passes are meaningful when a
+        // reading advances only a few miles. Preserve their frequency so the
+        // contextual resolver can distinguish them from a single bad read.
+        var odometer: [String] = []
+        var trip: [String] = []
         let labelPattern = #"miles?|mils?|millas?|mileg|miteg|wiles?"#
 
         for line in recognizedText.components(separatedBy: .newlines) {
@@ -701,10 +708,10 @@ final class OCRService: @unchecked Sendable {
                 let prefix = normalizedClusterDigits(String(line[..<labelRange.lowerBound]))
                 let suffix = normalizedClusterDigits(String(line[labelRange.upperBound...]))
                 if let candidate = digitToken(in: prefix, allowedCounts: 5...6) {
-                    odometer.insert(normalizedOdometerDigits(candidate))
+                    odometer.append(normalizedOdometerDigits(candidate))
                 }
                 if let candidate = tripToken(in: suffix) {
-                    trip.insert(candidate)
+                    trip.append(candidate)
                 }
             }
 
@@ -713,14 +720,14 @@ final class OCRService: @unchecked Sendable {
                 let compact = token.replacingOccurrences(of: ".", with: "")
                 let isSegmentToken = compact.allSatisfy { $0.isNumber || $0 == "/" }
                 if compact.count == 4, isSegmentToken {
-                    trip.insert(compact)
+                    trip.append(compact)
                 } else if compact.count == 5 || compact.count == 6,
                           isSegmentToken {
-                    odometer.insert(normalizedOdometerDigits(compact))
+                    odometer.append(normalizedOdometerDigits(compact))
                 }
                 if token.contains("."),
                    let decimalDigits = tripToken(in: token) {
-                    trip.insert(decimalDigits)
+                    trip.append(decimalDigits)
                 }
             }
         }

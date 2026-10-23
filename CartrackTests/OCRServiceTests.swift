@@ -372,6 +372,44 @@ final class OCRServiceTests: XCTestCase {
         XCTAssertEqual(result.tripMiles, 175.4)
     }
 
+    func testAnalyzeSnapshotAcceptsRepeatedSeparatedVisionPairOverConflictingDedicatedReading() async {
+        let image = makeImage(color: .systemBrown)
+        let recognizedText = [
+            "odometer 108337 miles",
+            "trip 135.4",
+            "108337 milos",
+            "175.4",
+            "108337 milas",
+            "175.4",
+            "108337 milos",
+            "175.4",
+        ].joined(separator: "\n")
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(image): recognizedText,
+            ]),
+            clusterReader: StubClusterReader(readings: [
+                ObjectIdentifier(image): InstrumentClusterReading(
+                    odometerMiles: 108_337,
+                    tripMiles: 135.4
+                ),
+            ])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: image,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax,
+            previousClusterReading: InstrumentClusterReading(
+                odometerMiles: 108_335,
+                tripMiles: 173.7
+            )
+        )
+
+        XCTAssertEqual(result.odometerMiles, 108_337)
+        XCTAssertEqual(result.tripMiles, 175.4)
+    }
+
     func testAnalyzeSnapshotDoesNotInferOdometerFromDistantTripOnlyEvidence() async {
         let image = makeImage(color: .systemPurple)
         let service = OCRService(
@@ -400,6 +438,29 @@ final class OCRServiceTests: XCTestCase {
         let service = OCRService(
             recognizer: StubTextRecognizer(texts: [
                 ObjectIdentifier(image): "08 T49 mles\ntripRecovery SB13\nMPH",
+            ]),
+            clusterReader: StubClusterReader(readings: [:])
+        )
+
+        let result = await service.analyzeSnapshot(
+            odometerImage: image,
+            fuelLevelImage: nil,
+            fuelScaleMax: FuelLevelScale.defaultMax,
+            previousClusterReading: InstrumentClusterReading(
+                odometerMiles: 108_728,
+                tripMiles: 566.6
+            )
+        )
+
+        XCTAssertNil(result.odometerMiles)
+        XCTAssertNil(result.tripMiles)
+    }
+
+    func testAnalyzeSnapshotDoesNotInferFromSingleUnlabelledTripFragment() async {
+        let image = makeImage(color: .systemOrange)
+        let service = OCRService(
+            recognizer: StubTextRecognizer(texts: [
+                ObjectIdentifier(image): "08 T49 mles\nSB13\ntripRecovery 0879\nMPH",
             ]),
             clusterReader: StubClusterReader(readings: [:])
         )
