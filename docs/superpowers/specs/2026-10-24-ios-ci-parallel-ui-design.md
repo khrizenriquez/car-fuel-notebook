@@ -49,10 +49,13 @@ environment:
 
 1. Run `CartrackTests` serially, including the image-pipeline performance test.
    Its p95 and memory measurements must not contend with other test processes.
-2. Run `CartrackUITests` with Xcode parallel testing enabled and a maximum of
-   three concurrent simulator destinations. XCTest can then distribute the
-   three UI classes independently while preserving the existing test target,
-   app-under-test configuration, and code-coverage behavior.
+2. Run the three UI classes as three concurrent `xcodebuild` shards, each on a
+   distinct compatible simulator: `CartrackCaptureUITests`,
+   `CartrackDataUITests`, and `CartrackPresentationUITests`. This explicitly
+   assigns each test exactly once; passing multiple destinations to one UI
+   invocation would instead duplicate the full bundle on every destination.
+   All shards preserve the existing test target and app-under-test
+   configuration.
 
 The implementation may use `build-for-testing` followed by
 `test-without-building` if that is the most reliable way to avoid rebuilding
