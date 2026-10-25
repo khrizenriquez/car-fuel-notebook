@@ -22,9 +22,10 @@ launches and independent end-to-end flows.
 
 ## Chosen approach
 
-Keep a single GitHub Actions job and execute the existing UI coverage on up to
-three simulator destinations concurrently. This avoids multiplying hosted-runner
-jobs while using the capacity of the runner already allocated for the job.
+Run each UI shard in its own GitHub Actions job and allocate only one simulator
+to each runner. This uses independent runner capacity, avoids CoreSimulator
+startup/migration contention, and keeps the selected simulator alive for the
+entire `xcodebuild` invocation.
 
 Split `CartrackSmokeUITests` into three independent XCTestCase classes with no
 shared mutable state:
@@ -44,24 +45,21 @@ as it is today.
 
 ## Execution model
 
-The iOS CI job will have two phases after selecting and booting its simulator
-environment:
+The workflow has four independent macOS jobs followed by an aggregation check:
 
-1. Run `CartrackTests` serially, including the image-pipeline performance test.
+1. Run `CartrackTests` serially in the app/integration job, including the image-pipeline performance test.
    Its p95 and memory measurements must not contend with other test processes.
-2. Run the three UI classes as three concurrent `xcodebuild` shards, each on a
-   distinct compatible simulator: `CartrackCaptureUITests`,
-   `CartrackDataUITests`, and `CartrackPresentationUITests`. This explicitly
-   assigns each test exactly once; passing multiple destinations to one UI
-   invocation would instead duplicate the full bundle on every destination.
-   All shards preserve the existing test target and app-under-test
-   configuration.
+2. Run `CartrackCaptureUITests`, `CartrackDataUITests`, and
+   `CartrackPresentationUITests` as a three-entry job matrix. Each entry boots
+   exactly one compatible simulator and builds/tests its shard with
+   `CODE_SIGNING_ALLOWED=NO`.
+3. A short `iPhone App Tests` aggregation job succeeds only when the app job
+   and every matrix entry succeed. It preserves the established required-check
+   name while reporting failures from every shard.
 
-The implementation may use `build-for-testing` followed by
-`test-without-building` if that is the most reliable way to avoid rebuilding
-the app between phases. It must use the same derived-data/test artifacts for
-both invocations and preserve `CODE_SIGNING_ALLOWED=NO`, the simulator-side
-`CARTRACK_PERFORMANCE_P95_SECONDS=20`, and the existing cleanup trap.
+This explicitly assigns each test once. It must not boot multiple freshly
+created simulators on the same runner or use background `xcodebuild` processes
+that compete for that runner's CoreSimulator service.
 
 ## Quality and reliability requirements
 
@@ -70,10 +68,10 @@ both invocations and preserve `CODE_SIGNING_ALLOWED=NO`, the simulator-side
 - A fresh app launch and deterministic seed/manual setup remain mandatory per
   UI test. Test names and accessibility assertions are retained.
 - The performance test is isolated from concurrent UI work.
-- The workflow must fail if either the app/integration phase or any UI shard
+- The workflow must fail if either the app/integration job or any UI shard
   fails. Test result output must identify the failing class and test name.
-- Simulator destination count is capped at three to prevent unbounded resource
-  use and keep the workflow within its 45-minute timeout.
+- Each macOS job uses one simulator and a 25-minute timeout. The matrix is
+  fixed at three entries, preventing unbounded resource use.
 - The existing private image matrix remains a local explicit command and is
   not uploaded or exposed to CI.
 
@@ -84,10 +82,12 @@ both invocations and preserve `CODE_SIGNING_ALLOWED=NO`, the simulator-side
    including all 18 public UI tests and their intentional private-test skip.
 3. A GitHub Actions run on `main` passes both `Core Coverage` and `iPhone App
    Tests`.
-4. The remote iPhone App Tests job is at most 14 minutes, measured from the
-   start to completion of that job. If hosted-runner variability prevents that
-   result, the implementation records the measured split timings and retains
-   the best stable configuration without reducing coverage.
+4. The remote CI wall-clock time from the first iOS job starting until the
+   `iPhone App Tests` aggregation check completes is at most 14 minutes when
+   GitHub Actions provides concurrent macOS capacity. If runner queueing or
+   hosted-runner variability prevents that result, the implementation records
+   the measured split timings and retains the reliable matrix without reducing
+   coverage.
 5. The performance test remains below its simulator p95 limit and 160 MB
    memory ceiling.
 
