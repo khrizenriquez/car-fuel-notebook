@@ -539,18 +539,38 @@ extension CartrackUITestCase {
     }
 
     func type(_ text: String, into field: XCUIElement) {
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        field.tap()
+        focusForTyping(field)
         field.typeText(text)
     }
 
     func clearAndType(_ text: String, into field: XCUIElement) {
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        field.tap()
+        focusForTyping(field)
         if let value = field.value as? String {
             field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))
         }
         field.typeText(text)
+    }
+
+    private func focusForTyping(_ field: XCUIElement) {
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+
+        if !waitForKeyboardFocus(in: field, timeout: 2) {
+            // On a cold hosted simulator, the first tap can finish before the
+            // SwiftUI text field becomes first responder. A second direct tap
+            // is deterministic and avoids dispatching typeText without focus.
+            field.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+
+        XCTAssertTrue(waitForKeyboardFocus(in: field, timeout: 5), "Text field did not receive keyboard focus: \(field.identifier)")
+    }
+
+    private func waitForKeyboardFocus(in field: XCUIElement, timeout: TimeInterval) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hasKeyboardFocus == true"),
+            object: field
+        )
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 
     func selectVehicle(_ vehicleName: String, in app: XCUIApplication, pickerIdentifier: String) {

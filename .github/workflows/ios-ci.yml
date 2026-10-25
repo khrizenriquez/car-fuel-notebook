@@ -30,10 +30,10 @@ jobs:
       - name: Run strict core coverage gate
         run: Scripts/check_core_coverage.sh 90
 
-  ios:
-    name: iPhone App Tests
+  ios-app:
+    name: iPhone App & Integration Tests
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -45,7 +45,7 @@ jobs:
       - name: Show available iOS simulators
         run: xcrun simctl list devices available
 
-      - name: Build iOS test bundle once
+      - name: Run app and integration tests
         run: |
           destination="$(Scripts/select_ios_simulator.sh)"
           echo "Using simulator destination: ${destination}"
@@ -63,75 +63,66 @@ jobs:
             -project Cartrack.xcodeproj \
             -scheme Cartrack \
             -destination "${destination}" \
+            -parallel-testing-enabled NO \
+            -only-testing:CartrackTests \
             CODE_SIGNING_ALLOWED=NO \
-            build-for-testing
+            test
 
-      - name: Run app and integration tests
+  ios-ui:
+    name: iPhone UI Tests (${{ matrix.name }})
+    runs-on: macos-26
+    timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Capture
+            test_class: CartrackCaptureUITests
+          - name: Data
+            test_class: CartrackDataUITests
+          - name: Presentation
+            test_class: CartrackPresentationUITests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Show available iOS simulators
+        run: xcrun simctl list devices available
+
+      # A single simulator per runner avoids CoreSimulator migration contention
+      # and preserves the destination for the entire xcodebuild invocation.
+      - name: Run UI test shard
         run: |
           destination="$(Scripts/select_ios_simulator.sh)"
           echo "Using simulator destination: ${destination}"
           simulator_udid="${destination#*id=}"
           xcrun simctl boot "${simulator_udid}" >/dev/null 2>&1 || true
           xcrun simctl bootstatus "${simulator_udid}" -b
-          xcrun simctl spawn "${simulator_udid}" launchctl setenv CARTRACK_PERFORMANCE_P95_SECONDS 20
-          cleanup_simulator_environment() {
-            xcrun simctl spawn "${simulator_udid}" launchctl unsetenv CARTRACK_PERFORMANCE_P95_SECONDS >/dev/null 2>&1 || true
-          }
-          trap cleanup_simulator_environment EXIT
           xcodebuild \
             -project Cartrack.xcodeproj \
             -scheme Cartrack \
             -destination "${destination}" \
             -parallel-testing-enabled NO \
-            -only-testing:CartrackTests \
+            -only-testing:CartrackUITests/${{ matrix.test_class }} \
             CODE_SIGNING_ALLOWED=NO \
-            test-without-building
+            test
 
-      - name: Run UI tests on three simulators
+  # Retains the established required-check name while making it reflect every
+  # app and UI shard result.
+  ios-summary:
+    name: iPhone App Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [ios-app, ios-ui]
+    if: ${{ always() }}
+
+    steps:
+      - name: Verify every iOS test job passed
         run: |
-          destinations=()
-          while IFS= read -r destination; do
-            destinations+=("${destination}")
-          done < <(Scripts/select_ios_simulator.sh 3)
-
-          ui_test_classes=(
-            CartrackCaptureUITests
-            CartrackDataUITests
-            CartrackPresentationUITests
-          )
-          test_pids=()
-          result_directory="${RUNNER_TEMP}/cartrack-ui-results"
-          mkdir -p "${result_directory}"
-
-          for index in "${!ui_test_classes[@]}"; do
-            destination="${destinations[$index]}"
-            simulator_udid="${destination#*id=}"
-            echo "Booting ${simulator_udid} for ${ui_test_classes[$index]}"
-            xcrun simctl boot "${simulator_udid}" >/dev/null 2>&1 || true
-          done
-
-          for index in "${!ui_test_classes[@]}"; do
-            destination="${destinations[$index]}"
-            simulator_udid="${destination#*id=}"
-            xcrun simctl bootstatus "${simulator_udid}" -b
-            echo "Running ${ui_test_classes[$index]} on ${destination}"
-            xcodebuild \
-              -project Cartrack.xcodeproj \
-              -scheme Cartrack \
-              -destination "${destination}" \
-              -parallel-testing-enabled NO \
-              -only-testing:CartrackUITests/${ui_test_classes[$index]} \
-              -resultBundlePath "${result_directory}/${ui_test_classes[$index]}.xcresult" \
-              CODE_SIGNING_ALLOWED=NO \
-              test-without-building &
-            test_pids+=("$!")
-          done
-
-          failed=0
-          for index in "${!test_pids[@]}"; do
-            if ! wait "${test_pids[$index]}"; then
-              echo "${ui_test_classes[$index]} failed" >&2
-              failed=1
-            fi
-          done
-          exit "${failed}"
+          test "${{ needs.ios-app.result }}" = "success"
+          test "${{ needs.ios-ui.result }}" = "success"
